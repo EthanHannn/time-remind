@@ -170,14 +170,14 @@ onMounted(async () => {
 
   unlistenShow = await appWindow.listen<NotificationPayload>('notification:show', (event) => {
     const data = event.payload
-    if (!data?.reminder_id || !data?.name || !data?.message) {
+    if (!data?.reminder_id || !data?.name) {
       return
     }
 
     stopBreakCountdown()
     breakMode.value = false
     name.value = data.name
-    message.value = data.message
+    message.value = data.message || ''
     reminderId.value = data.reminder_id
     reminderType.value = data.reminder_type || 'custom'
     actionEnabled.value = Boolean(data.action_enabled)

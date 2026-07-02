@@ -228,6 +228,14 @@ fn validate_interval_minutes(minutes: i64, field_name: &str) -> Result<(), Strin
     Ok(())
 }
 
+fn validate_required_text(value: &str, field_name: &str) -> Result<(), String> {
+    if value.trim().is_empty() {
+        return Err(format!("{field_name}不能为空"));
+    }
+
+    Ok(())
+}
+
 fn validate_break_duration_minutes(minutes: i64) -> Result<(), String> {
     if !(MIN_BREAK_DURATION_MINUTES..=MAX_BREAK_DURATION_MINUTES).contains(&minutes) {
         return Err(format!(
@@ -510,6 +518,9 @@ fn validate_import_data(data: &ExportData) -> Result<(), String> {
         if reminder.name.trim().is_empty() {
             return Err("备份文件中存在名称为空的提醒".to_string());
         }
+        if reminder.message.trim().is_empty() {
+            return Err(format!("备份文件中存在内容为空的提醒: {}", reminder.id));
+        }
         validate_interval_minutes(reminder.interval_minutes, "提醒间隔")?;
         let _ = normalize_break_settings(
             &reminder.reminder_type,
@@ -663,6 +674,8 @@ pub fn create_reminder(
     request: CreateReminderRequest,
 ) -> Result<Reminder, String> {
     validate_interval_minutes(request.interval_minutes, "提醒间隔")?;
+    validate_required_text(&request.name, "提醒名称")?;
+    validate_required_text(&request.message, "提醒内容")?;
     let requested_break_duration = request.break_duration_minutes.unwrap_or_else(|| {
         if request.reminder_type == "rest" {
             5
@@ -743,7 +756,9 @@ pub fn create_reminder(
 /// 更新提醒
 #[tauri::command]
 pub fn update_reminder(
+    app: AppHandle,
     db: State<'_, Database>,
+    scheduler: State<'_, Scheduler>,
     id: String,
     request: UpdateReminderRequest,
 ) -> Result<Reminder, String> {
@@ -759,6 +774,8 @@ pub fn update_reminder(
     let reminder_type = request.reminder_type.unwrap_or(current.reminder_type);
     let icon = request.icon.unwrap_or(current.icon);
     let message = request.message.unwrap_or(current.message);
+    validate_required_text(&name, "提醒名称")?;
+    validate_required_text(&message, "提醒内容")?;
     let interval_minutes = request.interval_minutes.unwrap_or(current.interval_minutes);
     let requested_break_duration = request
         .break_duration_minutes
@@ -807,6 +824,14 @@ pub fn update_reminder(
         "UPDATE reminders SET name = ?1, reminder_type = ?2, icon = ?3, message = ?4, interval_minutes = ?5, break_duration_minutes = ?6, break_notification_enabled = ?7, action_enabled = ?8, action_title = ?9, action_message = ?10, action_duration_seconds = ?11, action_completion_mode = ?12, enabled = ?13, next_trigger = ?14, updated_at = ?15 WHERE id = ?16",
         (&name, &reminder_type, &icon, &message, interval_minutes, break_duration_minutes, break_notification_enabled as i32, action_enabled as i32, &action_title, &action_message, action_duration_seconds, &action_completion_mode, enabled as i32, &next_trigger, &now, &id),
     ).map_err(|e| e.to_string())?;
+    drop(conn);
+
+    if !enabled {
+        let removed_current = scheduler.release_notification(&id);
+        if removed_current {
+            hide_notification_window(&app);
+        }
+    }
 
     Ok(Reminder {
         id,
@@ -831,18 +856,35 @@ pub fn update_reminder(
 
 /// 删除提醒
 #[tauri::command]
-pub fn delete_reminder(db: State<'_, Database>, id: String) -> Result<(), String> {
+pub fn delete_reminder(
+    app: AppHandle,
+    db: State<'_, Database>,
+    scheduler: State<'_, Scheduler>,
+    id: String,
+) -> Result<(), String> {
     let conn = db.conn.lock().unwrap();
     conn.execute("DELETE FROM reminder_logs WHERE reminder_id = ?1", [&id])
         .map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM reminders WHERE id = ?1", [&id])
         .map_err(|e| e.to_string())?;
+    drop(conn);
+
+    let removed_current = scheduler.release_notification(&id);
+    if removed_current {
+        hide_notification_window(&app);
+    }
+
     Ok(())
 }
 
 /// 切换提醒启用/禁用
 #[tauri::command]
-pub fn toggle_reminder(db: State<'_, Database>, id: String) -> Result<Reminder, String> {
+pub fn toggle_reminder(
+    app: AppHandle,
+    db: State<'_, Database>,
+    scheduler: State<'_, Scheduler>,
+    id: String,
+) -> Result<Reminder, String> {
     let conn = db.conn.lock().unwrap();
     let now = now_utc_string();
     let current = get_reminder_by_id(&conn, &id)?;
@@ -859,6 +901,14 @@ pub fn toggle_reminder(db: State<'_, Database>, id: String) -> Result<Reminder, 
         (enabled as i32, &next_trigger, &now, &id),
     )
     .map_err(|e| e.to_string())?;
+    drop(conn);
+
+    if !enabled {
+        let removed_current = scheduler.release_notification(&id);
+        if removed_current {
+            hide_notification_window(&app);
+        }
+    }
 
     Ok(Reminder {
         id: current.id,
@@ -1047,6 +1097,12 @@ pub fn release_notification(
 
     scheduler.release_notification(&reminder_id);
     Ok(())
+}
+
+fn hide_notification_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("notification") {
+        let _ = window.hide();
+    }
 }
 
 /// 保存设置
@@ -1462,6 +1518,9 @@ pub fn import_data(
     repair_imported_reminder_schedule(&conn)?;
 
     scheduler.clear_all_active();
+    if all_reminders_paused(&conn) {
+        crate::set_tray_visual_state(&app, crate::TrayVisualState::Muted);
+    }
     app.emit("reminders:changed", ())
         .map_err(|e| e.to_string())?;
 
@@ -1611,6 +1670,40 @@ mod tests {
             validate_backup_content_size(&content).expect_err("oversized content should fail");
 
         assert!(error.contains("2MB"));
+    }
+
+    #[test]
+    fn rejects_import_with_empty_reminder_message() {
+        let reminder = Reminder {
+            id: "broken".to_string(),
+            name: "Broken reminder".to_string(),
+            reminder_type: "custom".to_string(),
+            icon: "custom".to_string(),
+            message: " ".to_string(),
+            interval_minutes: 30,
+            break_duration_minutes: 0,
+            break_notification_enabled: false,
+            action_enabled: false,
+            action_title: String::new(),
+            action_message: String::new(),
+            action_duration_seconds: 0,
+            action_completion_mode: "auto".to_string(),
+            enabled: true,
+            next_trigger: None,
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+        let data = ExportData {
+            version: "1.2".to_string(),
+            exported_at: String::new(),
+            reminders: vec![reminder],
+            logs: Vec::new(),
+            settings: HashMap::new(),
+        };
+
+        let error = validate_import_data(&data).expect_err("empty message should fail");
+
+        assert!(error.contains("内容为空"));
     }
 
     #[test]

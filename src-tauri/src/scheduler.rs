@@ -322,7 +322,7 @@ impl Scheduler {
         Ok(())
     }
 
-    pub fn release_notification(&self, reminder_id: &str) {
+    pub fn release_notification(&self, reminder_id: &str) -> bool {
         self.clear_active(reminder_id);
 
         let removed_current = {
@@ -343,6 +343,7 @@ impl Scheduler {
         }
 
         self.schedule_next_notification();
+        removed_current
     }
 
     fn schedule_next_notification(&self) {
