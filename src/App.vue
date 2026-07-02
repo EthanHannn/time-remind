@@ -193,14 +193,14 @@ async function handleAdd(data: CreateReminderRequest) {
 
     <header class="app-header">
       <div class="title-block">
-        <div class="status-orb" />
+        <div class="status-indicator" />
         <div class="title-copy">
-          <p class="app-eyebrow">
-            {{ t('common.appName') }}
-          </p>
           <h1 class="app-title">
             {{ t('app.runningCount', { count: enabledCount }) }}
           </h1>
+          <p class="app-subtitle">
+            {{ t('app.keepRhythm') }}
+          </p>
         </div>
       </div>
 
@@ -302,51 +302,49 @@ async function handleAdd(data: CreateReminderRequest) {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
-  padding: 12px 20px 14px;
+  padding: 14px 20px 16px;
 }
 
 .title-block {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   min-width: 0;
 }
 
-.status-orb {
-  width: 38px;
-  height: 38px;
+.status-indicator {
+  position: relative;
+  width: 12px;
+  height: 32px;
   flex-shrink: 0;
-  border-radius: 14px;
-  border: 1px solid rgba(47, 159, 216, 0.2);
+  border-radius: 999px;
   background:
-    radial-gradient(circle at 34% 32%, rgba(255, 255, 255, 0.94), transparent 28%),
-    linear-gradient(135deg, rgba(47, 159, 216, 0.92), rgba(246, 179, 91, 0.76));
+    linear-gradient(180deg, rgba(47, 159, 216, 0.96), rgba(246, 179, 91, 0.82));
   box-shadow:
-    0 14px 28px rgba(47, 159, 216, 0.16),
+    0 10px 20px rgba(47, 159, 216, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.52);
 }
 
-[data-theme='dark'] .status-orb {
-  border-color: rgba(47, 159, 216, 0.24);
-  background:
-    radial-gradient(circle at 34% 32%, rgba(255, 255, 255, 0.22), transparent 28%),
-    linear-gradient(135deg, rgba(47, 159, 216, 0.8), rgba(246, 179, 91, 0.52));
+.status-indicator::after {
+  position: absolute;
+  top: 5px;
+  left: 3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  content: '';
+}
+
+[data-theme='dark'] .status-indicator {
+  background: linear-gradient(180deg, rgba(47, 159, 216, 0.86), rgba(246, 179, 91, 0.62));
   box-shadow:
-    0 14px 28px rgba(2, 6, 23, 0.28),
+    0 10px 20px rgba(2, 6, 23, 0.26),
     inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .title-copy {
   min-width: 0;
-}
-
-.app-eyebrow {
-  margin: 0 0 3px;
-  color: var(--text-tertiary);
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1;
-  text-transform: uppercase;
 }
 
 .app-title {
@@ -356,6 +354,16 @@ async function handleAdd(data: CreateReminderRequest) {
   font-size: 18px;
   font-weight: 700;
   color: var(--text-primary);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.app-subtitle {
+  margin: 3px 0 0;
+  overflow: hidden;
+  color: var(--text-secondary);
+  font-size: 12px;
   line-height: 1.2;
   text-overflow: ellipsis;
   white-space: nowrap;

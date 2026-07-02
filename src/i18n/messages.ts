@@ -41,6 +41,7 @@ const enUS = {
   },
   app: {
     runningCount: '{count} reminders running',
+    keepRhythm: 'Keep your rhythm and rest on time',
     stats: 'Stats',
     settings: 'Settings',
     emptyAlt: 'No reminders',
@@ -205,6 +206,7 @@ export const messages = {
     },
     app: {
       runningCount: '{count} 项提醒正在运行',
+      keepRhythm: '保持节奏，按时休息',
       stats: '统计',
       settings: '设置',
       emptyAlt: '暂无提醒',
