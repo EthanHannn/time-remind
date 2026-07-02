@@ -5,12 +5,14 @@ import { listen } from '@tauri-apps/api/event'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { createReminder, deleteReminder, getReminders, toggleReminder } from './api/reminder'
 import AddReminderForm from './components/AddReminderForm.vue'
+import AppResizeHandles from './components/AppResizeHandles.vue'
+import AppTitleBar from './components/AppTitleBar.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
 import ReminderCard from './components/ReminderCard.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import StatsPage from './components/StatsPage.vue'
 import { loadLanguage, useI18n } from './i18n'
-import { appIconMain, emptyReminders } from './utils/reminderVisuals'
+import { emptyReminders } from './utils/reminderVisuals'
 
 const reminders = ref<Reminder[]>([])
 const countdowns = ref<Record<string, number>>({})
@@ -186,16 +188,19 @@ async function handleAdd(data: CreateReminderRequest) {
 
 <template>
   <div class="app-shell card-base border-none rounded-none h-screen flex flex-col overflow-hidden">
+    <AppTitleBar />
+    <AppResizeHandles />
+
     <header class="app-header">
       <div class="title-block">
-        <img :src="appIconMain" alt="Time Remind" class="app-logo">
+        <div class="status-orb" />
         <div class="title-copy">
-          <h1 class="app-title">
-            Time Remind
-          </h1>
-          <p class="app-subtitle">
-            {{ t('app.runningCount', { count: enabledCount }) }}
+          <p class="app-eyebrow">
+            {{ t('common.appName') }}
           </p>
+          <h1 class="app-title">
+            {{ t('app.runningCount', { count: enabledCount }) }}
+          </h1>
         </div>
       </div>
 
@@ -278,6 +283,7 @@ async function handleAdd(data: CreateReminderRequest) {
 
 <style>
 .app-shell {
+  position: relative;
   background:
     radial-gradient(circle at top left, rgba(47, 159, 216, 0.12), transparent 34%),
     radial-gradient(circle at top right, rgba(246, 179, 91, 0.1), transparent 28%),
@@ -293,41 +299,66 @@ async function handleAdd(data: CreateReminderRequest) {
 
 .app-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 20px 20px 12px;
+  gap: 14px;
+  padding: 12px 20px 14px;
 }
 
 .title-block {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
-.app-logo {
-  width: 42px;
-  height: 42px;
+.status-orb {
+  width: 38px;
+  height: 38px;
   flex-shrink: 0;
+  border-radius: 14px;
+  border: 1px solid rgba(47, 159, 216, 0.2);
+  background:
+    radial-gradient(circle at 34% 32%, rgba(255, 255, 255, 0.94), transparent 28%),
+    linear-gradient(135deg, rgba(47, 159, 216, 0.92), rgba(246, 179, 91, 0.76));
+  box-shadow:
+    0 14px 28px rgba(47, 159, 216, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.52);
+}
+
+[data-theme='dark'] .status-orb {
+  border-color: rgba(47, 159, 216, 0.24);
+  background:
+    radial-gradient(circle at 34% 32%, rgba(255, 255, 255, 0.22), transparent 28%),
+    linear-gradient(135deg, rgba(47, 159, 216, 0.8), rgba(246, 179, 91, 0.52));
+  box-shadow:
+    0 14px 28px rgba(2, 6, 23, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .title-copy {
   min-width: 0;
 }
 
-.app-title {
-  margin: 0;
-  font-size: 22px;
+.app-eyebrow {
+  margin: 0 0 3px;
+  color: var(--text-tertiary);
+  font-size: 11px;
   font-weight: 700;
-  color: var(--text-primary);
-  letter-spacing: -0.02em;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
-.app-subtitle {
-  margin: 4px 0 0;
-  font-size: 13px;
-  color: var(--text-secondary);
+.app-title {
+  margin: 0;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .header-actions {
