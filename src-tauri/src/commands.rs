@@ -1107,13 +1107,24 @@ fn hide_notification_window(app: &AppHandle) {
 
 /// 保存设置
 #[tauri::command]
-pub fn save_setting(db: State<'_, Database>, key: String, value: String) -> Result<(), String> {
+pub fn save_setting(
+    app: AppHandle,
+    db: State<'_, Database>,
+    key: String,
+    value: String,
+) -> Result<(), String> {
     let conn = db.conn.lock().unwrap();
     conn.execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
         (&key, &value),
     )
     .map_err(|e| e.to_string())?;
+    drop(conn);
+
+    if key == "language" {
+        crate::refresh_tray_menu_text(&app, &value);
+    }
+
     Ok(())
 }
 

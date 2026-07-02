@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { onMounted, onUnmounted, shallowRef } from 'vue'
+import { useI18n } from '../i18n'
 import { appIconMain } from '../utils/reminderVisuals'
 
 const appWindow = getCurrentWindow()
+const { t } = useI18n()
 const isMaximized = shallowRef(false)
 let unlistenResized: (() => void) | null = null
 
@@ -76,8 +78,8 @@ onUnmounted(() => {
       @dblclick="toggleMaximizeWindow"
     >
       <div class="app-titlebar-brand">
-        <img :src="appIconMain" alt="Time Remind" class="app-titlebar-logo" draggable="false">
-        <span class="app-titlebar-name">Time Remind</span>
+        <img :src="appIconMain" :alt="t('common.appName')" class="app-titlebar-logo" draggable="false">
+        <span class="app-titlebar-name">{{ t('common.appName') }}</span>
       </div>
     </div>
 
@@ -85,7 +87,7 @@ onUnmounted(() => {
       <button
         class="app-titlebar-button"
         type="button"
-        aria-label="Minimize"
+        :aria-label="t('windowControls.minimize')"
         @click="minimizeWindow"
       >
         <span class="app-titlebar-icon app-titlebar-icon-minimize" />
@@ -93,7 +95,7 @@ onUnmounted(() => {
       <button
         class="app-titlebar-button"
         type="button"
-        :aria-label="isMaximized ? 'Restore' : 'Maximize'"
+        :aria-label="isMaximized ? t('windowControls.restore') : t('windowControls.maximize')"
         @click="toggleMaximizeWindow"
       >
         <span
@@ -104,7 +106,7 @@ onUnmounted(() => {
       <button
         class="app-titlebar-button app-titlebar-button-close"
         type="button"
-        aria-label="Hide to tray"
+        :aria-label="t('windowControls.hideToTray')"
         @click="hideWindow"
       >
         <span class="app-titlebar-icon app-titlebar-icon-close" />

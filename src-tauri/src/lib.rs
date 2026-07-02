@@ -58,6 +58,26 @@ struct ReminderTemplateText {
     eye_action_message: &'static str,
 }
 
+struct TrayMenuText {
+    pause_all: &'static str,
+    resume_all: &'static str,
+    dnd_30: &'static str,
+    dnd_60: &'static str,
+    settings: &'static str,
+    show: &'static str,
+    quit: &'static str,
+}
+
+struct TrayMenuItems<R: Runtime> {
+    pause_all: MenuItem<R>,
+    resume_all: MenuItem<R>,
+    dnd_30: MenuItem<R>,
+    dnd_60: MenuItem<R>,
+    settings: MenuItem<R>,
+    show: MenuItem<R>,
+    quit: MenuItem<R>,
+}
+
 #[cfg(target_os = "windows")]
 fn system_locale_name() -> Option<String> {
     let mut buffer = [0u16; 85];
@@ -117,6 +137,120 @@ fn match_template_language(value: &str) -> &'static str {
     }
 
     "en-US"
+}
+
+fn current_ui_language(db: &Database) -> String {
+    let conn = db.conn.lock().unwrap();
+    conn.query_row(
+        "SELECT value FROM settings WHERE key = 'language'",
+        [],
+        |row| row.get::<_, String>(0),
+    )
+    .unwrap_or_else(|_| "en-US".to_string())
+}
+
+fn tray_menu_text(language: &str) -> TrayMenuText {
+    match match_template_language(language) {
+        "zh-CN" => TrayMenuText {
+            pause_all: "全部暂停",
+            resume_all: "全部恢复",
+            dnd_30: "免打扰 30 分钟",
+            dnd_60: "免打扰 60 分钟",
+            settings: "设置",
+            show: "显示窗口",
+            quit: "退出",
+        },
+        "zh-TW" => TrayMenuText {
+            pause_all: "全部暫停",
+            resume_all: "全部恢復",
+            dnd_30: "勿擾 30 分鐘",
+            dnd_60: "勿擾 60 分鐘",
+            settings: "設定",
+            show: "顯示視窗",
+            quit: "結束",
+        },
+        "ja-JP" => TrayMenuText {
+            pause_all: "すべて一時停止",
+            resume_all: "すべて再開",
+            dnd_30: "30分通知しない",
+            dnd_60: "60分通知しない",
+            settings: "設定",
+            show: "ウィンドウを表示",
+            quit: "終了",
+        },
+        "ko-KR" => TrayMenuText {
+            pause_all: "모두 일시 중지",
+            resume_all: "모두 다시 시작",
+            dnd_30: "30분 방해 금지",
+            dnd_60: "60분 방해 금지",
+            settings: "설정",
+            show: "창 표시",
+            quit: "종료",
+        },
+        "fr-FR" => TrayMenuText {
+            pause_all: "Tout suspendre",
+            resume_all: "Tout reprendre",
+            dnd_30: "Ne pas déranger 30 min",
+            dnd_60: "Ne pas déranger 60 min",
+            settings: "Paramètres",
+            show: "Afficher la fenêtre",
+            quit: "Quitter",
+        },
+        "de-DE" => TrayMenuText {
+            pause_all: "Alle pausieren",
+            resume_all: "Alle fortsetzen",
+            dnd_30: "30 Min. nicht stören",
+            dnd_60: "60 Min. nicht stören",
+            settings: "Einstellungen",
+            show: "Fenster anzeigen",
+            quit: "Beenden",
+        },
+        "vi-VN" => TrayMenuText {
+            pause_all: "Tạm dừng tất cả",
+            resume_all: "Tiếp tục tất cả",
+            dnd_30: "Không làm phiền 30 phút",
+            dnd_60: "Không làm phiền 60 phút",
+            settings: "Cài đặt",
+            show: "Hiện cửa sổ",
+            quit: "Thoát",
+        },
+        "th-TH" => TrayMenuText {
+            pause_all: "หยุดทั้งหมดชั่วคราว",
+            resume_all: "ทำงานต่อทั้งหมด",
+            dnd_30: "ห้ามรบกวน 30 นาที",
+            dnd_60: "ห้ามรบกวน 60 นาที",
+            settings: "ตั้งค่า",
+            show: "แสดงหน้าต่าง",
+            quit: "ออก",
+        },
+        "ms-MY" => TrayMenuText {
+            pause_all: "Jeda semua",
+            resume_all: "Sambung semua",
+            dnd_30: "Jangan Ganggu 30 minit",
+            dnd_60: "Jangan Ganggu 60 minit",
+            settings: "Tetapan",
+            show: "Tunjukkan tetingkap",
+            quit: "Keluar",
+        },
+        "km-KH" => TrayMenuText {
+            pause_all: "ផ្អាកទាំងអស់",
+            resume_all: "បន្តទាំងអស់",
+            dnd_30: "កុំរំខាន 30 នាទី",
+            dnd_60: "កុំរំខាន 60 នាទី",
+            settings: "ការកំណត់",
+            show: "បង្ហាញបង្អួច",
+            quit: "ចាកចេញ",
+        },
+        _ => TrayMenuText {
+            pause_all: "Pause all",
+            resume_all: "Resume all",
+            dnd_30: "Do not disturb 30 min",
+            dnd_60: "Do not disturb 60 min",
+            settings: "Settings",
+            show: "Show window",
+            quit: "Quit",
+        },
+    }
 }
 
 fn installer_language_marker(app: &AppHandle) -> Option<String> {
@@ -310,6 +444,21 @@ pub(crate) fn set_tray_visual_state<R: Runtime>(app: &AppHandle<R>, state: TrayV
     if let Ok(icon) = Image::from_bytes(icon_bytes) {
         let _ = tray.set_icon(Some(icon));
     }
+}
+
+pub(crate) fn refresh_tray_menu_text<R: Runtime>(app: &AppHandle<R>, language: &str) {
+    let Some(items) = app.try_state::<TrayMenuItems<R>>() else {
+        return;
+    };
+    let text = tray_menu_text(language);
+
+    let _ = items.pause_all.set_text(text.pause_all);
+    let _ = items.resume_all.set_text(text.resume_all);
+    let _ = items.dnd_30.set_text(text.dnd_30);
+    let _ = items.dnd_60.set_text(text.dnd_60);
+    let _ = items.settings.set_text(text.settings);
+    let _ = items.show.set_text(text.show);
+    let _ = items.quit.set_text(text.quit);
 }
 
 /// 清理旧日志（保留90天）
@@ -644,6 +793,7 @@ pub fn run() {
             insert_default_reminders(app.handle(), &db);
             repair_default_reminder_templates(&db);
             reconcile_schedule_on_startup(&db);
+            let tray_language = current_ui_language(&db);
             app.manage(db);
 
             // 启动定时器
@@ -665,15 +815,19 @@ pub fn run() {
             });
 
             // 创建托盘菜单
-            let pause_item = MenuItem::with_id(app, "pause_all", "全部暂停", true, None::<&str>)?;
-            let resume_item = MenuItem::with_id(app, "resume_all", "全部恢复", true, None::<&str>)?;
-            let dnd_30 = MenuItem::with_id(app, "dnd_30", "免打扰 30 分钟", true, None::<&str>)?;
-            let dnd_60 = MenuItem::with_id(app, "dnd_60", "免打扰 60 分钟", true, None::<&str>)?;
+            let tray_text = tray_menu_text(&tray_language);
+            let pause_item =
+                MenuItem::with_id(app, "pause_all", tray_text.pause_all, true, None::<&str>)?;
+            let resume_item =
+                MenuItem::with_id(app, "resume_all", tray_text.resume_all, true, None::<&str>)?;
+            let dnd_30 = MenuItem::with_id(app, "dnd_30", tray_text.dnd_30, true, None::<&str>)?;
+            let dnd_60 = MenuItem::with_id(app, "dnd_60", tray_text.dnd_60, true, None::<&str>)?;
             let sep1 = PredefinedMenuItem::separator(app)?;
-            let settings_item = MenuItem::with_id(app, "settings", "设置", true, None::<&str>)?;
-            let show_item = MenuItem::with_id(app, "show", "显示窗口", true, None::<&str>)?;
+            let settings_item =
+                MenuItem::with_id(app, "settings", tray_text.settings, true, None::<&str>)?;
+            let show_item = MenuItem::with_id(app, "show", tray_text.show, true, None::<&str>)?;
             let sep2 = PredefinedMenuItem::separator(app)?;
-            let quit_item = MenuItem::with_id(app, "quit", "退出", true, None::<&str>)?;
+            let quit_item = MenuItem::with_id(app, "quit", tray_text.quit, true, None::<&str>)?;
 
             let menu = Menu::with_items(app, &[
                 &pause_item,
@@ -686,6 +840,15 @@ pub fn run() {
                 &sep2,
                 &quit_item,
             ])?;
+            app.manage(TrayMenuItems {
+                pause_all: pause_item.clone(),
+                resume_all: resume_item.clone(),
+                dnd_30: dnd_30.clone(),
+                dnd_60: dnd_60.clone(),
+                settings: settings_item.clone(),
+                show: show_item.clone(),
+                quit: quit_item.clone(),
+            });
 
             // 创建系统托盘
             let _tray = TrayIconBuilder::with_id(TRAY_ID)
