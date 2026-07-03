@@ -16,7 +16,7 @@
 - Updated Windows release build guidance to use the explicit NSIS bundle target.
 - Updated settings behavior so unsupported autostart, silent start, and fullscreen detection controls are disabled with a platform limitation message.
 - Updated architecture and release documentation to avoid presenting macOS/Linux support as complete before real device verification.
-- Updated the manual release workflow to publish assets against the `v0.1.1` tag and package macOS ARM64 as a zipped `.app` preview build.
+- Updated the manual release workflow to publish assets against the `v0.1.1` tag, package macOS ARM64 as a zipped `.app` preview build, and run ARM64 DMG packaging as a separate diagnostic job.
 
 ### Verified
 
@@ -30,7 +30,7 @@
 ### Known Limitations
 
 - macOS/Linux packages are preview builds and require real-device validation.
-- macOS ARM64 DMG packaging is deferred; the preview release uses a zipped `.app` bundle.
+- macOS ARM64 DMG packaging may still fail on hosted runners; the preview release keeps a zipped `.app` bundle and records DMG diagnostics.
 - macOS signing and notarization are not yet complete.
 - Linux tray behavior still requires desktop-environment-specific validation.
 - Non-Windows fullscreen detection, lock detection, autostart, and tray behavior must be verified on real devices before being marked supported.

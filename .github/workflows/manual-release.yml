@@ -120,7 +120,7 @@ jobs:
 
             Windows is the current verified release platform.
             macOS and Linux assets are preview builds and require real-device validation.
-            macOS ARM64 publishes a zipped .app bundle because DMG packaging is not stable on hosted ARM runners.
+            macOS ARM64 publishes a zipped .app bundle first and runs DMG packaging as a separate diagnostic job.
             Windows ARM64 and Linux ARM64 jobs use GitHub-hosted public-preview runners.
           releaseDraft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
@@ -171,3 +171,96 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "v${{ inputs.version }}" "Time-Remind_${{ inputs.version }}_macOS_aarch64_app.zip" --clobber
+
+  macos-arm64-dmg:
+    name: macOS ARM64 DMG
+    runs-on: macos-14
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Cache Rust build output
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build macOS ARM64 DMG with diagnostics
+        id: build_dmg
+        shell: bash
+        run: |
+          set +e
+          pnpm tauri build --bundles dmg --target aarch64-apple-darwin 2>&1 | tee "$GITHUB_WORKSPACE/macos-arm64-dmg-build.log"
+          status=${PIPESTATUS[0]}
+
+          mkdir -p "$GITHUB_WORKSPACE/macos-arm64-dmg-diagnostics"
+          cp "$GITHUB_WORKSPACE/macos-arm64-dmg-build.log" "$GITHUB_WORKSPACE/macos-arm64-dmg-diagnostics/build.log"
+          if [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle" ]; then
+            find "src-tauri/target/aarch64-apple-darwin/release/bundle" -maxdepth 5 -print > "$GITHUB_WORKSPACE/macos-arm64-dmg-diagnostics/bundle-files.txt"
+          fi
+          if [ -d "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg" ]; then
+            cp -R "src-tauri/target/aarch64-apple-darwin/release/bundle/dmg" "$GITHUB_WORKSPACE/macos-arm64-dmg-diagnostics/dmg"
+          fi
+
+          exit "$status"
+
+      - name: Upload macOS ARM64 DMG diagnostics
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Time-Remind_${{ inputs.version }}-macos-aarch64-dmg-diagnostics
+          path: macos-arm64-dmg-diagnostics
+          if-no-files-found: error
+
+      - name: Upload macOS ARM64 DMG workflow artifact
+        if: ${{ success() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Time-Remind_${{ inputs.version }}-macos-aarch64-dmg
+          path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+      - name: Ensure release exists
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release_flags=()
+          if [ "${{ inputs.draft }}" = "true" ]; then
+            release_flags+=(--draft)
+          fi
+          if [ "${{ inputs.prerelease }}" = "true" ]; then
+            release_flags+=(--prerelease)
+          fi
+          gh release view "v${{ inputs.version }}" >/dev/null 2>&1 || gh release create "v${{ inputs.version }}" \
+            --title "Time Remind v${{ inputs.version }}" \
+            --notes "Manual preview build for Time Remind v${{ inputs.version }}. Windows is the current verified release platform. macOS and Linux assets are preview builds and require real-device validation." \
+            "${release_flags[@]}"
+
+      - name: Upload macOS ARM64 DMG release asset
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "v${{ inputs.version }}" src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg --clobber
