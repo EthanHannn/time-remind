@@ -2,21 +2,21 @@
 
 ## 当前结论
 
-当前版本可以作为 `0.1.0 Beta` 发给少量可信用户试用。
+当前版本可以作为 `0.1.1 Beta` 发给少量可信用户试用。
 
 公开发布前仍建议完成长时间稳定性、显示环境、重复启动和休眠唤醒等实机回归。
 
 ## 构建产物
 
 - Release executable: `src-tauri/target/release/time-remind.exe`
-- NSIS installer: `src-tauri/target/release/bundle/nsis/Time Remind_0.1.0_x64-setup.exe`
+- NSIS installer: `src-tauri/target/release/bundle/nsis/Time Remind_0.1.1_x64-setup.exe`
 
-当前正式发布产物仅包含 Windows NSIS 安装包。macOS/Linux 产物仅作为后续预览验证目标，不纳入当前 `0.1.0 Beta` 对外分发范围。
+当前正式发布产物仅包含 Windows NSIS 安装包。macOS/Linux 产物仅作为后续预览验证目标，不纳入当前 `0.1.1 Beta` 对外分发范围。
 
 预览构建目标：
 
 - macOS `.app`: `src-tauri/target/release/bundle/macos/Time Remind.app`
-- macOS `.dmg`: `src-tauri/target/release/bundle/dmg/Time Remind_0.1.0_*.dmg`
+- macOS `.dmg`: `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
 - Linux `.deb`: `src-tauri/target/release/bundle/deb/*.deb`
 - Linux `.AppImage`: `src-tauri/target/release/bundle/appimage/*.AppImage`
 
@@ -119,4 +119,4 @@ pwsh -File scripts/measure-memory.ps1 -ProcessName time-remind -DurationMinutes 
 4. 更新 `CHANGELOG.md` 中的验证状态。
 5. 将 `docs/planning/implementation-plan.md` 中对应验证项改为已完成。
 6. 创建版本提交和标签。
-7. 分发 `Time Remind_0.1.0_x64-setup.exe` 给试用用户。
+7. 分发 `Time Remind_0.1.1_x64-setup.exe` 给试用用户。

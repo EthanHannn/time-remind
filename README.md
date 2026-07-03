@@ -38,7 +38,7 @@ Download an installer from the [latest GitHub release](https://github.com/EthanH
 
 Recommended assets:
 
-- Windows: `Time Remind_0.1.0_x64-setup.exe`
+- Windows: `Time Remind_0.1.1_x64-setup.exe`
 - macOS: `.dmg` or `.app` package
 - Linux: `.deb` or `.AppImage` package
 
@@ -80,8 +80,8 @@ pnpm tauri build --bundles deb,appimage
 
 Expected outputs:
 
-- Windows: `src-tauri/target/release/bundle/nsis/Time Remind_0.1.0_x64-setup.exe`
-- macOS: `src-tauri/target/release/bundle/macos/Time Remind.app`, `src-tauri/target/release/bundle/dmg/Time Remind_0.1.0_*.dmg`
+- Windows: `src-tauri/target/release/bundle/nsis/Time Remind_0.1.1_x64-setup.exe`
+- macOS: `src-tauri/target/release/bundle/macos/Time Remind.app`, `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
 - Linux: `src-tauri/target/release/bundle/deb/*.deb`, `src-tauri/target/release/bundle/appimage/*.AppImage`
 
 ## Data And Privacy
@@ -95,7 +95,7 @@ Use the export feature before reinstalling the system or moving to another devic
 
 ## Known Limitations
 
-- Current version is `0.1.0 Beta`.
+- Current version is `0.1.1 Beta`.
 - Windows installer is not code-signed.
 - macOS signing and notarization are not complete.
 - Linux tray behavior varies by desktop environment.

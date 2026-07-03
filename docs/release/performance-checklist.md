@@ -75,7 +75,7 @@ pnpm tauri build --bundles nsis
 当前环境说明：
 
 1. release 可执行文件应生成在 `src-tauri/target/release/time-remind.exe`。
-2. NSIS 安装包应生成在 `src-tauri/target/release/bundle/nsis/Time Remind_0.1.0_x64-setup.exe`。
+2. NSIS 安装包应生成在 `src-tauri/target/release/bundle/nsis/Time Remind_0.1.1_x64-setup.exe`。
 3. NSIS 安装包依赖本机已有 `makensis` 或 Tauri 自动下载 NSIS 工具包。
 4. 如果出现 `nsis-3.11.zip` 下载超时，需要先安装 NSIS 或在网络稳定环境中重新构建。
 5. 安装器应显示语言选择器，并内置英文、简体中文、繁体中文、日文、韩文、法文、德文、越南文、泰文、马来文。
@@ -95,7 +95,7 @@ pnpm tauri build --bundles app,dmg
 macOS 预期产物：
 
 - `src-tauri/target/release/bundle/macos/Time Remind.app`
-- `src-tauri/target/release/bundle/dmg/Time Remind_0.1.0_*.dmg`
+- `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
 
 Linux 构建命令：
 
