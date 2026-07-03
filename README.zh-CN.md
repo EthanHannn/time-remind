@@ -4,9 +4,9 @@
 
 Time Remind 是一款轻量级桌面健康提醒工具，帮助长时间使用电脑的人保持饮水、休息和护眼节奏。
 
-![Time Remind 主界面](assets/main-preview.png)
+<img src="assets/main-preview.png" alt="Time Remind 主界面" width="420">
 
-![Time Remind 设置页](assets/setting-preview.png)
+<img src="assets/setting-preview.png" alt="Time Remind 设置页" width="420">
 
 ## 平台支持状态
 

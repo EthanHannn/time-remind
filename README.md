@@ -4,9 +4,9 @@
 
 Time Remind is a lightweight desktop wellness reminder app for people who spend long hours at a computer. It helps you keep a steady rhythm for drinking water, taking short breaks, and resting your eyes.
 
-![Time Remind main window](assets/main-preview.png)
+<img src="assets/main-preview.png" alt="Time Remind main window" width="420">
 
-![Time Remind settings](assets/setting-preview.png)
+<img src="assets/setting-preview.png" alt="Time Remind settings" width="420">
 
 ## Platform Status
 
