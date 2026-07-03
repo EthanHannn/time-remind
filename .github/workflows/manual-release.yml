@@ -1,0 +1,125 @@
+name: Manual release build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release version, for example 0.1.0
+        required: true
+        default: 0.1.0
+      prerelease:
+        description: Mark the GitHub release as prerelease
+        required: true
+        type: boolean
+        default: true
+      draft:
+        description: Create or update a draft release
+        required: true
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.label }}
+    runs-on: ${{ matrix.runner }}
+    continue-on-error: ${{ matrix.experimental }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Windows x64
+            runner: windows-latest
+            args: --bundles nsis
+            target: x86_64-pc-windows-msvc
+            experimental: false
+
+          - label: Windows ARM64
+            runner: windows-11-arm
+            args: --bundles nsis
+            target: aarch64-pc-windows-msvc
+            experimental: true
+
+          - label: macOS x64
+            runner: macos-13
+            args: --bundles app,dmg
+            target: x86_64-apple-darwin
+            experimental: false
+
+          - label: macOS ARM64
+            runner: macos-latest
+            args: --bundles app,dmg
+            target: aarch64-apple-darwin
+            experimental: false
+
+          - label: Linux x64
+            runner: ubuntu-24.04
+            args: --bundles deb,appimage
+            target: x86_64-unknown-linux-gnu
+            experimental: false
+
+          - label: Linux ARM64
+            runner: ubuntu-24.04-arm
+            args: --bundles deb,appimage
+            target: aarch64-unknown-linux-gnu
+            experimental: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        if: startsWith(matrix.runner, 'ubuntu-')
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf \
+            xdg-utils
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache Rust build output
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and upload release assets
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: time-remind-v${{ inputs.version }}
+          releaseName: Time Remind v${{ inputs.version }}
+          releaseBody: |
+            Manual preview build for Time Remind v${{ inputs.version }}.
+
+            Windows is the current verified release platform.
+            macOS and Linux assets are preview builds and require real-device validation.
+            Windows ARM64 and Linux ARM64 jobs use GitHub-hosted public-preview runners.
+          releaseDraft: ${{ inputs.draft }}
+          prerelease: ${{ inputs.prerelease }}
+          args: ${{ matrix.args }} --target ${{ matrix.target }}
