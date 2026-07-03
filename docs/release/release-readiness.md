@@ -17,6 +17,7 @@
 
 - macOS `.app`: `src-tauri/target/release/bundle/macos/Time Remind.app`
 - macOS `.dmg`: `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
+- macOS ARM64 GitHub Actions preview: `Time-Remind_0.1.1_macOS_aarch64_app.zip`
 - Linux `.deb`: `src-tauri/target/release/bundle/deb/*.deb`
 - Linux `.AppImage`: `src-tauri/target/release/bundle/appimage/*.AppImage`
 
@@ -41,7 +42,8 @@
 ## 跨平台预览状态
 
 - [ ] macOS `.app` 构建
-- [ ] macOS `.dmg` 构建
+- [ ] macOS x64 `.dmg` 构建
+- [ ] macOS ARM64 `.app.zip` 构建
 - [ ] Linux `.deb` 构建
 - [ ] Linux `.AppImage` 构建
 - [ ] macOS 实机主流程验证

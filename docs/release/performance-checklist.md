@@ -92,10 +92,13 @@ macOS 构建命令：
 pnpm tauri build --bundles app,dmg
 ```
 
+macOS ARM64 在 GitHub 托管 runner 上优先构建 `.app`，并将 `.app` 压缩为 `.zip` 发布；DMG 封装稳定后再恢复 ARM64 `.dmg`。
+
 macOS 预期产物：
 
 - `src-tauri/target/release/bundle/macos/Time Remind.app`
 - `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
+- GitHub Actions ARM64 预览产物：`Time-Remind_0.1.1_macOS_aarch64_app.zip`
 
 Linux 构建命令：
 
@@ -138,7 +141,8 @@ Linux 预期产物：
 ## macOS 预览验证
 
 - [ ] `.app` 可启动并显示主窗口。
-- [ ] `.dmg` 可挂载、拖拽安装并启动。
+- [ ] x64 `.dmg` 可挂载、拖拽安装并启动。
+- [ ] ARM64 `.app.zip` 解压后可启动。
 - [ ] 主提醒流程可用：触发、完成、延后、跳过。
 - [ ] 设置页中不支持的平台能力处于禁用状态并显示限制说明。
 - [ ] 托盘菜单、显示窗口、隐藏窗口和退出行为符合预期。
