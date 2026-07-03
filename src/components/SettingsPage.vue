@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import type { Language } from '../i18n'
 import type { ExportData, FrontendSettings, ImportMode } from '../types/data'
+import type { PlatformCapabilities } from '../types/platform'
 import type { NotificationSoundPreset } from '../utils/notificationSound'
 import { invoke } from '@tauri-apps/api/core'
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
 import { confirm, open, save } from '@tauri-apps/plugin-dialog'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { exportData, importData, readTextFile, writeTextFile } from '../api/data'
+import { getPlatformCapabilities } from '../api/platform'
 import { loadLanguage, useI18n } from '../i18n'
 import { playNotificationSound } from '../utils/notificationSound'
 import { appIconMain } from '../utils/reminderVisuals'
@@ -36,6 +38,14 @@ const exporting = ref(false)
 const importing = ref(false)
 const message = ref('')
 const importMode = ref<ImportMode>('replace')
+const platformCapabilities = shallowRef<PlatformCapabilities | null>(null)
+
+const supportsAutostart = computed(() => platformCapabilities.value?.supportsAutostart ?? true)
+const supportsSilentStart = computed(() => platformCapabilities.value?.supportsSilentStart ?? true)
+const supportsFullscreenDetection = computed(() => platformCapabilities.value?.supportsFullscreenDetection ?? true)
+const autoStartDisabled = computed(() => autoStartLoading.value || !supportsAutostart.value)
+const silentStartDisabled = computed(() => silentStartLoading.value || !supportsSilentStart.value)
+const fullscreenDetectionDisabled = computed(() => !supportsFullscreenDetection.value)
 
 const importModeDescription = computed(() => {
   return importMode.value === 'replace'
@@ -145,7 +155,33 @@ async function loadSettings() {
   language.value = currentLanguage.value
 }
 
+async function loadPlatformCapabilities() {
+  try {
+    const capabilities = await getPlatformCapabilities()
+    platformCapabilities.value = capabilities
+
+    if (!capabilities.supportsAutostart) {
+      autoStart.value = false
+      silentStart.value = false
+      await invoke('save_setting', { key: 'silent_start', value: 'false' })
+    }
+
+    if (!capabilities.supportsFullscreenDetection) {
+      fullscreenDetectionEnabled.value = false
+      await invoke('save_setting', { key: 'fullscreen_detection_enabled', value: 'false' })
+    }
+  }
+  catch (err) {
+    console.error('Failed to load platform capabilities:', err)
+  }
+}
+
 async function loadAutoStart() {
+  if (!supportsAutostart.value) {
+    autoStart.value = false
+    return
+  }
+
   autoStartLoading.value = true
   try {
     autoStart.value = await isAutostartEnabled()
@@ -161,6 +197,7 @@ async function loadAutoStart() {
 
 onMounted(async () => {
   await loadSettings()
+  await loadPlatformCapabilities()
   await loadAutoStart()
   settingsLoaded.value = true
 })
@@ -211,6 +248,17 @@ watch([dndEnabled, dndStart, dndEnd], async () => {
 }, { deep: true })
 
 watch(fullscreenDetectionEnabled, async () => {
+  if (!settingsLoaded.value) {
+    return
+  }
+
+  if (!supportsFullscreenDetection.value) {
+    if (fullscreenDetectionEnabled.value) {
+      fullscreenDetectionEnabled.value = false
+    }
+    return
+  }
+
   try {
     await invoke('save_setting', {
       key: 'fullscreen_detection_enabled',
@@ -242,6 +290,11 @@ function applyTheme(t: string) {
 }
 
 async function handleAutoStartChange() {
+  if (!supportsAutostart.value) {
+    autoStart.value = false
+    return
+  }
+
   autoStartLoading.value = true
   const previousAutoStart = !autoStart.value
   const previousSilentStart = silentStart.value
@@ -270,6 +323,11 @@ async function handleAutoStartChange() {
 }
 
 async function handleSilentStartChange() {
+  if (!supportsSilentStart.value) {
+    silentStart.value = false
+    return
+  }
+
   silentStartLoading.value = true
   const previousValue = !silentStart.value
   try {
@@ -441,11 +499,14 @@ async function handleImport() {
               <div class="setting-card-header">
                 <div class="setting-card-copy">
                   <label class="setting-label">{{ t('settings.autoStart') }}</label>
+                  <p v-if="!supportsAutostart" class="setting-description setting-warning">
+                    {{ t('settings.unsupportedOnPlatform') }}
+                  </p>
                 </div>
-                <label class="switch" :class="{ 'switch-disabled': autoStartLoading }">
+                <label class="switch" :class="{ 'switch-disabled': autoStartDisabled, 'switch-loading': autoStartLoading }">
                   <input
                     v-model="autoStart"
-                    :disabled="autoStartLoading"
+                    :disabled="autoStartDisabled"
                     type="checkbox"
                     @change="handleAutoStartChange"
                   >
@@ -460,11 +521,14 @@ async function handleImport() {
                     <p class="setting-description">
                       {{ t('settings.silentStartDescription') }}
                     </p>
+                    <p v-if="!supportsSilentStart" class="setting-description setting-warning">
+                      {{ t('settings.unsupportedOnPlatform') }}
+                    </p>
                   </div>
-                  <label class="switch" :class="{ 'switch-disabled': silentStartLoading }">
+                  <label class="switch" :class="{ 'switch-disabled': silentStartDisabled, 'switch-loading': silentStartLoading }">
                     <input
                       v-model="silentStart"
-                      :disabled="silentStartLoading"
+                      :disabled="silentStartDisabled"
                       type="checkbox"
                       @change="handleSilentStartChange"
                     >
@@ -476,9 +540,14 @@ async function handleImport() {
           </div>
 
           <div class="setting-row">
-            <label class="setting-label">{{ t('settings.fullscreenDelay') }}</label>
-            <label class="switch">
-              <input v-model="fullscreenDetectionEnabled" type="checkbox">
+            <div class="setting-inline-copy">
+              <label class="setting-label">{{ t('settings.fullscreenDelay') }}</label>
+              <p v-if="!supportsFullscreenDetection" class="setting-description setting-warning">
+                {{ t('settings.unsupportedOnPlatform') }}
+              </p>
+            </div>
+            <label class="switch" :class="{ 'switch-disabled': fullscreenDetectionDisabled }">
+              <input v-model="fullscreenDetectionEnabled" :disabled="fullscreenDetectionDisabled" type="checkbox">
               <span class="slider" />
             </label>
           </div>
@@ -828,7 +897,8 @@ async function handleImport() {
 }
 
 .setting-card-copy,
-.setting-subcard-copy {
+.setting-subcard-copy,
+.setting-inline-copy {
   display: flex;
   flex-direction: column;
 }
@@ -851,6 +921,14 @@ async function handleImport() {
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+
+.setting-warning {
+  color: #b7791f;
+}
+
+[data-theme='dark'] .setting-warning {
+  color: #f6c76f;
 }
 
 .setting-input {
@@ -879,8 +957,12 @@ async function handleImport() {
 }
 
 .switch-disabled {
-  cursor: wait;
+  cursor: not-allowed;
   opacity: 0.62;
+}
+
+.switch-loading {
+  cursor: wait;
 }
 
 .switch input {
