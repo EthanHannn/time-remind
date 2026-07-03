@@ -16,7 +16,7 @@ on:
         description: Create or update a draft release
         required: true
         type: boolean
-        default: true
+        default: false
 
 permissions:
   contents: write
@@ -122,4 +122,7 @@ jobs:
             Windows ARM64 and Linux ARM64 jobs use GitHub-hosted public-preview runners.
           releaseDraft: ${{ inputs.draft }}
           prerelease: ${{ inputs.prerelease }}
+          releaseAssetNamePattern: Time-Remind_${{ inputs.version }}_[platform]_[arch]_[bundle][ext]
+          uploadWorkflowArtifacts: true
+          workflowArtifactNamePattern: Time-Remind_${{ inputs.version }}-[platform]-[arch]-[bundle]
           args: ${{ matrix.args }} --target ${{ matrix.target }}
