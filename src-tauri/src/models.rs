@@ -143,3 +143,61 @@ pub struct UpdateReminderRequest {
 fn default_action_completion_mode() -> String {
     "auto".to_string()
 }
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlatformCapabilities {
+    pub platform: String,
+    pub is_verified_release_platform: bool,
+    pub supports_fullscreen_detection: bool,
+    pub supports_lock_detection: bool,
+    pub supports_tray: bool,
+    pub supports_autostart: bool,
+    pub supports_silent_start: bool,
+}
+
+impl PlatformCapabilities {
+    pub fn current() -> Self {
+        let is_windows = cfg!(target_os = "windows");
+
+        Self {
+            platform: current_platform().to_string(),
+            is_verified_release_platform: is_windows,
+            supports_fullscreen_detection: is_windows,
+            supports_lock_detection: is_windows,
+            supports_tray: is_windows,
+            supports_autostart: is_windows,
+            supports_silent_start: is_windows,
+        }
+    }
+}
+
+fn current_platform() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "macos") {
+        "macos"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "unknown"
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::PlatformCapabilities;
+
+    #[test]
+    fn platform_capabilities_follow_verified_platform_policy() {
+        let capabilities = PlatformCapabilities::current();
+        let is_windows = cfg!(target_os = "windows");
+
+        assert_eq!(capabilities.is_verified_release_platform, is_windows);
+        assert_eq!(capabilities.supports_fullscreen_detection, is_windows);
+        assert_eq!(capabilities.supports_lock_detection, is_windows);
+        assert_eq!(capabilities.supports_tray, is_windows);
+        assert_eq!(capabilities.supports_autostart, is_windows);
+        assert_eq!(capabilities.supports_silent_start, is_windows);
+    }
+}

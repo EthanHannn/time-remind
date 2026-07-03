@@ -1164,6 +1164,11 @@ pub fn get_all_settings(
     Ok(settings)
 }
 
+#[tauri::command]
+pub fn get_platform_capabilities() -> PlatformCapabilities {
+    PlatformCapabilities::current()
+}
+
 /// 趋势统计数据
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TrendStat {

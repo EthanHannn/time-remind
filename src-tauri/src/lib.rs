@@ -974,6 +974,7 @@ pub fn run() {
             commands::save_setting,
             commands::get_setting,
             commands::get_all_settings,
+            commands::get_platform_capabilities,
             commands::export_data,
             commands::import_data,
             commands::write_file,

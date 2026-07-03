@@ -193,6 +193,7 @@ toggle_all_reminders(enabled)                   → ()
 
 get_settings()            → Settings
 update_settings(data)     → Settings
+get_platform_capabilities() → PlatformCapabilities
 
 get_daily_stats(date)     → DailyStats
 get_trend_stats(range)    → Vec<DayStats>
@@ -247,6 +248,27 @@ import_data(data, mode)   → ImportResult   // mode: replace | merge
 - 前端收到新的 `notification:show` 时，应视为“正式切换下一条”，而不是“刷新当前条内容”。
 - 若当前提醒仍处于 `showing` 或 `holding`，前端不得因为本地状态变化自行切换提醒内容。
 - 延后、跳过、完成、超时都属于“结束当前提醒”的显式结果；只有在结果落库并释放通知位后，才能继续出队。
+
+### 3.4 平台能力探测
+
+前端通过 `get_platform_capabilities()` 获取当前平台能力状态。该接口用于设置页和后续跨平台降级逻辑，不直接改变提醒调度。
+
+```ts
+interface PlatformCapabilities {
+  platform: 'windows' | 'macos' | 'linux' | 'unknown'
+  isVerifiedReleasePlatform: boolean
+  supportsFullscreenDetection: boolean
+  supportsLockDetection: boolean
+  supportsTray: boolean
+  supportsAutostart: boolean
+  supportsSilentStart: boolean
+}
+```
+
+当前能力声明策略：
+
+- Windows：返回已验证的全屏检测、锁屏检测、托盘、自启动和静默启动能力。
+- macOS/Linux：在完成实机验证和降级交互前，上述平台相关能力先返回不支持。
 
 ---
 
