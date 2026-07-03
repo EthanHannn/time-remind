@@ -1,10 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 Beta - 2026-07-03
 
 ### Added
 
-- Added explicit platform support status: Windows is the current verified release platform, while macOS and Linux remain planned and unverified.
+- Added explicit platform support status: Windows is the current verified release platform, while macOS and Linux are preview builds that need real-device validation.
 - Added cross-platform bundle targets for macOS `.app`/`.dmg` and Linux `.deb`/`.AppImage` preview builds.
 - Added platform capability detection through `get_platform_capabilities`.
 - Added frontend platform capability API and typed capability model.
@@ -28,12 +28,12 @@
 
 ### Known Limitations
 
-- macOS/Linux installation packages are still not published.
+- macOS/Linux packages are preview builds and require real-device validation.
 - macOS signing and notarization are not yet complete.
 - Linux tray behavior still requires desktop-environment-specific validation.
 - Non-Windows fullscreen detection, lock detection, autostart, and tray behavior must be verified on real devices before being marked supported.
 
-## 0.1.0 Beta - 2026-06-09
+## 0.1.0 Beta Initial Build - 2026-06-09
 
 ### Added
 
