@@ -1,5 +1,38 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Added explicit platform support status: Windows is the current verified release platform, while macOS and Linux remain planned and unverified.
+- Added cross-platform bundle targets for macOS `.app`/`.dmg` and Linux `.deb`/`.AppImage` preview builds.
+- Added platform capability detection through `get_platform_capabilities`.
+- Added frontend platform capability API and typed capability model.
+- Added settings-page gating for unsupported platform features.
+- Added macOS and Linux preview build output notes and verification checklists.
+
+### Changed
+
+- Updated Windows release build guidance to use the explicit NSIS bundle target.
+- Updated settings behavior so unsupported autostart, silent start, and fullscreen detection controls are disabled with a platform limitation message.
+- Updated architecture and release documentation to avoid presenting macOS/Linux support as complete before real device verification.
+
+### Verified
+
+- `pnpm build`
+- `pnpm lint`
+- `cargo test --manifest-path src-tauri\Cargo.toml`
+- `pnpm tauri build --no-bundle`
+- `pnpm tauri build --bundles nsis`
+- `pnpm tauri build`
+
+### Known Limitations
+
+- macOS/Linux installation packages are still not published.
+- macOS signing and notarization are not yet complete.
+- Linux tray behavior still requires desktop-environment-specific validation.
+- Non-Windows fullscreen detection, lock detection, autostart, and tray behavior must be verified on real devices before being marked supported.
+
 ## 0.1.0 Beta - 2026-06-09
 
 ### Added

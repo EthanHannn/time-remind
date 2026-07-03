@@ -114,6 +114,14 @@ pnpm tauri build --bundles deb,appimage
 
 macOS/Linux 打包目标仅用于后续预览验证，当前正式发布仍以 Windows NSIS 安装包为准。
 
+预期构建产物：
+
+- Windows：`src-tauri/target/release/bundle/nsis/Time Remind_0.1.0_x64-setup.exe`
+- macOS：`src-tauri/target/release/bundle/macos/Time Remind.app`、`src-tauri/target/release/bundle/dmg/Time Remind_0.1.0_*.dmg`
+- Linux：`src-tauri/target/release/bundle/deb/*.deb`、`src-tauri/target/release/bundle/appimage/*.AppImage`
+
+Linux 依赖名称会随发行版变化。Ubuntu/Debian 环境通常需要 WebKitGTK、GTK 3、ayatana-appindicator 和 librsvg 相关开发包；其它发行版需按 Tauri 官方依赖对应安装。
+
 发布前建议执行：
 
 ```powershell
