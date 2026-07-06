@@ -59,6 +59,8 @@
 - macOS 签名与公证尚未规划完成。
 - Linux 托盘行为需按桌面环境分别验证。
 - 非 Windows 平台的全屏检测、锁屏检测、自启动和托盘行为必须以实机结果为准。
+- 当前公开安装包尚未记录 SHA256 校验值。
+- 版本号需保持 `package.json`、`src-tauri/tauri.conf.json`、发布标签和发布说明一致。
 
 ## 已完成的实机确认
 
@@ -109,10 +111,13 @@ pwsh -File scripts/measure-memory.ps1 -ProcessName time-remind -DurationMinutes 
 - 当前版本建议标记为 `Beta`。
 - 首批用户建议控制在 2 到 5 人，优先覆盖不同 Windows 版本和显示器配置。
 - 对外材料不得把 macOS/Linux 描述为已正式支持。
+- 发包前需要为公开安装包生成 SHA256 校验值。
+- 不在同一正式标签下替换已发布安装包；修复阻断问题时发布新的 PATCH 版本。
 - 发包时同时提供：
   - 安装包
   - README
   - CHANGELOG
+  - SHA256 校验值
   - 已知限制说明
 
 ## 推荐发布步骤
@@ -122,5 +127,7 @@ pwsh -File scripts/measure-memory.ps1 -ProcessName time-remind -DurationMinutes 
 3. 如有问题，修复后重新执行命令检查和安装包构建。
 4. 更新 `CHANGELOG.md` 中的验证状态。
 5. 将 `docs/planning/implementation-plan.md` 中对应验证项改为已完成。
-6. 创建版本提交和标签。
-7. 分发 `Time Remind_0.1.1_x64-setup.exe` 给试用用户。
+6. 确认 `package.json` 与 `src-tauri/tauri.conf.json` 版本号一致。
+7. 为安装包生成 SHA256 校验值。
+8. 创建版本提交和标签。
+9. 分发 `Time Remind_0.1.1_x64-setup.exe` 和对应校验值给试用用户。

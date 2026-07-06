@@ -86,6 +86,49 @@ pnpm tauri build --bundles nsis
 
 当前正式发布仍只面向 Windows。macOS/Linux 构建仅用于预览验证，不作为对外稳定版本发布。
 
+版本与产物命名要求：
+
+1. `package.json`、`src-tauri/tauri.conf.json`、Git 标签和发布说明中的版本号必须一致。
+2. 正式标签使用 `vMAJOR.MINOR.PATCH`，预发布可使用 `vMAJOR.MINOR.PATCH-beta.N` 或 `vMAJOR.MINOR.PATCH-rc.N`。
+3. 对外产物命名应包含产品名、版本号、平台、架构和包类型，例如：
+   - `Time-Remind_0.1.1_windows_x64_nsis.exe`
+   - `Time-Remind_0.1.1_macos_aarch64_app.zip`
+   - `Time-Remind_0.1.1_linux_x64_appimage.AppImage`
+4. 当前 Tauri 本地产物仍可能使用默认命名；上传 release asset 或 workflow artifact 时应使用规范化名称。
+5. 不使用 `latest` 作为安装包文件名，最新版本由发布页和标签表达。
+
+版本号一致性检查可运行：
+
+```powershell
+$packageVersion = (Get-Content package.json -Raw | ConvertFrom-Json).version
+$tauriVersion = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+if ($packageVersion -ne $tauriVersion) {
+  throw "Version mismatch: package.json=$packageVersion, tauri.conf.json=$tauriVersion"
+}
+"Version OK: $packageVersion"
+```
+
+发布渠道约束：
+
+| 渠道 | 允许产物 | 要求 |
+|---|---|---|
+| stable | Windows NSIS | 完成发布前必须回归、基础安装卸载和校验值记录 |
+| beta | Windows NSIS，必要时附预览 artifact 说明 | 必须标注已知限制，不得暗示 macOS/Linux 正式支持 |
+| preview | macOS/Linux workflow artifact | 仅用于验证，不作为 README 主下载入口 |
+
+校验与签名要求：
+
+1. 每个公开安装包都应生成 SHA256，并写入发布说明或 `SHA256SUMS.txt`。
+2. Windows 当前未签名时，发布说明必须提示未知发布者风险。
+3. macOS 未签名/未公证产物只允许作为预览验证 artifact，不进入 stable 下载入口。
+4. Linux `.deb` 和 `.AppImage` 进入公开下载前必须记录适用发行版、桌面环境和 SHA256。
+
+Windows 安装包 SHA256 可运行：
+
+```powershell
+Get-FileHash -Algorithm SHA256 "src-tauri/target/release/bundle/nsis/Time Remind_0.1.1_x64-setup.exe"
+```
+
 macOS 构建命令：
 
 ```powershell
@@ -119,6 +162,15 @@ Linux 预期产物：
 3. macOS 未签名/未公证包可能触发 Gatekeeper 安全提示。
 4. Linux 托盘依赖桌面环境和 AppIndicator 支持，GNOME Wayland 下需要单独验证。
 5. 非 Windows 平台的全屏检测、锁屏检测、自启动和托盘行为必须以实机结果为准。
+
+阻断 stable 发布条件：
+
+- 安装后无法启动主窗口或通知窗口。
+- 覆盖安装导致提醒、设置、统计或导入导出数据丢失。
+- 卸载后残留运行进程或错误的自启动项。
+- Windows NSIS 安装器语言、路径或权限流程异常。
+- 发布说明的支持平台、签名状态或校验值与实际产物不一致。
+- macOS/Linux 未完成实机验证却被放入 stable 下载入口。
 
 ## 安全收口
 

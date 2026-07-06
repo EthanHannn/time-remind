@@ -84,6 +84,16 @@ Expected outputs:
 
 Only the Windows NSIS installer is currently part of the verified release flow. macOS and Linux outputs are build targets for future validation.
 
+Release rules:
+
+- Version values in `package.json`, `src-tauri/tauri.conf.json`, release tags, and release notes must match.
+- Public tags use `vMAJOR.MINOR.PATCH`, for example `v0.1.1`.
+- Public installer names must include product name, version, platform, architecture, and package type.
+- Windows stable releases use NSIS only until other platforms pass real-device validation.
+- macOS and Linux outputs must stay as workflow artifacts or clearly marked preview artifacts until validation is complete.
+- Every public installer should include a SHA256 checksum in the release notes or `SHA256SUMS.txt`.
+- Do not replace an already published stable installer under the same tag; publish a new patch version instead.
+
 ## Data And Privacy
 
 - All data is stored locally.
@@ -101,6 +111,7 @@ Use the export feature before reinstalling the system or moving to another devic
 - macOS signing and notarization are not complete.
 - Linux tray behavior varies by desktop environment.
 - Non-Windows lock detection, fullscreen detection, tray behavior, and autostart still need real-device validation.
+- macOS and Linux builds are not stable release assets until the verification checklist is complete.
 - Local custom audio files and fullscreen overlay mode are not included yet.
 
 ## Contributing

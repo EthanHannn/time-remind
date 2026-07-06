@@ -84,6 +84,16 @@ pnpm tauri build --bundles deb,appimage
 
 当前只有 Windows NSIS 安装包属于已验证发布流程。macOS 和 Linux 产物仅作为后续验证目标。
 
+发布规则：
+
+- `package.json`、`src-tauri/tauri.conf.json`、发布标签和发布说明中的版本号必须一致。
+- 公开发布标签使用 `vMAJOR.MINOR.PATCH`，例如 `v0.1.1`。
+- 对外安装包名称必须包含产品名、版本号、平台、架构和安装包类型。
+- 其他平台完成实机验证前，Windows stable 发布只使用 NSIS。
+- macOS 和 Linux 产物在验证完成前只能作为 workflow artifact 或明确标注的预览产物。
+- 每个公开安装包都应在发布说明或 `SHA256SUMS.txt` 中提供 SHA256 校验值。
+- 不要在同一个正式标签下替换已发布安装包；如需修复，发布新的 PATCH 版本。
+
 ## 数据与隐私
 
 - 数据保存在本机。
@@ -101,6 +111,7 @@ pnpm tauri build --bundles deb,appimage
 - macOS 签名和公证尚未完成。
 - Linux 托盘行为会受桌面环境影响。
 - 非 Windows 平台的锁屏检测、全屏检测、托盘行为和开机自启动仍需实机验证。
+- macOS 和 Linux 构建在完成验证清单前不作为 stable 发布资产。
 - 本地音频文件作为提示音、全屏遮罩模式尚未完成。
 
 ## 参与反馈
