@@ -13,11 +13,11 @@
 
 当前正式发布产物仅包含 Windows NSIS 安装包。macOS/Linux 产物仅作为后续预览验证目标，不纳入当前 `0.1.1 Beta` 对外分发范围。
 
-预览构建目标：
+预览构建目标仅作为 workflow artifact 保留，不作为当前正式 release asset：
 
 - macOS `.app`: `src-tauri/target/release/bundle/macos/Time Remind.app`
 - macOS `.dmg`: `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
-- macOS ARM64 GitHub Actions preview: `Time-Remind_0.1.1_macOS_aarch64_app.zip`
+- macOS ARM64 GitHub Actions artifact: `Time-Remind_0.1.1_macOS_aarch64_app.zip`
 - macOS ARM64 GitHub Actions DMG diagnostics: `Time-Remind_0.1.1-macos-aarch64-dmg-diagnostics`
 - Linux `.deb`: `src-tauri/target/release/bundle/deb/*.deb`
 - Linux `.AppImage`: `src-tauri/target/release/bundle/appimage/*.AppImage`

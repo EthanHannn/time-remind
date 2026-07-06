@@ -92,13 +92,13 @@ macOS 构建命令：
 pnpm tauri build --bundles app,dmg
 ```
 
-macOS ARM64 在 GitHub 托管 runner 上优先构建 `.app` 并压缩为 `.zip` 作为验证 artifact，同时独立运行 DMG 诊断构建；DMG 成功时可作为候选 artifact 保留，失败时保留诊断 artifact。
+macOS ARM64 在 GitHub 托管 runner 上优先构建 `.app` 并压缩为 `.zip` 作为验证 artifact，同时独立运行 DMG 诊断构建；DMG 成功时作为 workflow artifact 保留，失败时保留诊断 artifact。
 
 macOS 预期产物：
 
 - `src-tauri/target/release/bundle/macos/Time Remind.app`
 - `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
-- GitHub Actions ARM64 预览产物：`Time-Remind_0.1.1_macOS_aarch64_app.zip`
+- GitHub Actions ARM64 验证 artifact：`Time-Remind_0.1.1_macOS_aarch64_app.zip`
 - GitHub Actions ARM64 DMG 诊断产物：`Time-Remind_0.1.1-macos-aarch64-dmg-diagnostics`
 
 Linux 构建命令：
