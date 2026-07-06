@@ -13,10 +13,10 @@ Time Remind is a lightweight desktop wellness reminder app for people who spend 
 | Platform | Status | Notes |
 |----------|--------|-------|
 | Windows | Supported and verified | The current release package targets Windows 10/11. |
-| macOS | Planned, not verified | No public installer is released yet. Tray, autostart, lock detection, and fullscreen behavior still need real-device validation. |
-| Linux | Planned, not verified | No public installer is released yet. Tray compatibility and desktop-environment behavior still need validation. |
+| macOS | Community preview, not verified | Preview packages are published for open-source feedback. Tray, autostart, lock detection, and fullscreen behavior still need real-device validation. |
+| Linux | Community preview, not verified | Preview packages are published for open-source feedback. Tray compatibility and desktop-environment behavior still need validation. |
 
-Windows is the verified release platform. macOS and Linux are planned targets and should not be treated as officially supported until package builds, platform capability fallback, and real-device validation are complete.
+Windows is the verified release platform. macOS and Linux packages are community previews and should not be treated as fully supported until platform capability fallback and real-device validation are complete.
 
 ## Features
 
@@ -39,8 +39,10 @@ Download an installer from the [latest GitHub release](https://github.com/EthanH
 Recommended assets:
 
 - Windows: `Time Remind_0.1.1_x64-setup.exe`
+- macOS preview: `.dmg` or zipped `.app` asset
+- Linux preview: `.deb` or `.AppImage` asset
 
-macOS and Linux installers are not published yet. The Windows installer is not code-signed yet, so Windows may show an unknown publisher warning.
+The Windows installer is not code-signed yet, so Windows may show an unknown publisher warning. macOS preview packages are not signed or notarized yet, so Gatekeeper may show a security prompt.
 
 ## Build From Source
 
@@ -88,9 +90,10 @@ Release rules:
 
 - Version values in `package.json`, `src-tauri/tauri.conf.json`, release tags, and release notes must match.
 - Public tags use `vMAJOR.MINOR.PATCH`, for example `v0.1.1`.
+- Pushing a `v*` tag to GitHub automatically starts the release build workflow.
 - Public installer names must include product name, version, platform, architecture, and package type.
-- Windows stable releases use NSIS only until other platforms pass real-device validation.
-- macOS and Linux outputs must stay as workflow artifacts or clearly marked preview artifacts until validation is complete.
+- Windows remains the verified stable target.
+- macOS and Linux outputs must be clearly marked as community preview assets until validation is complete.
 - Every public installer should include a SHA256 checksum in the release notes or `SHA256SUMS.txt`.
 - Do not replace an already published stable installer under the same tag; publish a new patch version instead.
 
@@ -107,11 +110,11 @@ Use the export feature before reinstalling the system or moving to another devic
 
 - Current version is `0.1.1 Beta`.
 - Windows installer is not code-signed.
-- macOS and Linux installers are not published yet.
+- macOS and Linux packages are community preview assets, not verified stable packages.
 - macOS signing and notarization are not complete.
 - Linux tray behavior varies by desktop environment.
 - Non-Windows lock detection, fullscreen detection, tray behavior, and autostart still need real-device validation.
-- macOS and Linux builds are not stable release assets until the verification checklist is complete.
+- macOS and Linux builds remain preview assets until the verification checklist is complete.
 - Local custom audio files and fullscreen overlay mode are not included yet.
 
 ## Contributing

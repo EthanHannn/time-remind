@@ -108,19 +108,25 @@ if ($packageVersion -ne $tauriVersion) {
 "Version OK: $packageVersion"
 ```
 
+发布触发方式：
+
+1. 推荐方式：创建并推送 `v*` 标签，例如 `v0.1.1`，GitHub Actions 会自动运行发布构建。
+2. 手动方式：在 GitHub Actions 中运行 `Release build`，输入不带 `v` 的版本号。
+3. Tag 发布默认创建 prerelease，用于明确 macOS/Linux 仍为社区预览资产。
+
 发布渠道约束：
 
 | 渠道 | 允许产物 | 要求 |
 |---|---|---|
 | stable | Windows NSIS | 完成发布前必须回归、基础安装卸载和校验值记录 |
 | beta | Windows NSIS，必要时附预览 artifact 说明 | 必须标注已知限制，不得暗示 macOS/Linux 正式支持 |
-| preview | macOS/Linux workflow artifact | 仅用于验证，不作为 README 主下载入口 |
+| preview | macOS/Linux release asset 与 workflow artifact | 用于开源反馈，必须明确标注未验证限制 |
 
 校验与签名要求：
 
 1. 每个公开安装包都应生成 SHA256，并写入发布说明或 `SHA256SUMS.txt`。
 2. Windows 当前未签名时，发布说明必须提示未知发布者风险。
-3. macOS 未签名/未公证产物只允许作为预览验证 artifact，不进入 stable 下载入口。
+3. macOS 未签名/未公证产物只允许作为社区预览资产，发布说明必须提示 Gatekeeper 风险。
 4. Linux `.deb` 和 `.AppImage` 进入公开下载前必须记录适用发行版、桌面环境和 SHA256。
 
 Windows 安装包 SHA256 可运行：
@@ -163,14 +169,14 @@ Linux 预期产物：
 4. Linux 托盘依赖桌面环境和 AppIndicator 支持，GNOME Wayland 下需要单独验证。
 5. 非 Windows 平台的全屏检测、锁屏检测、自启动和托盘行为必须以实机结果为准。
 
-阻断 stable 发布条件：
+阻断发布条件：
 
 - 安装后无法启动主窗口或通知窗口。
 - 覆盖安装导致提醒、设置、统计或导入导出数据丢失。
 - 卸载后残留运行进程或错误的自启动项。
 - Windows NSIS 安装器语言、路径或权限流程异常。
 - 发布说明的支持平台、签名状态或校验值与实际产物不一致。
-- macOS/Linux 未完成实机验证却被放入 stable 下载入口。
+- macOS/Linux 预览资产未明确标注未验证限制。
 
 ## 安全收口
 

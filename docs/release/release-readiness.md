@@ -11,9 +11,9 @@
 - Release executable: `src-tauri/target/release/time-remind.exe`
 - NSIS installer: `src-tauri/target/release/bundle/nsis/Time Remind_0.1.1_x64-setup.exe`
 
-当前正式发布产物仅包含 Windows NSIS 安装包。macOS/Linux 产物仅作为后续预览验证目标，不纳入当前 `0.1.1 Beta` 对外分发范围。
+当前已验证发布产物为 Windows NSIS 安装包。macOS/Linux 产物会作为社区预览资产随 Release 发布，用于开源反馈，不视为已验证 stable 支持。
 
-预览构建目标仅作为 workflow artifact 保留，不作为当前正式 release asset：
+预览构建目标：
 
 - macOS `.app`: `src-tauri/target/release/bundle/macos/Time Remind.app`
 - macOS `.dmg`: `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
@@ -55,7 +55,7 @@
 
 当前限制：
 
-- macOS/Linux 暂未发布安装包。
+- macOS/Linux 发布为社区预览资产，尚未完成实机验证。
 - macOS 签名与公证尚未规划完成。
 - Linux 托盘行为需按桌面环境分别验证。
 - 非 Windows 平台的全屏检测、锁屏检测、自启动和托盘行为必须以实机结果为准。
@@ -110,7 +110,7 @@ pwsh -File scripts/measure-memory.ps1 -ProcessName time-remind -DurationMinutes 
 - 当前安装包未做代码签名，Windows 可能显示未知发布者。
 - 当前版本建议标记为 `Beta`。
 - 首批用户建议控制在 2 到 5 人，优先覆盖不同 Windows 版本和显示器配置。
-- 对外材料不得把 macOS/Linux 描述为已正式支持。
+- 对外材料必须把 macOS/Linux 描述为社区预览，不得描述为已验证 stable 支持。
 - 发包前需要为公开安装包生成 SHA256 校验值。
 - 不在同一正式标签下替换已发布安装包；修复阻断问题时发布新的 PATCH 版本。
 - 发包时同时提供：
@@ -129,5 +129,7 @@ pwsh -File scripts/measure-memory.ps1 -ProcessName time-remind -DurationMinutes 
 5. 将 `docs/planning/implementation-plan.md` 中对应验证项改为已完成。
 6. 确认 `package.json` 与 `src-tauri/tauri.conf.json` 版本号一致。
 7. 为安装包生成 SHA256 校验值。
-8. 创建版本提交和标签。
-9. 分发 `Time Remind_0.1.1_x64-setup.exe` 和对应校验值给试用用户。
+8. 创建版本提交并推送到 GitHub。
+9. 创建并推送 `v0.1.1` 形式的标签，触发 GitHub Actions 自动发布构建。
+10. 检查 Release 说明是否明确标注 Windows 已验证、macOS/Linux 为社区预览。
+11. 分发 `Time Remind_0.1.1_x64-setup.exe` 和对应校验值给试用用户。

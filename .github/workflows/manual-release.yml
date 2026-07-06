@@ -1,6 +1,9 @@
-name: Manual release build
+name: Release build
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
@@ -107,44 +110,48 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build and upload Windows release asset
-        if: ${{ matrix.label == 'Windows x64' }}
+      - name: Resolve release metadata
+        id: release
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            version="${{ github.event.inputs.version }}"
+            tag="v${{ github.event.inputs.version }}"
+            draft="${{ github.event.inputs.draft }}"
+            prerelease="${{ github.event.inputs.prerelease }}"
+          else
+            tag="$GITHUB_REF_NAME"
+            version="${tag#v}"
+            draft="false"
+            prerelease="true"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
+      - name: Build and upload release asset
+        if: ${{ matrix.label != 'macOS ARM64' }}
         uses: tauri-apps/tauri-action@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tagName: v${{ inputs.version }}
-          releaseName: Time Remind v${{ inputs.version }}
+          tagName: ${{ steps.release.outputs.tag }}
+          releaseName: Time Remind ${{ steps.release.outputs.tag }}
           releaseBody: |
-            Manual release build for Time Remind v${{ inputs.version }}.
+            Release build for Time Remind ${{ steps.release.outputs.tag }}.
 
             Windows is the current verified release platform.
-            macOS and Linux packages are not included in this release and require real-device validation first.
-            Cross-platform jobs upload workflow artifacts only.
+            macOS and Linux packages are published as community preview assets and still require real-device validation.
+            Non-Windows lock detection, fullscreen detection, tray behavior, and autostart must be treated as unverified until confirmed on real devices.
             Windows ARM64 and Linux ARM64 jobs use GitHub-hosted public-preview runners.
-          releaseDraft: ${{ inputs.draft }}
-          prerelease: ${{ inputs.prerelease }}
-          releaseAssetNamePattern: Time-Remind_${{ inputs.version }}_[platform]_[arch]_[bundle][ext]
+          releaseDraft: ${{ steps.release.outputs.draft }}
+          prerelease: ${{ steps.release.outputs.prerelease }}
+          releaseAssetNamePattern: Time-Remind_${{ steps.release.outputs.version }}_[platform]_[arch]_[bundle][ext]
           uploadWorkflowArtifacts: true
-          workflowArtifactNamePattern: Time-Remind_${{ inputs.version }}-[platform]-[arch]-[bundle]
+          workflowArtifactNamePattern: Time-Remind_${{ steps.release.outputs.version }}-[platform]-[arch]-[bundle]
           args: ${{ matrix.args }} --target ${{ matrix.target }}
-
-      - name: Build preview artifact
-        if: ${{ matrix.label != 'Windows x64' && matrix.label != 'macOS ARM64' }}
-        run: pnpm tauri build ${{ matrix.args }} --target ${{ matrix.target }}
-
-      - name: Upload preview workflow artifact
-        if: ${{ matrix.label != 'Windows x64' && matrix.label != 'macOS ARM64' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: Time-Remind_${{ inputs.version }}-${{ matrix.target }}-preview
-          path: |
-            src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe
-            src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app
-            src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
-            src-tauri/target/${{ matrix.target }}/release/bundle/deb/*.deb
-            src-tauri/target/${{ matrix.target }}/release/bundle/appimage/*.AppImage
-          if-no-files-found: error
 
       - name: Build macOS ARM64 app bundle
         if: ${{ matrix.label == 'macOS ARM64' }}
@@ -155,15 +162,40 @@ jobs:
         shell: bash
         run: |
           cd "src-tauri/target/${{ matrix.target }}/release/bundle/macos"
-          ditto -c -k --sequesterRsrc --keepParent "Time Remind.app" "$GITHUB_WORKSPACE/Time-Remind_${{ inputs.version }}_macOS_aarch64_app.zip"
+          ditto -c -k --sequesterRsrc --keepParent "Time Remind.app" "$GITHUB_WORKSPACE/Time-Remind_${{ steps.release.outputs.version }}_macOS_aarch64_app.zip"
 
       - name: Upload macOS ARM64 workflow artifact
         if: ${{ matrix.label == 'macOS ARM64' }}
         uses: actions/upload-artifact@v4
         with:
-          name: Time-Remind_${{ inputs.version }}-macos-aarch64-app
-          path: Time-Remind_${{ inputs.version }}_macOS_aarch64_app.zip
+          name: Time-Remind_${{ steps.release.outputs.version }}-macos-aarch64-app
+          path: Time-Remind_${{ steps.release.outputs.version }}_macOS_aarch64_app.zip
           if-no-files-found: error
+
+      - name: Ensure release exists
+        if: ${{ matrix.label == 'macOS ARM64' }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release_flags=()
+          if [ "${{ steps.release.outputs.draft }}" = "true" ]; then
+            release_flags+=(--draft)
+          fi
+          if [ "${{ steps.release.outputs.prerelease }}" = "true" ]; then
+            release_flags+=(--prerelease)
+          fi
+
+          gh release view "${{ steps.release.outputs.tag }}" >/dev/null 2>&1 || gh release create "${{ steps.release.outputs.tag }}" \
+            --title "Time Remind ${{ steps.release.outputs.tag }}" \
+            --notes "Release build for Time Remind ${{ steps.release.outputs.tag }}. Windows is verified. macOS and Linux packages are community preview assets and require real-device validation." \
+            "${release_flags[@]}"
+
+      - name: Upload macOS ARM64 app bundle asset
+        if: ${{ matrix.label == 'macOS ARM64' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.release.outputs.tag }}" "Time-Remind_${{ steps.release.outputs.version }}_macOS_aarch64_app.zip" --clobber
 
   macos-arm64-dmg:
     name: macOS ARM64 DMG
@@ -198,6 +230,27 @@ jobs:
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Resolve release metadata
+        id: release
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            version="${{ github.event.inputs.version }}"
+            tag="v${{ github.event.inputs.version }}"
+            draft="${{ github.event.inputs.draft }}"
+            prerelease="${{ github.event.inputs.prerelease }}"
+          else
+            tag="$GITHUB_REF_NAME"
+            version="${tag#v}"
+            draft="false"
+            prerelease="true"
+          fi
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "draft=$draft" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+
       - name: Build macOS ARM64 DMG with diagnostics
         id: build_dmg
         shell: bash
@@ -221,7 +274,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: Time-Remind_${{ inputs.version }}-macos-aarch64-dmg-diagnostics
+          name: Time-Remind_${{ steps.release.outputs.version }}-macos-aarch64-dmg-diagnostics
           path: macos-arm64-dmg-diagnostics
           if-no-files-found: error
 
@@ -229,6 +282,32 @@ jobs:
         if: ${{ success() }}
         uses: actions/upload-artifact@v4
         with:
-          name: Time-Remind_${{ inputs.version }}-macos-aarch64-dmg
+          name: Time-Remind_${{ steps.release.outputs.version }}-macos-aarch64-dmg
           path: src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
           if-no-files-found: error
+
+      - name: Ensure release exists
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          release_flags=()
+          if [ "${{ steps.release.outputs.draft }}" = "true" ]; then
+            release_flags+=(--draft)
+          fi
+          if [ "${{ steps.release.outputs.prerelease }}" = "true" ]; then
+            release_flags+=(--prerelease)
+          fi
+
+          gh release view "${{ steps.release.outputs.tag }}" >/dev/null 2>&1 || gh release create "${{ steps.release.outputs.tag }}" \
+            --title "Time Remind ${{ steps.release.outputs.tag }}" \
+            --notes "Release build for Time Remind ${{ steps.release.outputs.tag }}. Windows is verified. macOS and Linux packages are community preview assets and require real-device validation." \
+            "${release_flags[@]}"
+
+      - name: Upload macOS ARM64 DMG release asset
+        if: ${{ success() }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${{ steps.release.outputs.tag }}" src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg --clobber
