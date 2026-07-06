@@ -13,10 +13,10 @@ Time Remind is a lightweight desktop wellness reminder app for people who spend 
 | Platform | Status | Notes |
 |----------|--------|-------|
 | Windows | Supported and verified | The current release package targets Windows 10/11. |
-| macOS | Preview build | Packages are available for community testing, but tray, autostart, lock detection, and fullscreen behavior still need real-device validation. |
-| Linux | Preview build | Packages are available for community testing, but tray compatibility and desktop-environment behavior still need validation. |
+| macOS | Planned, not verified | No public installer is released yet. Tray, autostart, lock detection, and fullscreen behavior still need real-device validation. |
+| Linux | Planned, not verified | No public installer is released yet. Tray compatibility and desktop-environment behavior still need validation. |
 
-Windows is the verified release platform. macOS and Linux builds are shared so the community can try them and report issues.
+Windows is the verified release platform. macOS and Linux are planned targets and should not be treated as officially supported until package builds, platform capability fallback, and real-device validation are complete.
 
 ## Features
 
@@ -39,10 +39,8 @@ Download an installer from the [latest GitHub release](https://github.com/EthanH
 Recommended assets:
 
 - Windows: `Time Remind_0.1.1_x64-setup.exe`
-- macOS: `.dmg` or `.app` package
-- Linux: `.deb` or `.AppImage` package
 
-The Windows installer is not code-signed yet, so Windows may show an unknown publisher warning. macOS packages are not signed or notarized yet, so Gatekeeper may show a security prompt.
+macOS and Linux installers are not published yet. The Windows installer is not code-signed yet, so Windows may show an unknown publisher warning.
 
 ## Build From Source
 
@@ -84,6 +82,8 @@ Expected outputs:
 - macOS: `src-tauri/target/release/bundle/macos/Time Remind.app`, `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
 - Linux: `src-tauri/target/release/bundle/deb/*.deb`, `src-tauri/target/release/bundle/appimage/*.AppImage`
 
+Only the Windows NSIS installer is currently part of the verified release flow. macOS and Linux outputs are build targets for future validation.
+
 ## Data And Privacy
 
 - All data is stored locally.
@@ -97,6 +97,7 @@ Use the export feature before reinstalling the system or moving to another devic
 
 - Current version is `0.1.1 Beta`.
 - Windows installer is not code-signed.
+- macOS and Linux installers are not published yet.
 - macOS signing and notarization are not complete.
 - Linux tray behavior varies by desktop environment.
 - Non-Windows lock detection, fullscreen detection, tray behavior, and autostart still need real-device validation.
@@ -104,7 +105,7 @@ Use the export feature before reinstalling the system or moving to another devic
 
 ## Contributing
 
-Issues and feedback are welcome. If you test a macOS or Linux build, please include your operating system version, desktop environment, package type, and the behavior you observed.
+Issues and feedback are welcome. macOS and Linux support work is tracked as planned validation rather than an officially supported release.
 
 ## Changelog
 

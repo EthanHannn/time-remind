@@ -92,7 +92,7 @@ macOS 构建命令：
 pnpm tauri build --bundles app,dmg
 ```
 
-macOS ARM64 在 GitHub 托管 runner 上优先构建 `.app` 并压缩为 `.zip` 发布，同时独立运行 DMG 诊断构建；DMG 成功时会作为 release asset 上传，失败时会保留诊断 artifact。
+macOS ARM64 在 GitHub 托管 runner 上优先构建 `.app` 并压缩为 `.zip` 作为验证 artifact，同时独立运行 DMG 诊断构建；DMG 成功时可作为候选 artifact 保留，失败时保留诊断 artifact。
 
 macOS 预期产物：
 
