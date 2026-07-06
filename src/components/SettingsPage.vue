@@ -40,9 +40,23 @@ const message = ref('')
 const importMode = ref<ImportMode>('replace')
 const platformCapabilities = shallowRef<PlatformCapabilities | null>(null)
 
-const supportsAutostart = computed(() => platformCapabilities.value?.supportsAutostart ?? true)
-const supportsSilentStart = computed(() => platformCapabilities.value?.supportsSilentStart ?? true)
-const supportsFullscreenDetection = computed(() => platformCapabilities.value?.supportsFullscreenDetection ?? true)
+const platformCapabilitiesLoaded = computed(() => platformCapabilities.value !== null)
+const supportsAutostart = computed(() => platformCapabilities.value?.supportsAutostart ?? false)
+const supportsSilentStart = computed(() => platformCapabilities.value?.supportsSilentStart ?? false)
+const supportsFullscreenDetection = computed(() => platformCapabilities.value?.supportsFullscreenDetection ?? false)
+const supportsLockDetection = computed(() => platformCapabilities.value?.supportsLockDetection ?? false)
+const supportsTray = computed(() => platformCapabilities.value?.supportsTray ?? false)
+const platformStatusDescription = computed(() => {
+  if (!platformCapabilities.value) {
+    return t('settings.platformCapabilityLoading')
+  }
+
+  if (platformCapabilities.value.isVerifiedReleasePlatform) {
+    return t('settings.platformCapabilityVerified')
+  }
+
+  return t('settings.platformCapabilityLimited')
+})
 const autoStartDisabled = computed(() => autoStartLoading.value || !supportsAutostart.value)
 const silentStartDisabled = computed(() => silentStartLoading.value || !supportsSilentStart.value)
 const fullscreenDetectionDisabled = computed(() => !supportsFullscreenDetection.value)
@@ -172,6 +186,23 @@ async function loadPlatformCapabilities() {
     }
   }
   catch (err) {
+    platformCapabilities.value = {
+      platform: 'unknown',
+      isVerifiedReleasePlatform: false,
+      supportsFullscreenDetection: false,
+      supportsLockDetection: false,
+      supportsTray: false,
+      supportsAutostart: false,
+      supportsSilentStart: false,
+    }
+    autoStart.value = false
+    silentStart.value = false
+    fullscreenDetectionEnabled.value = false
+    await Promise.allSettled([
+      invoke('save_setting', { key: 'silent_start', value: 'false' }),
+      invoke('save_setting', { key: 'fullscreen_detection_enabled', value: 'false' }),
+    ])
+    message.value = t('settings.platformCapabilityLoadFailed', { error: String(err) })
     console.error('Failed to load platform capabilities:', err)
   }
 }
@@ -494,12 +525,29 @@ async function handleImport() {
             </h3>
           </div>
 
+          <div class="setting-row setting-card platform-capability-card">
+            <div class="setting-card-main">
+              <div class="setting-card-copy">
+                <label class="setting-label">{{ t('settings.platformCapabilities') }}</label>
+                <p class="setting-description">
+                  {{ platformStatusDescription }}
+                </p>
+                <p v-if="platformCapabilitiesLoaded && !supportsLockDetection" class="setting-description setting-warning">
+                  {{ t('settings.lockDetectionUnsupported') }}
+                </p>
+                <p v-if="platformCapabilitiesLoaded && !supportsTray" class="setting-description setting-warning">
+                  {{ t('settings.trayUnsupported') }}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div class="setting-row setting-card">
             <div class="setting-card-main">
               <div class="setting-card-header">
                 <div class="setting-card-copy">
                   <label class="setting-label">{{ t('settings.autoStart') }}</label>
-                  <p v-if="!supportsAutostart" class="setting-description setting-warning">
+                  <p v-if="platformCapabilitiesLoaded && !supportsAutostart" class="setting-description setting-warning">
                     {{ t('settings.unsupportedOnPlatform') }}
                   </p>
                 </div>
@@ -521,7 +569,7 @@ async function handleImport() {
                     <p class="setting-description">
                       {{ t('settings.silentStartDescription') }}
                     </p>
-                    <p v-if="!supportsSilentStart" class="setting-description setting-warning">
+                    <p v-if="platformCapabilitiesLoaded && !supportsSilentStart" class="setting-description setting-warning">
                       {{ t('settings.unsupportedOnPlatform') }}
                     </p>
                   </div>
@@ -542,7 +590,7 @@ async function handleImport() {
           <div class="setting-row">
             <div class="setting-inline-copy">
               <label class="setting-label">{{ t('settings.fullscreenDelay') }}</label>
-              <p v-if="!supportsFullscreenDetection" class="setting-description setting-warning">
+              <p v-if="platformCapabilitiesLoaded && !supportsFullscreenDetection" class="setting-description setting-warning">
                 {{ t('settings.unsupportedOnPlatform') }}
               </p>
             </div>
