@@ -2,23 +2,23 @@
 
 ## 当前结论
 
-当前版本可以作为 `0.1.1 Beta` 发给少量可信用户试用。
+当前版本可以作为 `0.1.2 Beta` 发给少量可信用户试用。
 
 公开发布前仍建议完成长时间稳定性、显示环境、重复启动和休眠唤醒等实机回归。
 
 ## 构建产物
 
 - Release executable: `src-tauri/target/release/time-remind.exe`
-- NSIS installer: `src-tauri/target/release/bundle/nsis/Time Remind_0.1.1_x64-setup.exe`
+- NSIS installer: `src-tauri/target/release/bundle/nsis/Time Remind_0.1.2_x64-setup.exe`
 
 当前已验证发布产物为 Windows NSIS 安装包。macOS/Linux 产物会作为社区预览资产随 Release 发布，用于开源反馈，不视为已验证 stable 支持。
 
 预览构建目标：
 
 - macOS `.app`: `src-tauri/target/release/bundle/macos/Time Remind.app`
-- macOS `.dmg`: `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
-- macOS ARM64 GitHub Actions artifact: `Time-Remind_0.1.1_macOS_aarch64_app.zip`
-- macOS ARM64 GitHub Actions DMG diagnostics: `Time-Remind_0.1.1-macos-aarch64-dmg-diagnostics`
+- macOS `.dmg`: `src-tauri/target/release/bundle/dmg/Time Remind_0.1.2_*.dmg`
+- macOS ARM64 GitHub Actions artifact: `Time-Remind_0.1.2_macOS_aarch64_app.zip`
+- macOS ARM64 GitHub Actions DMG diagnostics: `Time-Remind_0.1.2-macos-aarch64-dmg-diagnostics`
 - Linux `.deb`: `src-tauri/target/release/bundle/deb/*.deb`
 - Linux `.AppImage`: `src-tauri/target/release/bundle/appimage/*.AppImage`
 
@@ -130,6 +130,6 @@ pwsh -File scripts/measure-memory.ps1 -ProcessName time-remind -DurationMinutes 
 6. 确认 `package.json` 与 `src-tauri/tauri.conf.json` 版本号一致。
 7. 为安装包生成 SHA256 校验值。
 8. 创建版本提交并推送到 GitHub。
-9. 创建并推送 `v0.1.1` 形式的标签，触发 GitHub Actions 自动发布构建。
+9. 创建并推送 `v0.1.2` 形式的标签，触发 GitHub Actions 自动发布构建。
 10. 检查 Release 说明是否明确标注 Windows 已验证、macOS/Linux 为社区预览。
-11. 分发 `Time Remind_0.1.1_x64-setup.exe` 和对应校验值给试用用户。
+11. 分发 `Time Remind_0.1.2_x64-setup.exe` 和对应校验值给试用用户。

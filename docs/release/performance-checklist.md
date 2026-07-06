@@ -75,7 +75,7 @@ pnpm tauri build --bundles nsis
 当前环境说明：
 
 1. release 可执行文件应生成在 `src-tauri/target/release/time-remind.exe`。
-2. NSIS 安装包应生成在 `src-tauri/target/release/bundle/nsis/Time Remind_0.1.1_x64-setup.exe`。
+2. NSIS 安装包应生成在 `src-tauri/target/release/bundle/nsis/Time Remind_0.1.2_x64-setup.exe`。
 3. NSIS 安装包依赖本机已有 `makensis` 或 Tauri 自动下载 NSIS 工具包。
 4. 如果出现 `nsis-3.11.zip` 下载超时，需要先安装 NSIS 或在网络稳定环境中重新构建。
 5. 安装器应显示语言选择器，并内置英文、简体中文、繁体中文、日文、韩文、法文、德文、越南文、泰文、马来文。
@@ -91,9 +91,9 @@ pnpm tauri build --bundles nsis
 1. `package.json`、`src-tauri/tauri.conf.json`、Git 标签和发布说明中的版本号必须一致。
 2. 正式标签使用 `vMAJOR.MINOR.PATCH`，预发布可使用 `vMAJOR.MINOR.PATCH-beta.N` 或 `vMAJOR.MINOR.PATCH-rc.N`。
 3. 对外产物命名应包含产品名、版本号、平台、架构和包类型，例如：
-   - `Time-Remind_0.1.1_windows_x64_nsis.exe`
-   - `Time-Remind_0.1.1_macos_aarch64_app.zip`
-   - `Time-Remind_0.1.1_linux_x64_appimage.AppImage`
+   - `Time-Remind_0.1.2_windows_x64_nsis.exe`
+   - `Time-Remind_0.1.2_macos_aarch64_app.zip`
+   - `Time-Remind_0.1.2_linux_x64_appimage.AppImage`
 4. 当前 Tauri 本地产物仍可能使用默认命名；上传 release asset 或 workflow artifact 时应使用规范化名称。
 5. 不使用 `latest` 作为安装包文件名，最新版本由发布页和标签表达。
 
@@ -110,7 +110,7 @@ if ($packageVersion -ne $tauriVersion) {
 
 发布触发方式：
 
-1. 推荐方式：创建并推送 `v*` 标签，例如 `v0.1.1`，GitHub Actions 会自动运行发布构建。
+1. 推荐方式：创建并推送 `v*` 标签，例如 `v0.1.2`，GitHub Actions 会自动运行发布构建。
 2. 手动方式：在 GitHub Actions 中运行 `Release build`，输入不带 `v` 的版本号。
 3. Tag 发布默认创建 prerelease，用于明确 macOS/Linux 仍为社区预览资产。
 
@@ -132,7 +132,7 @@ if ($packageVersion -ne $tauriVersion) {
 Windows 安装包 SHA256 可运行：
 
 ```powershell
-Get-FileHash -Algorithm SHA256 "src-tauri/target/release/bundle/nsis/Time Remind_0.1.1_x64-setup.exe"
+Get-FileHash -Algorithm SHA256 "src-tauri/target/release/bundle/nsis/Time Remind_0.1.2_x64-setup.exe"
 ```
 
 macOS 构建命令：
@@ -146,9 +146,9 @@ macOS ARM64 在 GitHub 托管 runner 上优先构建 `.app` 并压缩为 `.zip` 
 macOS 预期产物：
 
 - `src-tauri/target/release/bundle/macos/Time Remind.app`
-- `src-tauri/target/release/bundle/dmg/Time Remind_0.1.1_*.dmg`
-- GitHub Actions ARM64 验证 artifact：`Time-Remind_0.1.1_macOS_aarch64_app.zip`
-- GitHub Actions ARM64 DMG 诊断产物：`Time-Remind_0.1.1-macos-aarch64-dmg-diagnostics`
+- `src-tauri/target/release/bundle/dmg/Time Remind_0.1.2_*.dmg`
+- GitHub Actions ARM64 验证 artifact：`Time-Remind_0.1.2_macOS_aarch64_app.zip`
+- GitHub Actions ARM64 DMG 诊断产物：`Time-Remind_0.1.2-macos-aarch64-dmg-diagnostics`
 
 Linux 构建命令：
 

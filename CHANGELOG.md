@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2 Beta - 2026-07-06
+
+### Changed
+- Added tag-triggered GitHub release builds for Windows, macOS, and Linux assets.
+- Published macOS and Linux packages as community preview assets for open-source feedback.
+- Clarified release documentation for version tags, checksums, and preview platform limits.
+
 ## 0.1.1 Beta - 2026-07-03
 
 ### Added
