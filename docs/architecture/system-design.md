@@ -320,6 +320,8 @@ CREATE INDEX idx_logs_date
 ```
 
 **关键设置项：**
+- `auto_start`：用户期望的开机自启状态。设置页切换时同步写入；应用启动时如发现该值为 `true` 但系统自启动项缺失，则重新注册自启动项，避免升级安装后丢失。
+- `silent_start`：静默启动状态，仅在 `auto_start=true` 时生效。
 - `all_reminders_paused`：托盘“全部暂停”状态，只控制调度器是否触发提醒，不修改单条提醒 `enabled`。
 - `all_reminders_paused_at`：进入全部暂停的 UTC 时间，全部恢复时按暂停时长顺延仍启用提醒的 `next_trigger`。
 - `temp_dnd_until`：临时免打扰到期时间，到期前到达的提醒会顺延到该时间后。
@@ -373,6 +375,7 @@ CREATE INDEX idx_logs_date
 **主窗口启动策略：**
 - 主窗口默认以隐藏状态创建，由 Rust 启动流程统一决定是否显示。
 - 常规手动启动时，`setup` 完成后主动显示主窗口。
+- 应用启动时会根据 `auto_start=true` 修复缺失的系统自启动项。
 - 开机自启且携带 `--autostart` 参数时，若 `silent_start=true`，仅保留托盘与调度器，不弹出主窗口。
 - 单实例重复启动时，只有非 `--autostart` 场景才主动唤起已有主窗口，避免静默启动误弹窗。
 

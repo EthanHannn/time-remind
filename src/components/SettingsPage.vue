@@ -17,6 +17,8 @@ const emit = defineEmits<{
   close: []
 }>()
 
+const AUTO_START_SETTING_KEY = 'auto_start'
+
 const { language: currentLanguage, languageOptions, setLanguage, t } = useI18n()
 const theme = ref<'light' | 'dark' | 'system'>('system')
 const language = ref<Language>(currentLanguage.value)
@@ -140,6 +142,9 @@ async function loadSettings() {
     if (settings.fullscreen_detection_enabled !== undefined) {
       fullscreenDetectionEnabled.value = settings.fullscreen_detection_enabled === 'true'
     }
+    if (settings[AUTO_START_SETTING_KEY] !== undefined) {
+      autoStart.value = settings[AUTO_START_SETTING_KEY] === 'true'
+    }
     if (settings.silent_start !== undefined) {
       silentStart.value = settings.silent_start === 'true'
     }
@@ -177,6 +182,7 @@ async function loadPlatformCapabilities() {
     if (!capabilities.supportsAutostart) {
       autoStart.value = false
       silentStart.value = false
+      await invoke('save_setting', { key: AUTO_START_SETTING_KEY, value: 'false' })
       await invoke('save_setting', { key: 'silent_start', value: 'false' })
     }
 
@@ -199,6 +205,7 @@ async function loadPlatformCapabilities() {
     silentStart.value = false
     fullscreenDetectionEnabled.value = false
     await Promise.allSettled([
+      invoke('save_setting', { key: AUTO_START_SETTING_KEY, value: 'false' }),
       invoke('save_setting', { key: 'silent_start', value: 'false' }),
       invoke('save_setting', { key: 'fullscreen_detection_enabled', value: 'false' }),
     ])
@@ -215,7 +222,22 @@ async function loadAutoStart() {
 
   autoStartLoading.value = true
   try {
-    autoStart.value = await isAutostartEnabled()
+    const systemEnabled = await isAutostartEnabled()
+
+    if (systemEnabled) {
+      autoStart.value = true
+      await invoke('save_setting', { key: AUTO_START_SETTING_KEY, value: 'true' })
+      return
+    }
+
+    if (autoStart.value) {
+      await enableAutostart()
+      autoStart.value = await isAutostartEnabled()
+      await invoke('save_setting', { key: AUTO_START_SETTING_KEY, value: String(autoStart.value) })
+      return
+    }
+
+    autoStart.value = false
   }
   catch (err) {
     message.value = t('settings.loadAutoStartFailed', { error: String(err) })
@@ -323,6 +345,7 @@ function applyTheme(t: string) {
 async function handleAutoStartChange() {
   if (!supportsAutostart.value) {
     autoStart.value = false
+    await invoke('save_setting', { key: AUTO_START_SETTING_KEY, value: 'false' })
     return
   }
 
@@ -332,15 +355,18 @@ async function handleAutoStartChange() {
   try {
     if (autoStart.value) {
       await enableAutostart()
+      await invoke('save_setting', { key: AUTO_START_SETTING_KEY, value: 'true' })
       await invoke('save_setting', { key: 'silent_start', value: String(silentStart.value) })
     }
     else {
       await disableAutostart()
       silentStart.value = false
+      await invoke('save_setting', { key: AUTO_START_SETTING_KEY, value: 'false' })
       await invoke('save_setting', { key: 'silent_start', value: 'false' })
     }
 
     autoStart.value = await isAutostartEnabled()
+    await invoke('save_setting', { key: AUTO_START_SETTING_KEY, value: String(autoStart.value) })
   }
   catch (err) {
     autoStart.value = previousAutoStart

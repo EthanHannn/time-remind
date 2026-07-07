@@ -15,6 +15,8 @@ use tauri::{
 };
 
 #[cfg(target_os = "windows")]
+use tauri_plugin_autostart::ManagerExt as AutostartManagerExt;
+#[cfg(target_os = "windows")]
 use window_vibrancy::apply_mica;
 #[cfg(target_os = "macos")]
 use window_vibrancy::{apply_vibrancy, NSVisualEffectMaterial};
@@ -43,6 +45,7 @@ use power::PowerMonitor;
 use scheduler::Scheduler;
 
 const TRAY_ID: &str = "main-tray";
+const AUTO_START_KEY: &str = "auto_start";
 const LAST_BOOT_MARKER_KEY: &str = "last_boot_marker";
 
 struct ReminderTemplateText {
@@ -758,6 +761,37 @@ fn reconcile_schedule_on_startup(db: &Database) {
     }
 }
 
+#[cfg(target_os = "windows")]
+fn restore_autostart_preference(app: &AppHandle, db: &Database) {
+    let should_restore = {
+        let conn = db.conn.lock().unwrap();
+        conn.query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            [AUTO_START_KEY],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|value| value == "true")
+        .unwrap_or(false)
+    };
+
+    if !should_restore {
+        return;
+    }
+
+    let autostart = app.autolaunch();
+    match autostart.is_enabled() {
+        Ok(true) => {}
+        Ok(false) => match autostart.enable() {
+            Ok(()) => app_log::info("开机自启注册已恢复"),
+            Err(error) => app_log::warn(format!("开机自启注册恢复失败：{error}")),
+        },
+        Err(error) => app_log::warn(format!("读取开机自启状态失败：{error}")),
+    }
+}
+
+#[cfg(not(target_os = "windows"))]
+fn restore_autostart_preference(_app: &AppHandle, _db: &Database) {}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     app_log::install_panic_hook();
@@ -793,6 +827,7 @@ pub fn run() {
             insert_default_reminders(app.handle(), &db);
             repair_default_reminder_templates(&db);
             reconcile_schedule_on_startup(&db);
+            restore_autostart_preference(app.handle(), &db);
             let tray_language = current_ui_language(&db);
             app.manage(db);
 
