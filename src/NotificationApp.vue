@@ -333,12 +333,25 @@ function resumeLocalTimers() {
   resumeAutoDismiss()
 }
 
+function resetNotificationState() {
+  name.value = ''
+  message.value = ''
+  reminderId.value = ''
+  reminderType.value = 'custom'
+  actionEnabled.value = false
+  actionTitle.value = ''
+  actionMessage.value = ''
+  actionDurationSeconds.value = 0
+  breakRemainingSeconds.value = 0
+  pendingCount.value = 0
+}
+
 async function closeNotificationWindow() {
   visible.value = false
   breakMode.value = false
   clearAutoDismiss()
   stopBreakCountdown()
-  pendingCount.value = 0
+  resetNotificationState()
   const appWindow = getCurrentWebviewWindow()
   await appWindow.hide()
 }
@@ -406,7 +419,7 @@ async function handlePostpone(minutes: number) {
 
 <template>
   <div class="notification-wrapper" :class="{ 'notification-wrapper-visible': visible }">
-    <div class="notification-shell" :style="notificationStyle">
+    <div v-if="visible" class="notification-shell" :style="notificationStyle">
       <div class="notification-visual">
         <img
           v-if="visual.mascotAsset"
