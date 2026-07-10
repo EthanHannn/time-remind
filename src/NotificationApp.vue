@@ -187,7 +187,11 @@ onMounted(async () => {
     pendingCount.value = Math.max(0, Number(data.pending_count || 0))
     visible.value = true
 
+    const shownReminderId = data.reminder_id
     void loadDisplaySettings().then(() => {
+      if (!visible.value || breakMode.value || reminderId.value !== shownReminderId)
+        return
+
       if (soundEnabled.value) {
         playNotificationSound({
           preset: soundPreset.value,
@@ -241,6 +245,9 @@ function clearAutoDismiss() {
 
 function startAutoDismiss(durationMs = notificationDuration.value) {
   clearAutoDismiss()
+  if (!visible.value || breakMode.value)
+    return
+
   if (systemTimersPaused) {
     autoDismissRemainingMs = durationMs
     return
