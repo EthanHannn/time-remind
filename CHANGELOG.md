@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.1.3 Beta - 2026-07-13
+
+### Fixed
+
+- Corrected notification placement on Windows multi-monitor setups with mixed display scaling.
+- Positioned notification windows before showing them and recorded placement failures in the runtime log.
+
+### Verified
+
+- `cargo fmt -- --check`
+- `cargo test scheduler::tests::notification_position_uses_target_monitor_physical_coordinates`
+- `cargo check`
+
 ## 0.1.2 Beta - 2026-07-06
 
 ### Changed

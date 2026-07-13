@@ -1,6 +1,6 @@
 [package]
 name = "time-remind"
-version = "0.1.2"
+version = "0.1.3"
 description = "Windows desktop health reminder app"
 authors = ["HPK"]
 edition = "2021"

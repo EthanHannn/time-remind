@@ -16,6 +16,24 @@ const NOTIFICATION_WINDOW_RIGHT_MARGIN: f64 = 20.0;
 const NOTIFICATION_WINDOW_BOTTOM_MARGIN: f64 = 96.0;
 const NEXT_NOTIFICATION_DELAY_MS: u64 = 220;
 
+fn notification_window_position(
+    work_area_position: tauri::PhysicalPosition<i32>,
+    work_area_size: tauri::PhysicalSize<u32>,
+    scale_factor: f64,
+) -> tauri::PhysicalPosition<i32> {
+    let window_width = NOTIFICATION_WINDOW_WIDTH * scale_factor;
+    let window_height = NOTIFICATION_WINDOW_HEIGHT * scale_factor;
+    let right_margin = NOTIFICATION_WINDOW_RIGHT_MARGIN * scale_factor;
+    let bottom_margin = NOTIFICATION_WINDOW_BOTTOM_MARGIN * scale_factor;
+
+    let left = f64::from(work_area_position.x);
+    let top = f64::from(work_area_position.y);
+    let x = (left + f64::from(work_area_size.width) - window_width - right_margin).max(left);
+    let y = (top + f64::from(work_area_size.height) - window_height - bottom_margin).max(top);
+
+    tauri::PhysicalPosition::new(x.round() as i32, y.round() as i32)
+}
+
 /// 通知窗口显示数据
 #[derive(Debug, Clone, Serialize)]
 pub struct NotificationData {
@@ -410,7 +428,6 @@ impl Scheduler {
         notification_window
             .emit("notification:show", payload)
             .map_err(|e| e.to_string())?;
-        notification_window.show().map_err(|e| e.to_string())?;
 
         let monitor = self
             .app
@@ -427,18 +444,17 @@ impl Scheduler {
         if let Some(monitor) = monitor {
             let work_area = monitor.work_area();
             let scale_factor = monitor.scale_factor();
-            let left = work_area.position.x as f64 / scale_factor;
-            let top = work_area.position.y as f64 / scale_factor;
-            let width = work_area.size.width as f64 / scale_factor;
-            let height = work_area.size.height as f64 / scale_factor;
-            let x = (left + width - NOTIFICATION_WINDOW_WIDTH - NOTIFICATION_WINDOW_RIGHT_MARGIN)
-                .max(left);
-            let y = (top + height - NOTIFICATION_WINDOW_HEIGHT - NOTIFICATION_WINDOW_BOTTOM_MARGIN)
-                .max(top);
+            let position =
+                notification_window_position(work_area.position, work_area.size, scale_factor);
 
-            let _ = notification_window
-                .set_position(tauri::Position::Logical(tauri::LogicalPosition::new(x, y)));
+            if let Err(error) =
+                notification_window.set_position(tauri::Position::Physical(position))
+            {
+                crate::app_log::warn(format!("通知窗口定位失败：{error}"));
+            }
         }
+
+        notification_window.show().map_err(|e| e.to_string())?;
 
         Ok(())
     }
@@ -728,5 +744,16 @@ mod tests {
         let shifted = shifted_next_trigger(None, 20, 180, now);
 
         assert_eq!(shifted, "2026-07-01T10:20:00");
+    }
+
+    #[test]
+    fn notification_position_uses_target_monitor_physical_coordinates() {
+        let position = notification_window_position(
+            tauri::PhysicalPosition::new(1920, 0),
+            tauri::PhysicalSize::new(2560, 1400),
+            1.5,
+        );
+
+        assert_eq!(position, tauri::PhysicalPosition::new(3910, 920));
     }
 }
