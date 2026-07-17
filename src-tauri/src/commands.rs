@@ -15,6 +15,7 @@ use crate::scheduler::Scheduler;
 
 pub(crate) const ALL_REMINDERS_PAUSED_KEY: &str = "all_reminders_paused";
 const ALL_REMINDERS_PAUSED_AT_KEY: &str = "all_reminders_paused_at";
+const TEMP_DND_UNTIL_KEY: &str = "temp_dnd_until";
 const MIN_INTERVAL_MINUTES: i64 = 1;
 const MAX_INTERVAL_MINUTES: i64 = 1440;
 const MIN_BREAK_DURATION_MINUTES: i64 = 1;
@@ -130,6 +131,82 @@ fn shift_enabled_reminder_schedule(
         )
         .map_err(|e| e.to_string())?;
     }
+
+    Ok(())
+}
+
+fn shift_enabled_reminder_schedule_for_temp_dnd(
+    conn: &Connection,
+    paused_seconds: i64,
+    now: chrono::DateTime<Utc>,
+    resume_at: chrono::DateTime<Utc>,
+) -> Result<(), String> {
+    let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
+    let mut stmt = conn
+        .prepare("SELECT id, interval_minutes, next_trigger FROM reminders WHERE enabled = 1")
+        .map_err(|e| e.to_string())?;
+
+    let reminders: Vec<(String, i64, Option<String>)> = stmt
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+    drop(stmt);
+
+    for (id, interval_minutes, next_trigger) in reminders {
+        let new_next = next_trigger
+            .and_then(|value| NaiveDateTime::parse_from_str(&value, "%Y-%m-%dT%H:%M:%S").ok())
+            .map(|timestamp| timestamp.and_utc())
+            .filter(|timestamp| *timestamp > now)
+            .map(|timestamp| timestamp + Duration::seconds(paused_seconds))
+            .unwrap_or_else(|| resume_at + Duration::minutes(interval_minutes))
+            .format("%Y-%m-%dT%H:%M:%S")
+            .to_string();
+
+        conn.execute(
+            "UPDATE reminders SET next_trigger = ?1, updated_at = ?2 WHERE id = ?3",
+            (&new_next, &now_str, &id),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+pub(crate) fn start_temp_dnd(conn: &Connection, minutes: i64) -> Result<(), String> {
+    if !(1..=480).contains(&minutes) {
+        return Err("免打扰时间必须在 1 到 480 分钟之间".to_string());
+    }
+
+    let now = Utc::now();
+    let requested_until = now + Duration::minutes(minutes);
+    let previous_until = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = ?1",
+            [TEMP_DND_UNTIL_KEY],
+            |row| row.get::<_, String>(0),
+        )
+        .ok()
+        .and_then(|value| NaiveDateTime::parse_from_str(&value, "%Y-%m-%dT%H:%M:%S").ok())
+        .map(|timestamp| timestamp.and_utc())
+        .filter(|until| *until > now);
+    let resume_at = previous_until
+        .map(|until| until.max(requested_until))
+        .unwrap_or(requested_until);
+    let paused_seconds = (resume_at - previous_until.unwrap_or(now))
+        .num_seconds()
+        .max(0);
+
+    if paused_seconds > 0 {
+        shift_enabled_reminder_schedule_for_temp_dnd(conn, paused_seconds, now, resume_at)?;
+    }
+
+    let until = resume_at.format("%Y-%m-%dT%H:%M:%S").to_string();
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+        (TEMP_DND_UNTIL_KEY, &until),
+    )
+    .map_err(|e| e.to_string())?;
 
     Ok(())
 }
@@ -1612,21 +1689,21 @@ pub fn toggle_all_reminders(
 
 /// 设置临时免打扰
 #[tauri::command]
-pub fn set_temp_dnd(db: State<'_, Database>, minutes: i64) -> Result<(), String> {
-    if !(1..=480).contains(&minutes) {
-        return Err("免打扰时间必须在 1 到 480 分钟之间".to_string());
-    }
-
+pub fn set_temp_dnd(
+    app: AppHandle,
+    db: State<'_, Database>,
+    scheduler: State<'_, Scheduler>,
+    minutes: i64,
+) -> Result<(), String> {
     let conn = db.conn.lock().unwrap();
-    let until = (Utc::now() + Duration::minutes(minutes))
-        .format("%Y-%m-%dT%H:%M:%S")
-        .to_string();
+    start_temp_dnd(&conn, minutes)?;
+    drop(conn);
 
-    conn.execute(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES ('temp_dnd_until', ?1)",
-        [&until],
-    )
-    .map_err(|e| e.to_string())?;
+    scheduler.clear_all_active();
+    hide_notification_window(&app);
+    app.emit("reminders:changed", ())
+        .map_err(|e| e.to_string())?;
+    crate::set_tray_visual_state(&app, crate::TrayVisualState::Muted);
 
     Ok(())
 }
@@ -1831,5 +1908,69 @@ mod tests {
         assert_eq!(enabled, 1);
         assert!(next_trigger.is_some());
         assert!(!all_reminders_paused(&conn));
+    }
+
+    #[test]
+    fn temp_dnd_keeps_enabled_reminders_staggered() {
+        let conn = prepare_pause_test_db();
+        conn.execute(
+            "INSERT INTO reminders (id, interval_minutes, enabled, next_trigger, updated_at) VALUES ('drink', 90, 1, '2026-07-01T10:10:00', ''), ('eye', 20, 1, '2026-07-01T10:35:00', '')",
+            [],
+        )
+        .expect("test reminders should be inserted");
+        let now = Utc
+            .with_ymd_and_hms(2026, 7, 1, 10, 0, 0)
+            .single()
+            .expect("fixed test time should be valid");
+        let resume_at = now + Duration::hours(1);
+
+        shift_enabled_reminder_schedule_for_temp_dnd(&conn, 3600, now, resume_at)
+            .expect("temporary dnd should shift reminder schedules");
+
+        let schedules = conn
+            .prepare("SELECT id, next_trigger FROM reminders ORDER BY id")
+            .expect("query should prepare")
+            .query_map([], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .expect("query should run")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("rows should collect");
+
+        assert_eq!(
+            schedules,
+            vec![
+                ("drink".to_string(), "2026-07-01T11:10:00".to_string()),
+                ("eye".to_string(), "2026-07-01T11:35:00".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn temp_dnd_reschedules_overdue_reminders_after_the_next_interval() {
+        let conn = prepare_pause_test_db();
+        conn.execute(
+            "INSERT INTO reminders (id, interval_minutes, enabled, next_trigger, updated_at) VALUES ('due', 20, 1, '2026-07-01T09:59:00', '')",
+            [],
+        )
+        .expect("test reminder should be inserted");
+        let now = Utc
+            .with_ymd_and_hms(2026, 7, 1, 10, 0, 0)
+            .single()
+            .expect("fixed test time should be valid");
+        let resume_at = now + Duration::hours(1);
+
+        shift_enabled_reminder_schedule_for_temp_dnd(&conn, 3600, now, resume_at)
+            .expect("temporary dnd should reset overdue reminder");
+
+        let next_trigger: String = conn
+            .query_row(
+                "SELECT next_trigger FROM reminders WHERE id = 'due'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("reminder should exist");
+
+        assert_eq!(next_trigger, "2026-07-01T11:20:00");
     }
 }

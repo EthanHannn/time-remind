@@ -922,14 +922,18 @@ pub fn run() {
                         let minutes: i64 = if event.id.as_ref() == "dnd_30" { 30 } else { 60 };
                         let db = app.state::<Database>();
                         let conn = db.conn.lock().unwrap();
-                        let until = (Utc::now() + chrono::Duration::minutes(minutes))
-                            .format("%Y-%m-%dT%H:%M:%S")
-                            .to_string();
-                        let _ = conn.execute(
-                            "INSERT OR REPLACE INTO settings (key, value) VALUES ('temp_dnd_until', ?1)",
-                            [&until],
-                        );
-                        set_tray_visual_state(app, TrayVisualState::Muted);
+                        let result = commands::start_temp_dnd(&conn, minutes);
+                        drop(conn);
+
+                        if result.is_ok() {
+                            let scheduler = app.state::<Scheduler>();
+                            scheduler.clear_all_active();
+                            if let Some(notification_window) = app.get_webview_window("notification") {
+                                let _ = notification_window.hide();
+                            }
+                            let _ = app.emit("reminders:changed", ());
+                            set_tray_visual_state(app, TrayVisualState::Muted);
+                        }
                     }
                     "quit" => {
                         app.exit(0);

@@ -213,7 +213,7 @@ import_data(data, mode)   → ImportResult   // mode: replace | merge
 触发提醒
   │
   ▼
-检查免打扰状态 ─── 是 ──→ 静默跳过，记录日志
+检查免打扰状态 ─── 是 ──→ 静默顺延；临时免打扰保留各提醒的剩余时间
   │ 否
   ▼
 检查演示/游戏类真全屏应用 ─── 是 ──→ 延后5分钟，重新入队
@@ -324,7 +324,7 @@ CREATE INDEX idx_logs_date
 - `silent_start`：静默启动状态，仅在 `auto_start=true` 时生效。
 - `all_reminders_paused`：托盘“全部暂停”状态，只控制调度器是否触发提醒，不修改单条提醒 `enabled`。
 - `all_reminders_paused_at`：进入全部暂停的 UTC 时间，全部恢复时按暂停时长顺延仍启用提醒的 `next_trigger`。
-- `temp_dnd_until`：临时免打扰到期时间，到期前到达的提醒会顺延到该时间后。
+- `temp_dnd_until`：临时免打扰到期时间。开启时会按暂停时长平移每个启用提醒的 `next_trigger`，保留各自剩余时间与相对间隔，避免到期后集中弹窗。
 
 **默认数据（首次启动插入）：**
 - 饮水提醒：间隔 90 分钟
