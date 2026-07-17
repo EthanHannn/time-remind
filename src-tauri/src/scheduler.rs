@@ -455,6 +455,9 @@ impl Scheduler {
         }
 
         notification_window.show().map_err(|e| e.to_string())?;
+        notification_window
+            .set_always_on_top(true)
+            .map_err(|e| e.to_string())?;
 
         Ok(())
     }
