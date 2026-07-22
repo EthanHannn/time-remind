@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.1.5 Beta - 2026-07-22
+
+### Fixed
+
+- Restored the notification window's always-on-top state each time a reminder is shown.
+- Completed Traditional Chinese, Japanese, and Korean platform capability messages.
+
+### Changed
+
+- GitHub Releases now use the matching version entry from this changelog as their release notes.
+
+### Verified
+
+- `pnpm lint`
+- `pnpm test`
+- `pnpm build`
+- `cargo fmt -- --check`
+- `cargo check`
+- `cargo test`
+- `pnpm tauri build --no-bundle`
+- `pnpm tauri build --bundles nsis`
+
+## 0.1.4 Beta - 2026-07-17
+
+### Fixed
+
+- Preserved each enabled reminder's remaining schedule during temporary Do Not Disturb.
+
 ## 0.1.3 Beta - 2026-07-13
 
 ### Fixed

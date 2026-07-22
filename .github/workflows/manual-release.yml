@@ -131,6 +131,31 @@ jobs:
           echo "draft=$draft" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
+          release_notes="$RUNNER_TEMP/release-notes.md"
+          awk -v version="$version" '
+            $0 ~ "^## " version "([[:space:]]|$)" { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$release_notes"
+
+          if [ ! -s "$release_notes" ]; then
+            echo "Missing CHANGELOG.md entry for version $version" >&2
+            exit 1
+          fi
+
+          cat >> "$release_notes" <<'EOF'
+
+          ### Platform status
+
+          Windows is the current verified release platform. macOS and Linux packages are community preview assets and still require real-device validation. Non-Windows lock detection, fullscreen detection, tray behavior, and autostart remain unverified. Windows ARM64 and Linux ARM64 builds use GitHub-hosted public-preview runners.
+          EOF
+
+          {
+            echo "release_body<<EOF"
+            cat "$release_notes"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build and upload release asset
         if: ${{ matrix.label != 'macOS ARM64' }}
         uses: tauri-apps/tauri-action@v1
@@ -139,13 +164,7 @@ jobs:
         with:
           tagName: ${{ steps.release.outputs.tag }}
           releaseName: Time Remind ${{ steps.release.outputs.tag }}
-          releaseBody: |
-            Release build for Time Remind ${{ steps.release.outputs.tag }}.
-
-            Windows is the current verified release platform.
-            macOS and Linux packages are published as community preview assets and still require real-device validation.
-            Non-Windows lock detection, fullscreen detection, tray behavior, and autostart must be treated as unverified until confirmed on real devices.
-            Windows ARM64 and Linux ARM64 jobs use GitHub-hosted public-preview runners.
+          releaseBody: ${{ steps.release.outputs.release_body }}
           releaseDraft: ${{ steps.release.outputs.draft }}
           prerelease: ${{ steps.release.outputs.prerelease }}
           releaseAssetNamePattern: Time-Remind_${{ steps.release.outputs.version }}_[platform]_[arch]_[bundle][ext]
@@ -188,7 +207,7 @@ jobs:
 
           gh release view "${{ steps.release.outputs.tag }}" >/dev/null 2>&1 || gh release create "${{ steps.release.outputs.tag }}" \
             --title "Time Remind ${{ steps.release.outputs.tag }}" \
-            --notes "Release build for Time Remind ${{ steps.release.outputs.tag }}. Windows is verified. macOS and Linux packages are community preview assets and require real-device validation." \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
             "${release_flags[@]}"
 
       - name: Upload macOS ARM64 app bundle asset
@@ -251,6 +270,25 @@ jobs:
           echo "draft=$draft" >> "$GITHUB_OUTPUT"
           echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
 
+          release_notes="$RUNNER_TEMP/release-notes.md"
+          awk -v version="$version" '
+            $0 ~ "^## " version "([[:space:]]|$)" { found = 1; next }
+            found && /^## / { exit }
+            found { print }
+          ' CHANGELOG.md > "$release_notes"
+
+          if [ ! -s "$release_notes" ]; then
+            echo "Missing CHANGELOG.md entry for version $version" >&2
+            exit 1
+          fi
+
+          cat >> "$release_notes" <<'EOF'
+
+          ### Platform status
+
+          Windows is the current verified release platform. macOS and Linux packages are community preview assets and still require real-device validation. Non-Windows lock detection, fullscreen detection, tray behavior, and autostart remain unverified. Windows ARM64 and Linux ARM64 builds use GitHub-hosted public-preview runners.
+          EOF
+
       - name: Build macOS ARM64 DMG with diagnostics
         id: build_dmg
         shell: bash
@@ -302,7 +340,7 @@ jobs:
 
           gh release view "${{ steps.release.outputs.tag }}" >/dev/null 2>&1 || gh release create "${{ steps.release.outputs.tag }}" \
             --title "Time Remind ${{ steps.release.outputs.tag }}" \
-            --notes "Release build for Time Remind ${{ steps.release.outputs.tag }}. Windows is verified. macOS and Linux packages are community preview assets and require real-device validation." \
+            --notes-file "$RUNNER_TEMP/release-notes.md" \
             "${release_flags[@]}"
 
       - name: Upload macOS ARM64 DMG release asset

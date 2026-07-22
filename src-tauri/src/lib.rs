@@ -864,17 +864,20 @@ pub fn run() {
             let sep2 = PredefinedMenuItem::separator(app)?;
             let quit_item = MenuItem::with_id(app, "quit", tray_text.quit, true, None::<&str>)?;
 
-            let menu = Menu::with_items(app, &[
-                &pause_item,
-                &resume_item,
-                &dnd_30,
-                &dnd_60,
-                &sep1,
-                &settings_item,
-                &show_item,
-                &sep2,
-                &quit_item,
-            ])?;
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &pause_item,
+                    &resume_item,
+                    &dnd_30,
+                    &dnd_60,
+                    &sep1,
+                    &settings_item,
+                    &show_item,
+                    &sep2,
+                    &quit_item,
+                ],
+            )?;
             app.manage(TrayMenuItems {
                 pause_all: pause_item.clone(),
                 resume_all: resume_item.clone(),
@@ -919,7 +922,11 @@ pub fn run() {
                         set_tray_visual_state(app, TrayVisualState::Idle);
                     }
                     "dnd_30" | "dnd_60" => {
-                        let minutes: i64 = if event.id.as_ref() == "dnd_30" { 30 } else { 60 };
+                        let minutes: i64 = if event.id.as_ref() == "dnd_30" {
+                            30
+                        } else {
+                            60
+                        };
                         let db = app.state::<Database>();
                         let conn = db.conn.lock().unwrap();
                         let result = commands::start_temp_dnd(&conn, minutes);
@@ -928,7 +935,9 @@ pub fn run() {
                         if result.is_ok() {
                             let scheduler = app.state::<Scheduler>();
                             scheduler.clear_all_active();
-                            if let Some(notification_window) = app.get_webview_window("notification") {
+                            if let Some(notification_window) =
+                                app.get_webview_window("notification")
+                            {
                                 let _ = notification_window.hide();
                             }
                             let _ = app.emit("reminders:changed", ());
@@ -958,7 +967,9 @@ pub fn run() {
             let should_show = if is_autostart {
                 let db = app.state::<Database>();
                 let silent = db
-                    .conn.lock().unwrap()
+                    .conn
+                    .lock()
+                    .unwrap()
                     .query_row(
                         "SELECT value FROM settings WHERE key = 'silent_start'",
                         [],
