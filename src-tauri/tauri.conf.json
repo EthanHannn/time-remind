@@ -35,9 +35,10 @@
         "focus": false,
         "skipTaskbar": true,
         "center": false,
+        "shadow": false,
         "visible": false,
         "url": "notification.html",
-        "transparent": false
+        "transparent": true
       }
     ],
     "security": {

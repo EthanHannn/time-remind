@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- Made the notification window transparent, disabled its native shadow, and excluded it from native window materials so rounded corners no longer sit inside an opaque rectangular frame.
+- Selected the X11 backend at startup for Linux Wayland sessions with XWayland available, allowing the custom notification window to retain bottom-right positioning on Ubuntu GNOME.
+
 ## 0.1.6 Beta - 2026-09-02
 
 ### Added

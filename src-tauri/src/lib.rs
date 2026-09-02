@@ -792,8 +792,51 @@ fn restore_autostart_preference(app: &AppHandle, db: &Database) {
 #[cfg(not(target_os = "windows"))]
 fn restore_autostart_preference(_app: &AppHandle, _db: &Database) {}
 
+fn should_use_xwayland_fallback(
+    wayland_session: bool,
+    xwayland_available: bool,
+    backend_already_selected: bool,
+) -> bool {
+    wayland_session && xwayland_available && !backend_already_selected
+}
+
+#[cfg(target_os = "linux")]
+fn configure_linux_display_backend() -> bool {
+    let has_value = |key: &str| {
+        std::env::var_os(key)
+            .map(|value| !value.is_empty())
+            .unwrap_or(false)
+    };
+    let wayland_session = std::env::var("XDG_SESSION_TYPE")
+        .map(|value| value.eq_ignore_ascii_case("wayland"))
+        .unwrap_or(false)
+        || has_value("WAYLAND_DISPLAY");
+    let xwayland_available = has_value("DISPLAY");
+    let backend_already_selected = has_value("GDK_BACKEND");
+
+    if should_use_xwayland_fallback(
+        wayland_session,
+        xwayland_available,
+        backend_already_selected,
+    ) {
+        // GNOME Wayland does not support layer-shell and does not allow normal
+        // top-level windows to choose their position. XWayland preserves the
+        // custom interactive notification while allowing bottom-right placement.
+        std::env::set_var("GDK_BACKEND", "x11");
+        return true;
+    }
+
+    false
+}
+
+#[cfg(not(target_os = "linux"))]
+fn configure_linux_display_backend() -> bool {
+    false
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let using_xwayland_fallback = configure_linux_display_backend();
     app_log::install_panic_hook();
 
     tauri::Builder::default()
@@ -809,16 +852,16 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             Some(vec!["--autostart".into()]),
         ))
-        .setup(|app| {
+        .setup(move |app| {
             app_log::init(app.handle());
             app_log::info("应用启动");
+            if using_xwayland_fallback {
+                app_log::info("检测到 Wayland 会话，已使用 XWayland 以支持通知窗口定位");
+            }
 
             // 应用窗口材质
             if let Some(main_window) = app.get_webview_window("main") {
                 apply_window_material(&main_window);
-            }
-            if let Some(notification_window) = app.get_webview_window("notification") {
-                apply_window_material(&notification_window);
             }
 
             // 初始化数据库
@@ -1035,4 +1078,25 @@ pub fn run() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::should_use_xwayland_fallback;
+
+    #[test]
+    fn uses_xwayland_when_wayland_cannot_position_custom_windows() {
+        assert!(should_use_xwayland_fallback(true, true, false));
+    }
+
+    #[test]
+    fn respects_an_explicit_gdk_backend() {
+        assert!(!should_use_xwayland_fallback(true, true, true));
+    }
+
+    #[test]
+    fn keeps_native_backend_without_xwayland() {
+        assert!(!should_use_xwayland_fallback(true, false, false));
+        assert!(!should_use_xwayland_fallback(false, true, false));
+    }
 }
