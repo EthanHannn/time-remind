@@ -108,7 +108,7 @@ Use the export feature before reinstalling the system or moving to another devic
 
 ## Known Limitations
 
-- Current version is `0.1.2 Beta`.
+- Current version is `0.1.6 Beta`.
 - Windows installer is not code-signed.
 - macOS and Linux packages are community preview assets, not verified stable packages.
 - macOS signing and notarization are not complete.

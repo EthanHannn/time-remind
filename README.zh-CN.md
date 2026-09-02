@@ -108,7 +108,7 @@ pnpm tauri build --bundles deb,appimage
 
 ## 已知限制
 
-- 当前版本为 `0.1.2 Beta`。
+- 当前版本为 `0.1.6 Beta`。
 - Windows 安装包未签名。
 - macOS 和 Linux 安装包属于社区预览资产，不是已验证 stable 包。
 - macOS 签名和公证尚未完成。

@@ -49,6 +49,16 @@ textarea {
   font-size: inherit;
 }
 
+/* Chromium does not consistently inherit page colors into native select menus. */
+[data-theme='dark'] select {
+  color-scheme: dark;
+}
+
+[data-theme='dark'] select option {
+  color: #f0f0f0;
+  background-color: #181c25;
+}
+
 /* 滚动条样式 */
 ::-webkit-scrollbar {
   width: 6px;

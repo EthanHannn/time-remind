@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.6 Beta - 2026-09-02
+
+### Added
+
+- Added four selectable custom reminder icons and reused the saved choice in reminder cards, notifications, and statistics.
+
+### Fixed
+
+- Made native select options readable in dark mode.
+- Increased the main panel opacity so background content no longer interferes with readability.
+- Repositioned the notification window after it is mapped on Linux, with a delayed second positioning pass for GTK window managers.
+
+### Verified
+
+- `node_modules/.bin/eslint .`
+- `node_modules/.bin/vitest run`
+- `node_modules/.bin/vue-tsc --noEmit`
+- `node_modules/.bin/vite build`
+
 ## 0.1.5 Beta - 2026-07-22
 
 ### Fixed

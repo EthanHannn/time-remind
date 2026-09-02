@@ -78,8 +78,8 @@ function getCompletionRate(completed: number, total: number): number {
   return Math.round((completed / total) * 100)
 }
 
-function getVisual(type: string) {
-  return getLocalizedReminderVisual(type, locale.value)
+function getVisual(type: string, icon?: string) {
+  return getLocalizedReminderVisual(type, locale.value, icon)
 }
 </script>
 
@@ -127,10 +127,10 @@ function getVisual(type: string) {
                   :key="stat.reminder_id"
                   class="stat-card"
                 >
-                  <div class="stat-visual" :style="{ '--stat-accent': getVisual(stat.reminder_type).accentSoft }">
+                  <div class="stat-visual" :style="{ '--stat-accent': getVisual(stat.reminder_type, stat.icon).accentSoft }">
                     <img
-                      v-if="getVisual(stat.reminder_type).iconAsset"
-                      :src="getVisual(stat.reminder_type).iconAsset"
+                      v-if="getVisual(stat.reminder_type, stat.icon).iconAsset"
+                      :src="getVisual(stat.reminder_type, stat.icon).iconAsset"
                       :alt="stat.name"
                       class="stat-image"
                     >
@@ -147,14 +147,14 @@ function getVisual(type: string) {
                         class="progress-fill"
                         :style="{
                           width: `${getCompletionRate(stat.completed_count, stat.total_count)}%`,
-                          background: getVisual(stat.reminder_type).accent,
+                          background: getVisual(stat.reminder_type, stat.icon).accent,
                         }"
                       />
                     </div>
 
                     <div class="stat-foot">
                       <span>{{ stat.completed_count }}/{{ stat.total_count }}</span>
-                      <span>{{ getVisual(stat.reminder_type).description }}</span>
+                      <span>{{ getVisual(stat.reminder_type, stat.icon).description }}</span>
                     </div>
                   </div>
                 </article>
@@ -179,10 +179,10 @@ function getVisual(type: string) {
                 :key="streak.reminder_id"
                 class="streak-card"
               >
-                <div class="streak-visual" :style="{ '--streak-accent': getVisual(streak.reminder_type).accentSoft }">
+                <div class="streak-visual" :style="{ '--streak-accent': getVisual(streak.reminder_type, streak.icon).accentSoft }">
                   <img
-                    v-if="getVisual(streak.reminder_type).iconAsset"
-                    :src="getVisual(streak.reminder_type).iconAsset"
+                    v-if="getVisual(streak.reminder_type, streak.icon).iconAsset"
+                    :src="getVisual(streak.reminder_type, streak.icon).iconAsset"
                     :alt="streak.name"
                     class="streak-image"
                   >

@@ -13,6 +13,14 @@ describe('reminderVisuals', () => {
 
   it('falls back to custom visual for unknown types', () => {
     expect(getReminderVisual('unknown').type).toBe('custom')
+    expect(getReminderVisual('unknown').iconAsset).toBeTruthy()
+  })
+
+  it('uses the saved icon variant for custom reminders', () => {
+    const leafIcon = getReminderVisual('custom', 'custom_leaf').iconAsset
+    const starIcon = getReminderVisual('custom', 'custom_star').iconAsset
+
+    expect(leafIcon).not.toBe(starIcon)
   })
 
   it('keeps rest reminder defaults aligned with break countdown flow', () => {

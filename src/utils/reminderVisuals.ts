@@ -1,5 +1,9 @@
 import type { Language } from '../i18n/messages'
 import appIconMain from '../assets/icons/app/app-icon-main.png'
+import customBell from '../assets/icons/reminder/custom-bell.png'
+import customChecklist from '../assets/icons/reminder/custom-checklist.png'
+import customLeaf from '../assets/icons/reminder/custom-leaf.png'
+import customStar from '../assets/icons/reminder/custom-star.png'
 import reminderDrink from '../assets/icons/reminder/reminder-drink.png'
 import reminderEyeCare from '../assets/icons/reminder/reminder-eye-care.png'
 import reminderRest from '../assets/icons/reminder/reminder-rest.png'
@@ -11,6 +15,22 @@ import catSnooze from '../assets/illustrations/mascot/cat-snooze.png'
 import { messages } from '../i18n/messages'
 
 export type ReminderTypeKey = 'drink' | 'rest' | 'eye_care' | 'custom'
+export type CustomReminderIconKey = 'custom_star' | 'custom_bell' | 'custom_checklist' | 'custom_leaf'
+
+export const customReminderIconOptions: Array<{
+  key: CustomReminderIconKey
+  asset: string
+  labelKey: string
+}> = [
+  { key: 'custom_star', asset: customStar, labelKey: 'form.customIconStar' },
+  { key: 'custom_bell', asset: customBell, labelKey: 'form.customIconBell' },
+  { key: 'custom_checklist', asset: customChecklist, labelKey: 'form.customIconChecklist' },
+  { key: 'custom_leaf', asset: customLeaf, labelKey: 'form.customIconLeaf' },
+]
+
+const customReminderIconMap = Object.fromEntries(
+  customReminderIconOptions.map(option => [option.key, option.asset]),
+) as Record<CustomReminderIconKey, string>
 
 export interface ReminderVisual {
   type: ReminderTypeKey
@@ -93,6 +113,7 @@ const reminderVisualMap: Record<ReminderTypeKey, ReminderVisual> = {
     accentSoft: 'rgba(122, 140, 168, 0.18)',
     borderSoft: 'rgba(122, 140, 168, 0.26)',
     badgeBackground: 'linear-gradient(180deg, rgba(122, 140, 168, 0.18), rgba(122, 140, 168, 0.08))',
+    iconAsset: customStar,
     iconText: 'C',
   },
 }
@@ -104,12 +125,23 @@ export const reminderTypeOptions = [
   reminderVisualMap.custom,
 ]
 
-export function getReminderVisual(type: string): ReminderVisual {
-  return reminderVisualMap[type as ReminderTypeKey] ?? reminderVisualMap.custom
+function getCustomReminderIconAsset(icon?: string): string {
+  return customReminderIconMap[icon as CustomReminderIconKey] ?? customStar
 }
 
-export function getLocalizedReminderVisual(type: string, language: Language): ReminderVisual {
-  const visual = getReminderVisual(type)
+export function getReminderVisual(type: string, icon?: string): ReminderVisual {
+  const visual = reminderVisualMap[type as ReminderTypeKey] ?? reminderVisualMap.custom
+  if (visual.type !== 'custom')
+    return visual
+
+  return {
+    ...visual,
+    iconAsset: getCustomReminderIconAsset(icon),
+  }
+}
+
+export function getLocalizedReminderVisual(type: string, language: Language, icon?: string): ReminderVisual {
+  const visual = getReminderVisual(type, icon)
   const localizedMap = messages[language].reminderTypes
   const localized = visual.type === 'eye_care'
     ? localizedMap.eyeCare

@@ -441,12 +441,14 @@ impl Scheduler {
             })
             .or_else(|| self.app.primary_monitor().ok().flatten());
 
-        if let Some(monitor) = monitor {
+        let target_position = monitor.map(|monitor| {
             let work_area = monitor.work_area();
             let scale_factor = monitor.scale_factor();
-            let position =
-                notification_window_position(work_area.position, work_area.size, scale_factor);
+            notification_window_position(work_area.position, work_area.size, scale_factor)
+        });
 
+        #[cfg(not(target_os = "linux"))]
+        if let Some(position) = target_position {
             if let Err(error) =
                 notification_window.set_position(tauri::Position::Physical(position))
             {
@@ -458,6 +460,26 @@ impl Scheduler {
         notification_window
             .set_always_on_top(true)
             .map_err(|e| e.to_string())?;
+
+        // GTK window managers may ignore positioning requests made before an
+        // initially hidden window has been mapped. Position once immediately
+        // after showing, then repeat shortly after the map event has settled.
+        #[cfg(target_os = "linux")]
+        if let Some(position) = target_position {
+            if let Err(error) =
+                notification_window.set_position(tauri::Position::Physical(position))
+            {
+                crate::app_log::warn(format!("通知窗口定位失败：{error}"));
+            }
+
+            let window = notification_window.clone();
+            tauri::async_runtime::spawn(async move {
+                sleep(Duration::from_millis(60)).await;
+                if let Err(error) = window.set_position(tauri::Position::Physical(position)) {
+                    crate::app_log::warn(format!("通知窗口二次定位失败：{error}"));
+                }
+            });
+        }
 
         Ok(())
     }

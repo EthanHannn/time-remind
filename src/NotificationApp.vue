@@ -11,6 +11,7 @@ const name = ref('')
 const message = ref('')
 const reminderId = ref('')
 const reminderType = ref('custom')
+const reminderIcon = ref('custom_star')
 const actionEnabled = ref(false)
 const actionTitle = ref('')
 const actionMessage = ref('')
@@ -44,6 +45,7 @@ interface NotificationPayload {
   name?: string
   message?: string
   reminder_type?: string
+  icon?: string
   break_duration_minutes?: number
   break_notification_enabled?: boolean
   action_enabled?: boolean
@@ -59,7 +61,7 @@ interface NotificationQueuePayload {
   pending_count?: number
 }
 
-const visual = computed(() => getLocalizedReminderVisual(reminderType.value, locale.value))
+const visual = computed(() => getLocalizedReminderVisual(reminderType.value, locale.value, reminderIcon.value))
 const notificationStyle = computed(() => ({
   '--notification-accent': visual.value.accent,
   '--notification-soft': visual.value.accentSoft,
@@ -180,6 +182,7 @@ onMounted(async () => {
     message.value = data.message || ''
     reminderId.value = data.reminder_id
     reminderType.value = data.reminder_type || 'custom'
+    reminderIcon.value = data.icon || data.reminder_type || 'custom_star'
     actionEnabled.value = Boolean(data.action_enabled)
     actionTitle.value = data.action_title || t('notification.startBreak')
     actionMessage.value = data.action_message || t('notification.breakMessage', { time: breakCountdownLabel.value })

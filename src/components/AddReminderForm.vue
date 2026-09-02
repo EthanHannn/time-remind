@@ -2,7 +2,7 @@
 import type { CreateReminderRequest } from '../types/reminder'
 import { computed, ref, watch } from 'vue'
 import { useI18n } from '../i18n'
-import { getLocalizedReminderTypeOptions, getLocalizedReminderVisual } from '../utils/reminderVisuals'
+import { customReminderIconOptions, getLocalizedReminderTypeOptions, getLocalizedReminderVisual } from '../utils/reminderVisuals'
 
 const emit = defineEmits<{
   submit: [data: CreateReminderRequest]
@@ -18,11 +18,16 @@ const actionMessage = ref('')
 const actionDurationValue = ref(0)
 const actionDurationUnit = ref<'seconds' | 'minutes'>('seconds')
 const selectedType = ref('drink')
+const selectedCustomIcon = ref('custom_star')
 const errorMessage = ref('')
 const { locale, t } = useI18n()
 
 const reminderTypeOptions = computed(() => getLocalizedReminderTypeOptions(locale.value))
-const selectedVisual = computed(() => getLocalizedReminderVisual(selectedType.value, locale.value))
+const selectedVisual = computed(() => getLocalizedReminderVisual(
+  selectedType.value,
+  locale.value,
+  selectedType.value === 'custom' ? selectedCustomIcon.value : undefined,
+))
 const isRestType = computed(() => selectedType.value === 'rest')
 const actionDurationSeconds = computed(() =>
   actionDurationUnit.value === 'minutes'
@@ -51,7 +56,7 @@ function applyTypeDefaults(type: string) {
 watch([selectedType, locale], () => applyTypeDefaults(selectedType.value), { immediate: true })
 
 function getIcon(): string {
-  return selectedType.value
+  return selectedType.value === 'custom' ? selectedCustomIcon.value : selectedType.value
 }
 
 function handleSubmit() {
@@ -146,6 +151,24 @@ function handleSubmit() {
               <span class="type-label">{{ type.label }}</span>
               <span class="type-description">{{ type.description }}</span>
             </div>
+          </button>
+        </div>
+      </div>
+
+      <div v-if="selectedType === 'custom'" class="form-group">
+        <label class="group-label">{{ t('form.customIcon') }}</label>
+        <div class="custom-icon-grid">
+          <button
+            v-for="option in customReminderIconOptions"
+            :key="option.key"
+            class="custom-icon-button"
+            :class="{ 'custom-icon-button-active': selectedCustomIcon === option.key }"
+            type="button"
+            :title="t(option.labelKey)"
+            :aria-label="t(option.labelKey)"
+            @click="selectedCustomIcon = option.key"
+          >
+            <img :src="option.asset" :alt="t(option.labelKey)" class="custom-icon-image">
           </button>
         </div>
       </div>
@@ -428,6 +451,45 @@ function handleSubmit() {
   font-size: 12px;
   line-height: 1.5;
   color: var(--text-secondary);
+}
+
+.custom-icon-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 56px);
+  gap: 10px;
+}
+
+.custom-icon-button {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: rgba(255, 255, 255, 0.72);
+  transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
+}
+
+[data-theme='dark'] .custom-icon-button {
+  background: rgba(22, 27, 36, 0.88);
+}
+
+.custom-icon-button:hover {
+  transform: translateY(-1px);
+  border-color: rgba(122, 140, 168, 0.5);
+}
+
+.custom-icon-button-active {
+  border-color: rgba(79, 140, 255, 0.58);
+  background: rgba(79, 140, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.1);
+}
+
+.custom-icon-image {
+  width: 38px;
+  height: 38px;
+  object-fit: contain;
 }
 
 .inline-grid {

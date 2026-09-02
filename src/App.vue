@@ -287,14 +287,14 @@ async function handleAdd(data: CreateReminderRequest) {
   background:
     radial-gradient(circle at top left, rgba(47, 159, 216, 0.12), transparent 34%),
     radial-gradient(circle at top right, rgba(246, 179, 91, 0.1), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(255, 255, 255, 0.74));
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
 }
 
 [data-theme='dark'] .app-shell {
   background:
     radial-gradient(circle at top left, rgba(47, 159, 216, 0.2), transparent 34%),
     radial-gradient(circle at top right, rgba(246, 179, 91, 0.16), transparent 28%),
-    linear-gradient(180deg, rgba(20, 24, 31, 0.96), rgba(16, 20, 28, 0.92));
+    linear-gradient(180deg, rgba(20, 24, 31, 0.99), rgba(16, 20, 28, 0.97));
 }
 
 .app-header {

@@ -15,7 +15,11 @@ const emit = defineEmits<{
 }>()
 
 const { locale, t } = useI18n()
-const visual = computed(() => getLocalizedReminderVisual(props.reminder.reminder_type, locale.value))
+const visual = computed(() => getLocalizedReminderVisual(
+  props.reminder.reminder_type,
+  locale.value,
+  props.reminder.icon,
+))
 
 const totalSeconds = computed(() => props.reminder.interval_minutes * 60)
 const progress = computed(() => {
