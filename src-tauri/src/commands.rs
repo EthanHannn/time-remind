@@ -75,6 +75,26 @@ fn build_next_trigger_from(base: chrono::DateTime<Utc>, minutes: i64) -> String 
         .to_string()
 }
 
+// New schedules share the frozen clock of the currently active pauses. Resume
+// can then shift every reminder once, including ones created or re-enabled
+// halfway through a pause, without counting time before their creation.
+pub(crate) fn schedule_base(
+    conn: &Connection,
+    now: chrono::DateTime<Utc>,
+) -> chrono::DateTime<Utc> {
+    let manual = all_reminders_paused(conn)
+        .then(|| setting_timestamp(conn, ALL_REMINDERS_PAUSED_AT_KEY))
+        .flatten();
+    [manual, setting_timestamp(conn, SYSTEM_PAUSED_AT_KEY)]
+        .into_iter()
+        .flatten()
+        .fold(now, |base, start| base.min(start))
+}
+
+fn build_next_trigger_for_state(conn: &Connection, minutes: i64) -> String {
+    build_next_trigger_from(schedule_base(conn, Utc::now()), minutes)
+}
+
 pub(crate) fn all_reminders_paused(conn: &Connection) -> bool {
     conn.query_row(
         "SELECT value FROM settings WHERE key = ?1",
@@ -815,7 +835,10 @@ pub fn create_reminder(
     let id = Uuid::new_v4().to_string();
     let enabled = request.enabled.unwrap_or(true);
     let next_trigger = if enabled {
-        Some(build_next_trigger(request.interval_minutes))
+        Some(build_next_trigger_for_state(
+            &conn,
+            request.interval_minutes,
+        ))
     } else {
         None
     };
@@ -905,7 +928,7 @@ pub fn update_reminder(
     let next_trigger = if enabled {
         if request.interval_minutes.is_some() || (request.enabled == Some(true) && !current.enabled)
         {
-            Some(build_next_trigger(interval_minutes))
+            Some(build_next_trigger_for_state(&conn, interval_minutes))
         } else {
             current.next_trigger
         }
@@ -984,7 +1007,10 @@ pub fn toggle_reminder(
 
     let enabled = !current.enabled;
     let next_trigger = if enabled {
-        Some(build_next_trigger(current.interval_minutes))
+        Some(build_next_trigger_for_state(
+            &conn,
+            current.interval_minutes,
+        ))
     } else {
         None
     };
@@ -2183,5 +2209,53 @@ mod tests {
             .expect("reminder should exist");
 
         assert_eq!(next_trigger, "2026-07-01T11:20:00");
+    }
+
+    #[test]
+    fn new_or_reenabled_schedule_uses_the_frozen_pause_clock() {
+        let conn = prepare_pause_test_db();
+        let start = NaiveDateTime::parse_from_str("2026-09-20T10:00:00", "%Y-%m-%dT%H:%M:%S")
+            .unwrap()
+            .and_utc();
+        conn.execute("INSERT INTO settings VALUES ('all_reminders_paused', 'true'), ('all_reminders_paused_at', '2026-09-20T10:00:00')", []).unwrap();
+        let next = build_next_trigger_from(schedule_base(&conn, start + Duration::minutes(15)), 20);
+        conn.execute(
+            "INSERT INTO reminders VALUES ('new', 20, 1, ?1, '')",
+            [&next],
+        )
+        .unwrap();
+        resume_all_reminders_at(&conn, start + Duration::minutes(30)).unwrap();
+        let next: String = conn
+            .query_row("SELECT next_trigger FROM reminders", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(next, "2026-09-20T10:50:00");
+    }
+
+    #[test]
+    fn new_schedule_uses_the_earliest_active_pause_and_normal_clock_after_resume() {
+        let conn = prepare_pause_test_db();
+        let now = Utc::now();
+        let manual = now - Duration::minutes(30);
+        let system = now - Duration::minutes(20);
+        conn.execute(
+            "INSERT INTO settings VALUES ('all_reminders_paused', 'true')",
+            [],
+        )
+        .unwrap();
+        for (key, start) in [
+            (ALL_REMINDERS_PAUSED_AT_KEY, manual),
+            (SYSTEM_PAUSED_AT_KEY, system),
+        ] {
+            conn.execute(
+                "INSERT INTO settings VALUES (?1, ?2)",
+                (key, start.format("%Y-%m-%dT%H:%M:%S").to_string()),
+            )
+            .unwrap();
+        }
+        assert_eq!(schedule_base(&conn, now).timestamp(), manual.timestamp());
+        resume_all_reminders_at(&conn, now).unwrap();
+        assert_eq!(schedule_base(&conn, now).timestamp(), system.timestamp());
+        compensate_system_pause(&conn, system, now).unwrap();
+        assert_eq!(schedule_base(&conn, now), now);
     }
 }
