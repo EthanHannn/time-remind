@@ -1,11 +1,24 @@
 # Changelog
 
-## Unreleased
+## 0.1.7 Beta - 2026-09-20
 
 ### Fixed
 
+- Isolated notification instances and versioned atomic queue snapshots to reject delayed events and stale responses.
+- Preserved reminder schedules across pause, application restart, lock, sleep, and wake; corrected overlapping manual, system, and temporary do-not-disturb compensation.
+- Used the frozen schedule clock when creating, enabling, editing, or importing reminders during a pause.
+- Rechecked fullscreen, lock, pause, and do-not-disturb conditions before showing queued notifications; excluded Explorer desktop windows from fullscreen detection.
+- Hid cleared native notification windows and serialized native display with queue cancellation.
+- Displayed global pause status and frozen countdowns consistently, including delayed overview responses.
+
 - Made the notification window transparent, disabled its native shadow, and excluded it from native window materials so rounded corners no longer sit inside an opaque rectangular frame.
 - Selected the X11 backend at startup for Linux Wayland sessions with XWayland available, allowing the custom notification window to retain bottom-right positioning on Ubuntu GNOME.
+
+### Verified
+
+- 15 frontend tests and 39 Rust tests passed.
+- ESLint, TypeScript checking, production build, Rust checking, and formatting passed.
+- Real-device fullscreen, lock/sleep/wake, and multi-monitor interaction acceptance remains pending.
 
 ## 0.1.6 Beta - 2026-09-02
 
