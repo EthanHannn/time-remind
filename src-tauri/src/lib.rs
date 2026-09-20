@@ -955,12 +955,12 @@ pub fn run() {
                         let db = app.state::<Database>();
                         let conn = db.conn.lock().unwrap();
                         let _ = commands::pause_all_reminders(&conn);
-                        drop(conn);
                         let scheduler = app.state::<Scheduler>();
                         scheduler.clear_all_active();
                         if let Some(notification_window) = app.get_webview_window("notification") {
                             let _ = notification_window.hide();
                         }
+                        drop(conn);
                         let _ = app.emit("reminders:changed", ());
                         set_tray_visual_state(app, TrayVisualState::Muted);
                     }
@@ -981,7 +981,6 @@ pub fn run() {
                         let db = app.state::<Database>();
                         let conn = db.conn.lock().unwrap();
                         let result = commands::start_temp_dnd(&conn, minutes);
-                        drop(conn);
 
                         if result.is_ok() {
                             let scheduler = app.state::<Scheduler>();
@@ -994,6 +993,7 @@ pub fn run() {
                             let _ = app.emit("reminders:changed", ());
                             set_tray_visual_state(app, TrayVisualState::Muted);
                         }
+                        drop(conn);
                     }
                     "quit" => {
                         app.exit(0);

@@ -1706,10 +1706,10 @@ pub fn set_temp_dnd(
 ) -> Result<(), String> {
     let conn = db.conn.lock().unwrap();
     start_temp_dnd(&conn, minutes)?;
-    drop(conn);
 
     scheduler.clear_all_active();
     hide_notification_window(&app);
+    drop(conn);
     app.emit("reminders:changed", ())
         .map_err(|e| e.to_string())?;
     crate::set_tray_visual_state(&app, crate::TrayVisualState::Muted);

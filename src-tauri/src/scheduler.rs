@@ -1,5 +1,6 @@
 use chrono::{DateTime, Duration as ChronoDuration, Local, NaiveDateTime, NaiveTime, Utc};
 use serde::Serialize;
+use rusqlite::Connection;
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Event, Listener, Manager};
@@ -98,8 +99,7 @@ struct DndDecision {
 }
 
 /// 从数据库读取免打扰配置
-fn get_dnd_config_from_db(db: &Database) -> DndConfig {
-    let conn = db.conn.lock().unwrap();
+fn get_dnd_config_from_db(conn: &Connection) -> DndConfig {
 
     let enabled: bool = conn
         .query_row(
@@ -178,8 +178,7 @@ fn next_dnd_end_utc(config: &DndConfig, now: DateTime<Utc>) -> DateTime<Utc> {
 }
 
 /// 读取临时免打扰到期时间
-fn get_temp_dnd_until(db: &Database) -> Option<DateTime<Utc>> {
-    let conn = db.conn.lock().unwrap();
+fn get_temp_dnd_until(conn: &Connection) -> Option<DateTime<Utc>> {
     let until_str: Option<String> = conn
         .query_row(
             "SELECT value FROM settings WHERE key = 'temp_dnd_until'",
@@ -193,8 +192,7 @@ fn get_temp_dnd_until(db: &Database) -> Option<DateTime<Utc>> {
         .map(|timestamp| timestamp.and_utc())
 }
 
-fn is_fullscreen_detection_enabled(db: &Database) -> bool {
-    let conn = db.conn.lock().unwrap();
+fn is_fullscreen_detection_enabled(conn: &Connection) -> bool {
     conn.query_row(
         "SELECT value FROM settings WHERE key = 'fullscreen_detection_enabled'",
         [],
@@ -210,15 +208,15 @@ fn are_all_reminders_paused(db: &Database) -> bool {
     crate::commands::all_reminders_paused(&conn)
 }
 
-fn resolve_dnd_decision(db: &Database, now: DateTime<Utc>) -> Option<DndDecision> {
-    let dnd_config = get_dnd_config_from_db(db);
+fn resolve_dnd_decision(conn: &Connection, now: DateTime<Utc>, fullscreen: bool) -> Option<DndDecision> {
+    let dnd_config = get_dnd_config_from_db(conn);
     if is_in_dnd_period(&dnd_config) {
         return Some(DndDecision {
             next_trigger: next_dnd_end_utc(&dnd_config, now),
         });
     }
 
-    if let Some(temp_until) = get_temp_dnd_until(db) {
+    if let Some(temp_until) = get_temp_dnd_until(conn) {
         if temp_until > now {
             return Some(DndDecision {
                 next_trigger: temp_until,
@@ -226,13 +224,24 @@ fn resolve_dnd_decision(db: &Database, now: DateTime<Utc>) -> Option<DndDecision
         }
     }
 
-    if is_fullscreen_detection_enabled(db) && is_foreground_window_fullscreen() {
+    if is_fullscreen_detection_enabled(conn) && fullscreen {
         return Some(DndDecision {
             next_trigger: now + ChronoDuration::minutes(5),
         });
     }
 
     None
+}
+
+fn notifications_suppressed(conn: &Connection, now: DateTime<Utc>, system_paused: bool, fullscreen: bool) -> bool {
+    crate::commands::all_reminders_paused(conn) || system_paused
+        || resolve_dnd_decision(conn, now, fullscreen).is_some()
+}
+
+fn reminder_is_due(conn: &Connection, id: &str, now: DateTime<Utc>) -> bool {
+    conn.query_row("SELECT enabled = 1 AND next_trigger <= ?1 FROM reminders WHERE id = ?2",
+        (now.format("%Y-%m-%dT%H:%M:%S").to_string(), id), |row| row.get::<_, bool>(0))
+        .unwrap_or(false)
 }
 
 fn shifted_next_trigger(
@@ -288,6 +297,7 @@ pub struct Scheduler {
     active_reminders: Arc<std::sync::Mutex<HashSet<String>>>,
     current_notification: Arc<std::sync::Mutex<Option<String>>>,
     pending_notifications: Arc<std::sync::Mutex<VecDeque<NotificationData>>>,
+    next_notification_at: Arc<std::sync::Mutex<std::time::Instant>>,
 }
 
 impl Scheduler {
@@ -298,6 +308,7 @@ impl Scheduler {
             active_reminders: Arc::new(std::sync::Mutex::new(HashSet::new())),
             current_notification: Arc::new(std::sync::Mutex::new(None)),
             pending_notifications: Arc::new(std::sync::Mutex::new(VecDeque::new())),
+            next_notification_at: Arc::new(std::sync::Mutex::new(std::time::Instant::now())),
         }
     }
 
@@ -319,28 +330,28 @@ impl Scheduler {
     }
 
     pub fn enqueue_notification(&self, data: NotificationData) -> Result<(), String> {
-        let should_show_now = {
-            let mut current = self.current_notification.lock().unwrap();
-            if current.is_none() {
-                *current = Some(data.reminder_id.clone());
-                true
-            } else {
-                false
-            }
-        };
-
-        if should_show_now {
-            if let Err(error) = self.show_notification(&data) {
-                self.current_notification.lock().unwrap().take();
-                self.emit_queue_state();
-                return Err(error);
-            }
-        } else {
-            self.pending_notifications.lock().unwrap().push_back(data);
-            self.emit_queue_state();
+        let db = self.app.state::<Database>();
+        let conn = db.conn.lock().unwrap();
+        let now = Utc::now();
+        // Revalidate under the same DB lock used by pause/edit/respond commands.
+        // The run loop may have read this reminder before one of those commands.
+        if crate::commands::all_reminders_paused(&conn)
+            || !reminder_is_due(&conn, &data.reminder_id, now)
+        {
+            self.clear_active(&data.reminder_id);
+            return Ok(());
         }
-
-        crate::set_tray_visual_state(&self.app, crate::TrayVisualState::Alert);
+        if let Some(decision) = resolve_dnd_decision(&conn, now, is_foreground_window_fullscreen()) {
+            self.clear_active(&data.reminder_id);
+            conn.execute("UPDATE reminders SET next_trigger = ?1 WHERE id = ?2",
+                (decision.next_trigger.format("%Y-%m-%dT%H:%M:%S").to_string(), &data.reminder_id))
+                .map_err(|error| error.to_string())?;
+            return Ok(());
+        }
+        self.pending_notifications.lock().unwrap().push_back(data);
+        drop(conn);
+        self.show_next_notification();
+        self.emit_queue_state();
         Ok(())
     }
 
@@ -364,6 +375,10 @@ impl Scheduler {
             self.emit_queue_state();
         }
 
+        if removed_current {
+            *self.next_notification_at.lock().unwrap() = std::time::Instant::now()
+                + Duration::from_millis(NEXT_NOTIFICATION_DELAY_MS);
+        }
         self.schedule_next_notification();
         removed_current
     }
@@ -377,8 +392,20 @@ impl Scheduler {
     }
 
     fn show_next_notification(&self) {
+        // Serialize dispatch with database mutations and other queue workers.
+        let db = self.app.state::<Database>();
+        let conn = db.conn.lock().unwrap();
         if self.current_notification.lock().unwrap().is_some() {
             self.update_tray_state();
+            return;
+        }
+
+        if std::time::Instant::now() < *self.next_notification_at.lock().unwrap() {
+            return;
+        }
+        let system_paused = self.app.try_state::<PowerMonitor>()
+            .map(|monitor| monitor.is_paused()).unwrap_or(false);
+        if notifications_suppressed(&conn, Utc::now(), system_paused, is_foreground_window_fullscreen()) {
             return;
         }
 
@@ -391,6 +418,10 @@ impl Scheduler {
                 break;
             };
 
+            if !reminder_is_due(&conn, &data.reminder_id, Utc::now()) {
+                self.clear_active(&data.reminder_id);
+                continue;
+            }
             {
                 let mut current = self.current_notification.lock().unwrap();
                 *current = Some(data.reminder_id.clone());
@@ -526,6 +557,7 @@ impl Scheduler {
                 continue;
             }
 
+            scheduler.show_next_notification();
             let now = Utc::now();
 
             let reminders = {
@@ -592,21 +624,6 @@ impl Scheduler {
                             active.insert(id.clone());
                         }
 
-                        if let Some(dnd_decision) = resolve_dnd_decision(&db, now) {
-                            scheduler.clear_active(id);
-
-                            let new_next = dnd_decision
-                                .next_trigger
-                                .format("%Y-%m-%dT%H:%M:%S")
-                                .to_string();
-                            let conn = db.conn.lock().unwrap();
-                            let _ = conn.execute(
-                                "UPDATE reminders SET next_trigger = ?1 WHERE id = ?2",
-                                (&new_next, id),
-                            );
-                            continue;
-                        }
-
                         let event = ReminderTriggered {
                             reminder_id: id.clone(),
                             name: name.clone(),
@@ -641,7 +658,6 @@ impl Scheduler {
 
                         if scheduler.enqueue_notification(notification).is_err() {
                             scheduler.clear_active(id);
-                            scheduler.current_notification.lock().unwrap().take();
                             scheduler.update_tray_state();
                         }
                     } else {
@@ -750,6 +766,55 @@ impl Scheduler {
 mod tests {
     use super::*;
     use chrono::TimeZone;
+
+    #[test]
+    fn queued_notifications_recheck_fullscreen_and_lock_state() {
+        let db = Database::in_memory();
+        let conn = db.conn.lock().unwrap();
+        let now = Utc::now();
+        assert!(!notifications_suppressed(&conn, now, false, false));
+        assert!(notifications_suppressed(&conn, now, false, true));
+        assert!(notifications_suppressed(&conn, now, true, false));
+        // Leaving fullscreen permits the queued reminder on the next tick.
+        assert!(!notifications_suppressed(&conn, now, false, false));
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('fullscreen_detection_enabled', 'false')", []).unwrap();
+        assert!(!notifications_suppressed(&conn, now, false, true));
+    }
+
+    #[test]
+    fn queued_notifications_recheck_manual_and_timed_dnd() {
+        let db = Database::in_memory();
+        let conn = db.conn.lock().unwrap();
+        let now = Utc::now();
+        crate::commands::pause_all_reminders(&conn).unwrap();
+        assert!(notifications_suppressed(&conn, now, false, false));
+        crate::commands::resume_all_reminders(&conn).unwrap();
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('temp_dnd_until', ?1)", [(now + ChronoDuration::minutes(30)).format("%Y-%m-%dT%H:%M:%S").to_string()]).unwrap();
+        assert!(notifications_suppressed(&conn, now, false, false));
+        assert!(!notifications_suppressed(&conn, now + ChronoDuration::minutes(31), false, false));
+        conn.execute("DELETE FROM settings WHERE key = 'temp_dnd_until'", []).unwrap();
+        let start = (Local::now() - ChronoDuration::hours(1)).format("%H:%M").to_string();
+        let end = (Local::now() + ChronoDuration::hours(1)).format("%H:%M").to_string();
+        for (key, value) in [("dnd_enabled", "true"), ("dnd_start", start.as_str()), ("dnd_end", end.as_str())] {
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)", (key, value)).unwrap();
+        }
+        assert!(notifications_suppressed(&conn, now, false, false));
+    }
+
+    #[test]
+    fn dispatch_rejects_disabled_deleted_and_rescheduled_reminders() {
+        let db = Database::in_memory();
+        let conn = db.conn.lock().unwrap();
+        let now = Utc::now();
+        conn.execute("INSERT INTO reminders (id, name, reminder_type, icon, message, interval_minutes, enabled, next_trigger, created_at, updated_at) VALUES ('test', 'test', 'drink', '', '', 20, 1, '2000-01-01T00:00:00', '', '')", []).unwrap();
+        assert!(reminder_is_due(&conn, "test", now));
+        conn.execute("UPDATE reminders SET enabled = 0", []).unwrap();
+        assert!(!reminder_is_due(&conn, "test", now));
+        conn.execute("UPDATE reminders SET enabled = 1, next_trigger = '2999-01-01T00:00:00'", []).unwrap();
+        assert!(!reminder_is_due(&conn, "test", now));
+        conn.execute("DELETE FROM reminders", []).unwrap();
+        assert!(!reminder_is_due(&conn, "test", now));
+    }
 
     #[test]
     fn shifted_next_trigger_keeps_remaining_time_after_pause() {
