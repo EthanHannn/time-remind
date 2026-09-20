@@ -3,7 +3,7 @@ import type { CreateReminderRequest, Reminder, TimerTick } from './types/reminde
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { createReminder, deleteReminder, getReminders, toggleReminder } from './api/reminder'
+import { createReminder, deleteReminder, getReminderOverview, toggleReminder } from './api/reminder'
 import AddReminderForm from './components/AddReminderForm.vue'
 import AppResizeHandles from './components/AppResizeHandles.vue'
 import AppTitleBar from './components/AppTitleBar.vue'
@@ -16,6 +16,8 @@ import { emptyReminders } from './utils/reminderVisuals'
 
 const reminders = ref<Reminder[]>([])
 const countdowns = ref<Record<string, number>>({})
+const globallyPaused = ref(false)
+let overviewRequest = 0
 const showAddForm = ref(false)
 const showSettings = ref(false)
 const showStats = ref(false)
@@ -31,11 +33,9 @@ let unlistenChanged: (() => void) | null = null
 let unlistenNavigate: (() => void) | null = null
 
 onMounted(async () => {
-  await loadTheme()
-  await loadLanguage()
-  await loadReminders()
-
   unlistenTick = await listen<TimerTick>('timer:tick', (event) => {
+    if (globallyPaused.value)
+      return
     countdowns.value[event.payload.reminder_id] = Math.max(0, event.payload.remaining_seconds)
   })
 
@@ -48,6 +48,8 @@ onMounted(async () => {
       showSettings.value = true
     }
   })
+
+  await Promise.all([loadTheme(), loadLanguage(), loadReminders()])
 })
 
 onUnmounted(() => {
@@ -103,31 +105,18 @@ async function loadTheme() {
 }
 
 async function loadReminders() {
+  const request = ++overviewRequest
   try {
-    reminders.value = await getReminders()
-    syncCountdownsFromReminders()
+    const overview = await getReminderOverview()
+    if (request !== overviewRequest)
+      return
+    reminders.value = overview.reminders
+    globallyPaused.value = overview.all_paused
+    countdowns.value = overview.countdowns
   }
   catch (err) {
     console.error('Failed to load reminders:', err)
   }
-}
-
-function syncCountdownsFromReminders() {
-  const now = Date.now()
-  const nextCountdowns: Record<string, number> = {}
-
-  for (const reminder of reminders.value) {
-    if (!reminder.enabled || !reminder.next_trigger)
-      continue
-
-    const triggerTime = new Date(`${reminder.next_trigger}Z`).getTime()
-    if (Number.isNaN(triggerTime))
-      continue
-
-    nextCountdowns[reminder.id] = Math.max(0, Math.floor((triggerTime - now) / 1000))
-  }
-
-  countdowns.value = nextCountdowns
 }
 
 async function handleToggle(id: string) {
@@ -193,10 +182,10 @@ async function handleAdd(data: CreateReminderRequest) {
 
     <header class="app-header">
       <div class="title-block">
-        <div class="status-indicator" />
+        <div class="status-indicator" :style="globallyPaused ? { opacity: 0.3 } : undefined" />
         <div class="title-copy">
           <h1 class="app-title">
-            {{ t('app.runningCount', { count: enabledCount }) }}
+            {{ globallyPaused ? t('reminder.paused') : t('app.runningCount', { count: enabledCount }) }}
           </h1>
           <p class="app-subtitle">
             {{ t('app.keepRhythm') }}
@@ -237,6 +226,7 @@ async function handleAdd(data: CreateReminderRequest) {
           :key="reminder.id"
           :reminder="reminder"
           :remaining-seconds="countdowns[reminder.id]"
+          :globally-paused="globallyPaused"
           @toggle="handleToggle"
           @delete="handleDelete"
         />

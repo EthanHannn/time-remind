@@ -1058,6 +1058,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_reminders,
+            commands::get_reminder_overview,
             commands::create_reminder,
             commands::update_reminder,
             commands::delete_reminder,

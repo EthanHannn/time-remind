@@ -882,6 +882,10 @@ fn create_import_backup(app: &AppHandle, conn: &Connection) -> Result<String, St
 #[tauri::command]
 pub fn get_reminders(db: State<'_, Database>) -> Result<Vec<Reminder>, String> {
     let conn = db.conn.lock().unwrap();
+    read_reminders(&conn)
+}
+
+fn read_reminders(conn: &Connection) -> Result<Vec<Reminder>, String> {
     let mut stmt = conn
         .prepare("SELECT id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at FROM reminders ORDER BY created_at")
         .map_err(|e| e.to_string())?;
@@ -913,6 +917,42 @@ pub fn get_reminders(db: State<'_, Database>) -> Result<Vec<Reminder>, String> {
         .map_err(|e| e.to_string())?;
 
     Ok(reminders)
+}
+
+#[derive(Serialize)]
+pub struct ReminderOverview {
+    reminders: Vec<Reminder>,
+    all_paused: bool,
+    countdowns: HashMap<String, i64>,
+}
+
+#[tauri::command]
+pub fn get_reminder_overview(db: State<'_, Database>) -> Result<ReminderOverview, String> {
+    let conn = db.conn.lock().unwrap();
+    let reminders = read_reminders(&conn)?;
+    let reference = schedule_base(&conn, Utc::now());
+    let countdowns = reminders
+        .iter()
+        .filter(|reminder| reminder.enabled)
+        .filter_map(|reminder| {
+            let trigger = NaiveDateTime::parse_from_str(
+                reminder.next_trigger.as_deref()?,
+                "%Y-%m-%dT%H:%M:%S",
+            )
+            .ok()?
+            .and_utc();
+            Some((
+                reminder.id.clone(),
+                (trigger - reference).num_seconds().max(0),
+            ))
+        })
+        .collect();
+    Ok(ReminderOverview {
+        reminders,
+        all_paused: all_reminders_paused(&conn)
+            || setting_timestamp(&conn, SYSTEM_PAUSED_AT_KEY).is_some(),
+        countdowns,
+    })
 }
 
 /// 创建提醒

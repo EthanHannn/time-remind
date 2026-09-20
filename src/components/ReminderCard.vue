@@ -7,6 +7,7 @@ import { getLocalizedReminderVisual } from '../utils/reminderVisuals'
 const props = defineProps<{
   reminder: Reminder
   remainingSeconds?: number
+  globallyPaused?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -37,7 +38,7 @@ const cardStyle = computed(() => ({
   '--visual-badge': visual.value.badgeBackground,
 }))
 
-const statusLabel = computed(() => props.reminder.enabled ? t('reminder.enabled') : t('reminder.paused'))
+const statusLabel = computed(() => props.reminder.enabled && !props.globallyPaused ? t('reminder.enabled') : t('reminder.paused'))
 const restBreakLabel = computed(() => {
   if (props.reminder.reminder_type !== 'rest' || props.reminder.break_duration_minutes <= 0) {
     return ''
@@ -126,7 +127,7 @@ function formatTime(seconds: number): string {
             <span v-if="restBreakNotificationLabel" class="meta-item">
               {{ restBreakNotificationLabel }}
             </span>
-            <span class="meta-item">
+            <span v-if="!globallyPaused" class="meta-item">
               {{ t('reminder.next', { time: nextTriggerLabel }) }}
             </span>
           </div>
@@ -157,7 +158,7 @@ function formatTime(seconds: number): string {
         @click="emit('toggle', reminder.id)"
       >
         <span class="toggle-label">
-          {{ reminder.enabled ? t('reminder.running') : t('reminder.paused') }}
+          {{ reminder.enabled ? t(globallyPaused ? 'reminder.enabled' : 'reminder.running') : t('reminder.paused') }}
         </span>
         <span class="toggle-pill">
           <span class="toggle-thumb" />

@@ -30,3 +30,7 @@ export async function toggleReminder(id: string): Promise<Reminder> {
 export async function respondReminder(reminderId: string, notificationId: string, action: string, holdNotification = false): Promise<void> {
   return await invoke('respond_reminder', { reminderId, notificationId, action, holdNotification })
 }
+
+export async function getReminderOverview(): Promise<{ reminders: Reminder[], all_paused: boolean, countdowns: Record<string, number> }> {
+  return await invoke('get_reminder_overview')
+}
