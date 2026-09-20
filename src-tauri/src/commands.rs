@@ -17,6 +17,7 @@ pub(crate) const ALL_REMINDERS_PAUSED_KEY: &str = "all_reminders_paused";
 const ALL_REMINDERS_PAUSED_AT_KEY: &str = "all_reminders_paused_at";
 pub(crate) const SYSTEM_PAUSED_AT_KEY: &str = "system_paused_at";
 const TEMP_DND_UNTIL_KEY: &str = "temp_dnd_until";
+const TEMP_DND_PERIODS_KEY: &str = "temp_dnd_compensated_periods";
 const MIN_INTERVAL_MINUTES: i64 = 1;
 const MAX_INTERVAL_MINUTES: i64 = 1440;
 const MIN_BREAK_DURATION_MINUTES: i64 = 1;
@@ -92,7 +93,59 @@ pub(crate) fn schedule_base(
 }
 
 fn build_next_trigger_for_state(conn: &Connection, minutes: i64) -> String {
-    build_next_trigger_from(schedule_base(conn, Utc::now()), minutes)
+    build_next_trigger_for_state_at(conn, minutes, Utc::now())
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+struct CompensatedPeriod {
+    start: i64,
+    end: i64,
+}
+
+fn temp_dnd_periods(conn: &Connection) -> Vec<CompensatedPeriod> {
+    conn.query_row(
+        "SELECT value FROM settings WHERE key = ?1",
+        [TEMP_DND_PERIODS_KEY],
+        |row| row.get::<_, String>(0),
+    )
+    .ok()
+    .and_then(|value| serde_json::from_str(&value).ok())
+    .unwrap_or_default()
+}
+
+fn covered_seconds(periods: &[CompensatedPeriod], start: i64, end: i64) -> i64 {
+    let mut spans: Vec<_> = periods
+        .iter()
+        .map(|p| (p.start.max(start), p.end.min(end)))
+        .filter(|(left, right)| left < right)
+        .collect();
+    spans.sort_unstable();
+    let mut cursor = start;
+    let mut covered = 0;
+    for (left, right) in spans {
+        covered += right.saturating_sub(left.max(cursor)).max(0);
+        cursor = cursor.max(right);
+    }
+    covered
+}
+
+fn build_next_trigger_for_state_at(
+    conn: &Connection,
+    minutes: i64,
+    now: chrono::DateTime<Utc>,
+) -> String {
+    let base = schedule_base(conn, now);
+    let periods = temp_dnd_periods(conn);
+    let end = periods
+        .iter()
+        .map(|period| period.end)
+        .max()
+        .unwrap_or(now.timestamp());
+    build_next_trigger_from_parts(
+        base,
+        minutes,
+        covered_seconds(&periods, base.timestamp(), end),
+    )
 }
 
 pub(crate) fn all_reminders_paused(conn: &Connection) -> bool {
@@ -126,9 +179,15 @@ pub(crate) fn pause_all_reminders(conn: &Connection) -> Result<(), String> {
 
 fn shift_enabled_reminder_schedule(
     conn: &Connection,
-    paused_seconds: i64,
+    start: chrono::DateTime<Utc>,
+    end: chrono::DateTime<Utc>,
     now: chrono::DateTime<Utc>,
 ) -> Result<(), String> {
+    let paused_seconds = (end - start).num_seconds().max(0)
+        - covered_seconds(&temp_dnd_periods(conn), start.timestamp(), end.timestamp());
+    if paused_seconds == 0 {
+        return Ok(());
+    }
     let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
     let mut stmt = conn
         .prepare("SELECT id, interval_minutes, next_trigger FROM reminders WHERE enabled = 1")
@@ -181,9 +240,20 @@ fn shift_enabled_reminder_schedule_for_temp_dnd(
         let new_next = next_trigger
             .and_then(|value| NaiveDateTime::parse_from_str(&value, "%Y-%m-%dT%H:%M:%S").ok())
             .map(|timestamp| timestamp.and_utc())
-            .filter(|timestamp| *timestamp > now)
+            .filter(|timestamp| *timestamp > schedule_base(conn, now))
             .map(|timestamp| timestamp + Duration::seconds(paused_seconds))
-            .unwrap_or_else(|| resume_at + Duration::minutes(interval_minutes))
+            .unwrap_or_else(|| {
+                if schedule_base(conn, now) < now {
+                    NaiveDateTime::parse_from_str(
+                        &build_next_trigger_for_state_at(conn, interval_minutes, now),
+                        "%Y-%m-%dT%H:%M:%S",
+                    )
+                    .unwrap()
+                    .and_utc()
+                } else {
+                    resume_at + Duration::minutes(interval_minutes)
+                }
+            })
             .format("%Y-%m-%dT%H:%M:%S")
             .to_string();
 
@@ -198,11 +268,22 @@ fn shift_enabled_reminder_schedule_for_temp_dnd(
 }
 
 pub(crate) fn start_temp_dnd(conn: &Connection, minutes: i64) -> Result<(), String> {
+    start_temp_dnd_at(conn, minutes, Utc::now())
+}
+
+fn start_temp_dnd_at(
+    conn: &Connection,
+    minutes: i64,
+    now: chrono::DateTime<Utc>,
+) -> Result<(), String> {
     if !(1..=480).contains(&minutes) {
         return Err("免打扰时间必须在 1 到 480 分钟之间".to_string());
     }
 
-    let now = Utc::now();
+    let transaction = conn
+        .unchecked_transaction()
+        .map_err(|error| error.to_string())?;
+    let conn = &transaction;
     let requested_until = now + Duration::minutes(minutes);
     let previous_until = conn
         .query_row(
@@ -221,6 +302,39 @@ pub(crate) fn start_temp_dnd(conn: &Connection, minutes: i64) -> Result<(), Stri
         .num_seconds()
         .max(0);
 
+    // Retain past DND intervals while an older manual/system pause is still
+    // open. Those intervals have already shifted next_trigger and must not be
+    // added again when that pause ends, even if DND expired in the meantime.
+    let base = schedule_base(conn, now).timestamp();
+    let mut periods = temp_dnd_periods(conn);
+    periods.retain(|period| period.end > base);
+    periods.push(CompensatedPeriod {
+        start: previous_until.unwrap_or(now).timestamp(),
+        end: resume_at.timestamp(),
+    });
+    periods.sort_by_key(|period| period.start);
+    let mut merged: Vec<CompensatedPeriod> = Vec::new();
+    for period in periods {
+        if period.end <= period.start {
+            continue;
+        }
+        if let Some(last) = merged.last_mut() {
+            if period.start <= last.end {
+                last.end = last.end.max(period.end);
+                continue;
+            }
+        }
+        merged.push(period);
+    }
+    conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+        (
+            TEMP_DND_PERIODS_KEY,
+            serde_json::to_string(&merged).map_err(|e| e.to_string())?,
+        ),
+    )
+    .map_err(|e| e.to_string())?;
+
     if paused_seconds > 0 {
         shift_enabled_reminder_schedule_for_temp_dnd(conn, paused_seconds, now, resume_at)?;
     }
@@ -232,7 +346,7 @@ pub(crate) fn start_temp_dnd(conn: &Connection, minutes: i64) -> Result<(), Stri
     )
     .map_err(|e| e.to_string())?;
 
-    Ok(())
+    transaction.commit().map_err(|error| error.to_string())
 }
 
 pub(crate) fn resume_all_reminders(conn: &Connection) -> Result<(), String> {
@@ -272,7 +386,12 @@ pub(crate) fn compensate_system_pause(
     };
     let seconds = exclusive_pause_seconds(started_at, now, manual_start);
     if seconds > 0 {
-        shift_enabled_reminder_schedule(conn, seconds, now)?;
+        shift_enabled_reminder_schedule(
+            conn,
+            started_at,
+            started_at + Duration::seconds(seconds),
+            now,
+        )?;
     }
     conn.execute(
         "DELETE FROM settings WHERE key = ?1",
@@ -303,7 +422,12 @@ fn resume_all_reminders_at(conn: &Connection, now: chrono::DateTime<Utc>) -> Res
             setting_timestamp(conn, SYSTEM_PAUSED_AT_KEY),
         );
         if paused_seconds > 0 {
-            shift_enabled_reminder_schedule(conn, paused_seconds, now)?;
+            shift_enabled_reminder_schedule(
+                conn,
+                paused_at,
+                paused_at + Duration::seconds(paused_seconds),
+                now,
+            )?;
         }
     }
 
@@ -2257,5 +2381,114 @@ mod tests {
         assert_eq!(schedule_base(&conn, now).timestamp(), system.timestamp());
         compensate_system_pause(&conn, system, now).unwrap();
         assert_eq!(schedule_base(&conn, now), now);
+    }
+
+    #[test]
+    fn temporary_dnd_overlap_is_compensated_once_for_manual_and_system_pauses() {
+        let base = NaiveDateTime::parse_from_str("2026-09-20T10:00:00", "%Y-%m-%dT%H:%M:%S")
+            .unwrap()
+            .and_utc();
+        for manual in [false, true] {
+            for (dnd_start, dnd_end, pause_start, pause_end) in [
+                (0, 30, 0, 30),
+                (10, 40, 0, 30),
+                (0, 30, 10, 40),
+                (10, 20, 0, 40),
+                (0, 40, 10, 20),
+                (0, 10, 20, 30),
+            ] {
+                let conn = prepare_pause_test_db();
+                conn.execute(
+                    "INSERT INTO reminders VALUES ('test', 120, 1, '2026-09-20T12:00:00', '')",
+                    [],
+                )
+                .unwrap();
+                let mut events = vec![(dnd_start, 0), (pause_start, 1), (pause_end, 2)];
+                events.sort();
+                for (offset, kind) in events {
+                    let at = base + Duration::minutes(offset);
+                    match kind {
+                        0 => start_temp_dnd_at(&conn, dnd_end - dnd_start, at).unwrap(),
+                        1 => {
+                            let key = if manual {
+                                ALL_REMINDERS_PAUSED_AT_KEY
+                            } else {
+                                SYSTEM_PAUSED_AT_KEY
+                            };
+                            conn.execute(
+                                "INSERT OR REPLACE INTO settings VALUES (?1, ?2)",
+                                (key, at.format("%Y-%m-%dT%H:%M:%S").to_string()),
+                            )
+                            .unwrap();
+                            if manual {
+                                conn.execute("INSERT OR REPLACE INTO settings VALUES ('all_reminders_paused', 'true')", []).unwrap();
+                            }
+                        }
+                        2 => {
+                            if manual {
+                                resume_all_reminders_at(&conn, at).unwrap();
+                            } else {
+                                compensate_system_pause(
+                                    &conn,
+                                    base + Duration::minutes(pause_start),
+                                    at,
+                                )
+                                .unwrap();
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                let overlap = (dnd_end.min(pause_end) - dnd_start.max(pause_start)).max(0);
+                let total = dnd_end - dnd_start + pause_end - pause_start - overlap;
+                let next: String = conn
+                    .query_row("SELECT next_trigger FROM reminders", [], |row| row.get(0))
+                    .unwrap();
+                assert_eq!(
+                    next,
+                    (base + Duration::minutes(120 + total))
+                        .format("%Y-%m-%dT%H:%M:%S")
+                        .to_string(),
+                    "manual={manual}, dnd={dnd_start}..{dnd_end}, pause={pause_start}..{pause_end}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn new_schedule_and_multiple_dnd_periods_during_manual_pause_keep_one_interval() {
+        let conn = prepare_pause_test_db();
+        let base = NaiveDateTime::parse_from_str("2026-09-20T10:00:00", "%Y-%m-%dT%H:%M:%S")
+            .unwrap()
+            .and_utc();
+        conn.execute("INSERT INTO settings VALUES ('all_reminders_paused', 'true'), ('all_reminders_paused_at', '2026-09-20T10:00:00')", []).unwrap();
+        start_temp_dnd_at(&conn, 10, base + Duration::minutes(5)).unwrap();
+        start_temp_dnd_at(&conn, 10, base + Duration::minutes(20)).unwrap();
+        start_temp_dnd_at(&conn, 10, base + Duration::minutes(25)).unwrap();
+        let next = build_next_trigger_for_state_at(&conn, 20, base + Duration::minutes(30));
+        conn.execute(
+            "INSERT INTO reminders VALUES ('new', 20, 1, ?1, '')",
+            [&next],
+        )
+        .unwrap();
+        resume_all_reminders_at(&conn, base + Duration::minutes(40)).unwrap();
+        let next: String = conn
+            .query_row("SELECT next_trigger FROM reminders", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(next, "2026-09-20T11:00:00");
+    }
+
+    #[test]
+    fn new_schedule_during_dnd_starts_its_interval_after_dnd() {
+        let conn = prepare_pause_test_db();
+        let base = Utc::now();
+        start_temp_dnd_at(&conn, 30, base).unwrap();
+        let next = build_next_trigger_for_state_at(&conn, 20, base + Duration::minutes(15));
+        assert_eq!(
+            next,
+            (base + Duration::minutes(50))
+                .format("%Y-%m-%dT%H:%M:%S")
+                .to_string()
+        );
     }
 }
