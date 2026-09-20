@@ -8,12 +8,22 @@ pub fn is_foreground_window_fullscreen() -> bool {
     };
     use windows::Win32::System::Threading::GetCurrentProcessId;
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetClientRect, GetForegroundWindow, GetWindowRect, GetWindowThreadProcessId, IsIconic,
+        GetClassNameW, GetClientRect, GetDesktopWindow, GetForegroundWindow, GetShellWindow,
+        GetWindowRect, GetWindowThreadProcessId, IsIconic,
     };
 
     unsafe {
         let hwnd = GetForegroundWindow();
         if hwnd.0.is_null() {
+            return false;
+        }
+        // Explorer's desktop covers the monitor but is not a fullscreen app.
+        if hwnd == GetDesktopWindow() || hwnd == GetShellWindow() {
+            return false;
+        }
+        let mut class_name = [0u16; 256];
+        let length = GetClassNameW(hwnd, &mut class_name);
+        if length > 0 && is_desktop_class(&String::from_utf16_lossy(&class_name[..length as usize])) {
             return false;
         }
 
@@ -44,16 +54,6 @@ pub fn is_foreground_window_fullscreen() -> bool {
         }
 
         let monitor_rect = monitor_info.rcMonitor;
-        let tolerance = 8;
-
-        let window_covers_monitor = (window_rect.left - monitor_rect.left).abs() <= tolerance
-            && (window_rect.top - monitor_rect.top).abs() <= tolerance
-            && (window_rect.right - monitor_rect.right).abs() <= tolerance
-            && (window_rect.bottom - monitor_rect.bottom).abs() <= tolerance;
-
-        if !window_covers_monitor {
-            return false;
-        }
 
         let mut client_rect = RECT::default();
         if GetClientRect(hwnd, &mut client_rect).is_err() {
@@ -75,14 +75,56 @@ pub fn is_foreground_window_fullscreen() -> bool {
             return false;
         }
 
-        (client_top_left.x - monitor_rect.left).abs() <= tolerance
-            && (client_top_left.y - monitor_rect.top).abs() <= tolerance
-            && (client_bottom_right.x - monitor_rect.right).abs() <= tolerance
-            && (client_bottom_right.y - monitor_rect.bottom).abs() <= tolerance
+        bounds_cover_monitor(
+            [window_rect.left, window_rect.top, window_rect.right, window_rect.bottom],
+            [client_top_left.x, client_top_left.y, client_bottom_right.x, client_bottom_right.y],
+            [monitor_rect.left, monitor_rect.top, monitor_rect.right, monitor_rect.bottom],
+        )
     }
 }
 
 #[cfg(not(target_os = "windows"))]
 pub fn is_foreground_window_fullscreen() -> bool {
     false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn explorer_desktop_classes_are_excluded() {
+        assert!(is_desktop_class("Progman"));
+        assert!(is_desktop_class("WorkerW"));
+        assert!(!is_desktop_class("Chrome_WidgetWin_1"));
+        assert!(!is_desktop_class("ApplicationFrameWindow"));
+    }
+
+    #[test]
+    fn fullscreen_supports_secondary_monitors_with_negative_coordinates() {
+        let monitor = [-2560, -200, 0, 1240];
+        assert!(bounds_cover_monitor(monitor, monitor, monitor));
+        assert!(bounds_cover_monitor([-2568, -208, 8, 1248], monitor, monitor));
+    }
+
+    #[test]
+    fn maximized_and_partial_windows_are_not_fullscreen() {
+        let monitor = [0, 0, 1920, 1080];
+        assert!(!bounds_cover_monitor([-8, -8, 1928, 1048], [0, 30, 1920, 1040], monitor));
+        assert!(!bounds_cover_monitor(monitor, [0, 30, 1920, 1080], monitor));
+        assert!(!bounds_cover_monitor([0, 0, 960, 1080], [0, 0, 960, 1080], monitor));
+        assert!(!bounds_cover_monitor([i32::MIN; 4], [i32::MIN; 4], [i32::MAX; 4]));
+    }
+}
+#[cfg(any(target_os = "windows", test))]
+fn is_desktop_class(class_name: &str) -> bool {
+    matches!(class_name, "Progman" | "WorkerW")
+}
+
+#[cfg(any(target_os = "windows", test))]
+fn bounds_cover_monitor(window: [i32; 4], client: [i32; 4], monitor: [i32; 4]) -> bool {
+    const TOLERANCE: i64 = 8;
+    [window, client].iter().all(|bounds| bounds.iter().zip(monitor).all(|(edge, target)| {
+        (i64::from(*edge) - i64::from(target)).abs() <= TOLERANCE
+    }))
 }
