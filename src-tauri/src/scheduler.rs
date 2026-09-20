@@ -341,6 +341,9 @@ impl Scheduler {
     }
 
     pub fn enqueue_notification(&self, data: NotificationData) -> Result<(), String> {
+        if let Some(power) = self.app.try_state::<PowerMonitor>() {
+            power.refresh();
+        }
         let db = self.app.state::<Database>();
         let conn = db.conn.lock().unwrap();
         let now = Utc::now();
@@ -434,6 +437,9 @@ impl Scheduler {
     }
 
     fn dispatch_next_notification(&self) {
+        if let Some(power) = self.app.try_state::<PowerMonitor>() {
+            power.refresh();
+        }
         // Serialize dispatch with database mutations and other queue workers.
         let db = self.app.state::<Database>();
         let conn = db.conn.lock().unwrap();
@@ -605,6 +611,9 @@ impl Scheduler {
                 }
             }
 
+            if let Some(power) = app.try_state::<PowerMonitor>() {
+                power.refresh();
+            }
             let db = app.state::<Database>();
             if are_all_reminders_paused(&db) {
                 continue;

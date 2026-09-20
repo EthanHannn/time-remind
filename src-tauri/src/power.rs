@@ -23,10 +23,12 @@ pub struct PowerResumed {
 /// 通过时间跳跃检测系统休眠/唤醒
 /// 原理：正常情况下 tick 间隔应该接近 1 秒，
 /// 如果检测到间隔超过 5 秒，说明系统可能从休眠中恢复
+#[derive(Clone)]
 pub struct PowerMonitor {
     app: AppHandle,
     running: Arc<Mutex<bool>>,
     pause_state: Arc<StdMutex<Option<SystemPause>>>,
+    last_observed: Arc<StdMutex<DateTime<Utc>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -40,6 +42,7 @@ impl PowerMonitor {
             app,
             running: Arc::new(Mutex::new(false)),
             pause_state: Arc::new(StdMutex::new(None)),
+            last_observed: Arc::new(StdMutex::new(Utc::now())),
         }
     }
 
@@ -56,71 +59,42 @@ impl PowerMonitor {
         *running = true;
         drop(running);
 
-        let app = self.app.clone();
-        let running = self.running.clone();
-        let pause_state = self.pause_state.clone();
-
+        let monitor = self.clone();
         tokio::spawn(async move {
-            let mut tick_interval = interval(Duration::from_secs(1));
-            let mut last_tick = Utc::now();
-            let mut last_locked = is_session_locked();
-            if last_locked == Some(true) {
-                start_pause(&app, &pause_state, "locked", last_tick);
-            }
-
+            let mut ticks = interval(Duration::from_secs(1));
+            ticks.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             loop {
-                tick_interval.tick().await;
-
-                // 检查是否应该继续运行
-                {
-                    let r = running.lock().await;
-                    if !*r {
-                        break;
-                    }
+                ticks.tick().await;
+                if !*monitor.running.lock().await {
+                    break;
                 }
-
-                let now = Utc::now();
-                let elapsed = (now - last_tick).num_seconds();
-                let locked = is_session_locked();
-
-                let unlocked_this_tick = last_locked == Some(true) && locked == Some(false);
-                match (last_locked, locked) {
-                    (Some(false), Some(true)) => {
-                        start_pause(&app, &pause_state, "locked", now);
-                    }
-                    (Some(true), Some(false)) => {
-                        finish_pause(&app, &pause_state, "unlocked", now);
-                    }
-                    _ => {}
-                }
-
-                // 如果间隔超过 5 秒，认为系统从休眠中恢复
-                if elapsed > 5 && !is_paused(&pause_state) && !unlocked_this_tick {
-                    compensate_pause(&app, now - chrono::Duration::seconds(elapsed), now);
-                    let _ = app.emit(
-                        "power:state-changed",
-                        PowerStateChanged {
-                            state: "resume".to_string(),
-                            reason: "wake".to_string(),
-                            paused_seconds: Some(elapsed),
-                        },
-                    );
-                    let _ = app.emit(
-                        "system:resumed",
-                        PowerStateChanged {
-                            state: "resume".to_string(),
-                            reason: "wake".to_string(),
-                            paused_seconds: Some(elapsed),
-                        },
-                    );
-                }
-
-                last_tick = now;
-                if locked.is_some() {
-                    last_locked = locked;
-                }
+                monitor.refresh();
             }
         });
+    }
+
+    /// Called by both polling and notification dispatch, before any DB lock.
+    /// Holding the observation lock through compensation prevents another
+    /// scheduler from seeing a wake as handled before its schedule is repaired.
+    pub fn refresh(&self) {
+        let mut previous = self.last_observed.lock().unwrap();
+        let now = Utc::now();
+        match power_transition(*previous, now, is_session_locked(), self.is_paused()) {
+            PowerTransition::Start(at) => start_pause(&self.app, &self.pause_state, "locked", at),
+            PowerTransition::Finish => finish_pause(&self.app, &self.pause_state, "unlocked", now),
+            PowerTransition::Wake(at) => {
+                compensate_pause(&self.app, at, now);
+                let payload = PowerStateChanged {
+                    state: "resume".into(),
+                    reason: "wake".into(),
+                    paused_seconds: Some((now - at).num_seconds().max(0)),
+                };
+                let _ = self.app.emit("power:state-changed", &payload);
+                let _ = self.app.emit("system:resumed", &payload);
+            }
+            PowerTransition::None => {}
+        }
+        *previous = now;
     }
 
     /// 停止电源事件监听
@@ -130,8 +104,27 @@ impl PowerMonitor {
     }
 }
 
-fn is_paused(pause_state: &Arc<StdMutex<Option<SystemPause>>>) -> bool {
-    pause_state.lock().unwrap().is_some()
+#[derive(Debug, PartialEq)]
+enum PowerTransition {
+    Start(DateTime<Utc>),
+    Finish,
+    Wake(DateTime<Utc>),
+    None,
+}
+
+fn power_transition(
+    previous: DateTime<Utc>,
+    now: DateTime<Utc>,
+    locked: Option<bool>,
+    paused: bool,
+) -> PowerTransition {
+    let time_gap = (now - previous).num_seconds() > 5;
+    match (locked, paused) {
+        (Some(true), false) => PowerTransition::Start(if time_gap { previous } else { now }),
+        (Some(false), true) => PowerTransition::Finish,
+        (_, false) if time_gap => PowerTransition::Wake(previous),
+        _ => PowerTransition::None,
+    }
 }
 
 fn start_pause(
@@ -266,4 +259,58 @@ fn is_session_locked() -> Option<bool> {
 #[cfg(not(target_os = "windows"))]
 fn is_session_locked() -> Option<bool> {
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::Duration as ChronoDuration;
+
+    #[test]
+    fn waking_into_lock_screen_keeps_the_sleep_interval() {
+        let before = Utc::now();
+        let wake = before + ChronoDuration::hours(1);
+        assert_eq!(
+            power_transition(before, wake, Some(true), false),
+            PowerTransition::Start(before)
+        );
+        assert_eq!(
+            power_transition(wake, wake + ChronoDuration::seconds(1), Some(false), true),
+            PowerTransition::Finish
+        );
+    }
+
+    #[test]
+    fn ordinary_lock_starts_now_and_locked_sleep_is_not_compensated_twice() {
+        let before = Utc::now();
+        let now = before + ChronoDuration::seconds(1);
+        assert_eq!(
+            power_transition(before, now, Some(true), false),
+            PowerTransition::Start(now)
+        );
+        assert_eq!(
+            power_transition(before, before + ChronoDuration::hours(1), Some(true), true),
+            PowerTransition::None
+        );
+        assert_eq!(
+            power_transition(before, before + ChronoDuration::hours(1), Some(false), true),
+            PowerTransition::Finish
+        );
+    }
+
+    #[test]
+    fn unlocked_wake_is_compensated_once_even_without_lock_detection() {
+        let before = Utc::now();
+        let wake = before + ChronoDuration::hours(1);
+        for locked in [None, Some(false)] {
+            assert_eq!(
+                power_transition(before, wake, locked, false),
+                PowerTransition::Wake(before)
+            );
+            assert_eq!(
+                power_transition(wake, wake, locked, false),
+                PowerTransition::None
+            );
+        }
+    }
 }
