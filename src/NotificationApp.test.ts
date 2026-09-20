@@ -36,7 +36,7 @@ function emit(name: string, payload: unknown = {}) {
   listener!({ payload })
 }
 
-const notification = { notification_id: 'instance-1', reminder_id: 'drink', name: 'Drink', action_enabled: true, action_duration_seconds: 10 }
+const notification = { queue_revision: 1, notification_id: 'instance-1', reminder_id: 'drink', name: 'Drink', action_enabled: true, action_duration_seconds: 10 }
 
 describe('notification cancellation', () => {
   let wrapper: ReturnType<typeof mount>
@@ -61,7 +61,7 @@ describe('notification cancellation', () => {
   })
 
   it('cancels a hidden notification without recording a timeout', async () => {
-    emit('notification:queue-updated', { current_reminder_id: null, pending_count: 0 })
+    emit('notification:queue-updated', { queue_revision: 2, current_reminder_id: null, pending_count: 0 })
     await vi.advanceTimersByTimeAsync(6000)
     expect(wrapper.find('.notification-shell').exists()).toBe(false)
     expect(mocks.invoke.mock.calls.filter(([command]) => command === 'respond_reminder')).toHaveLength(0)
@@ -71,7 +71,7 @@ describe('notification cancellation', () => {
     await wrapper.find('.complete-button').trigger('click')
     await flushPromises()
     expect(wrapper.find('.break-countdown').exists()).toBe(true)
-    emit('notification:queue-updated', { current_reminder_id: null })
+    emit('notification:queue-updated', { queue_revision: 2, current_reminder_id: null })
     await vi.advanceTimersByTimeAsync(11000)
     expect(mocks.invoke.mock.calls.filter(([command]) => command === 'release_notification')).toHaveLength(0)
   })
@@ -82,8 +82,8 @@ describe('notification cancellation', () => {
       finish = resolve
     }))
     await wrapper.find('.skip-button').trigger('click')
-    emit('notification:queue-updated', { current_reminder_id: null })
-    emit('notification:show', { ...notification, notification_id: 'instance-2', name: 'New drink' })
+    emit('notification:queue-updated', { queue_revision: 2, current_reminder_id: null })
+    emit('notification:show', { ...notification, queue_revision: 3, notification_id: 'instance-2', name: 'New drink' })
     await flushPromises()
     finish()
     await flushPromises()
@@ -96,8 +96,9 @@ describe('notification cancellation', () => {
     mocks.invoke.mockImplementationOnce(() => new Promise((resolve) => {
       finish = resolve
     }))
-    emit('notification:show', notification)
-    emit('notification:queue-updated', { current_reminder_id: null })
+    emit('notification:show', { ...notification, queue_revision: 3 })
+    emit('notification:queue-updated', { queue_revision: 2, current_reminder_id: null })
+    emit('notification:queue-updated', { queue_revision: 4, current_reminder_id: null })
     finish({ theme: 'light', notification_duration: '5' })
     await vi.advanceTimersByTimeAsync(6000)
     expect(mocks.invoke.mock.calls.filter(([command]) => command === 'respond_reminder')).toHaveLength(0)
@@ -105,8 +106,8 @@ describe('notification cancellation', () => {
 
   it('starts a fresh timeout after cancellation and resume', async () => {
     await vi.advanceTimersByTimeAsync(4000)
-    emit('notification:queue-updated', { current_reminder_id: null })
-    emit('notification:show', notification)
+    emit('notification:queue-updated', { queue_revision: 2, current_reminder_id: null })
+    emit('notification:show', { ...notification, queue_revision: 3 })
     await flushPromises()
     await vi.advanceTimersByTimeAsync(1000)
     expect(mocks.invoke.mock.calls.filter(([command]) => command === 'respond_reminder')).toHaveLength(0)
@@ -117,5 +118,26 @@ describe('notification cancellation', () => {
       action: 'timeout',
       holdNotification: false,
     })
+  })
+
+  it('ignores an old empty snapshot after a new notification is shown', async () => {
+    emit('notification:queue-updated', { queue_revision: 0, current_reminder_id: null, pending_count: 1 })
+    await flushPromises()
+    expect(wrapper.find('.notification-shell').exists()).toBe(true)
+    await vi.advanceTimersByTimeAsync(5000)
+    expect(mocks.invoke).toHaveBeenCalledWith('respond_reminder', {
+      notificationId: 'instance-1',
+      reminderId: 'drink',
+      action: 'timeout',
+      holdNotification: false,
+    })
+  })
+
+  it('does not resurrect a notification when show arrives after its cancellation', async () => {
+    emit('notification:queue-updated', { queue_revision: 2, current_reminder_id: null })
+    emit('notification:show', notification)
+    await vi.advanceTimersByTimeAsync(6000)
+    expect(wrapper.find('.notification-shell').exists()).toBe(false)
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === 'respond_reminder')).toHaveLength(0)
   })
 })

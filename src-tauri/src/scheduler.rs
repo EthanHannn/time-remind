@@ -38,6 +38,7 @@ fn notification_window_position(
 /// 通知窗口显示数据
 #[derive(Debug, Clone, Serialize)]
 pub struct NotificationData {
+    pub queue_revision: u64,
     pub notification_id: String,
     pub reminder_id: String,
     pub name: String,
@@ -69,8 +70,31 @@ impl NotificationIdentity {
 /// 通知队列状态
 #[derive(Debug, Clone, Serialize)]
 struct NotificationQueueState {
+    pub queue_revision: u64,
+    pub current_notification_id: Option<String>,
     pub current_reminder_id: Option<String>,
     pub pending_count: usize,
+}
+
+#[derive(Default)]
+struct NotificationQueue {
+    current: Option<NotificationIdentity>,
+    pending: VecDeque<NotificationData>,
+    revision: u64,
+}
+
+impl NotificationQueue {
+    fn snapshot(&self) -> NotificationQueueState {
+        NotificationQueueState {
+            queue_revision: self.revision,
+            current_reminder_id: self.current.as_ref().map(|item| item.reminder_id.clone()),
+            current_notification_id: self
+                .current
+                .as_ref()
+                .map(|item| item.notification_id.clone()),
+            pending_count: self.pending.len(),
+        }
+    }
 }
 
 /// 定时器 tick 事件数据
@@ -275,8 +299,7 @@ pub struct Scheduler {
     app: AppHandle,
     running: Arc<AsyncMutex<bool>>,
     active_reminders: Arc<std::sync::Mutex<HashSet<String>>>,
-    current_notification: Arc<std::sync::Mutex<Option<NotificationIdentity>>>,
-    pending_notifications: Arc<std::sync::Mutex<VecDeque<NotificationData>>>,
+    queue: Arc<std::sync::Mutex<NotificationQueue>>,
     next_notification_at: Arc<std::sync::Mutex<std::time::Instant>>,
 }
 
@@ -286,8 +309,7 @@ impl Scheduler {
             app,
             running: Arc::new(AsyncMutex::new(false)),
             active_reminders: Arc::new(std::sync::Mutex::new(HashSet::new())),
-            current_notification: Arc::new(std::sync::Mutex::new(None)),
-            pending_notifications: Arc::new(std::sync::Mutex::new(VecDeque::new())),
+            queue: Arc::new(std::sync::Mutex::new(NotificationQueue::default())),
             next_notification_at: Arc::new(std::sync::Mutex::new(std::time::Instant::now())),
         }
     }
@@ -298,17 +320,22 @@ impl Scheduler {
     }
 
     pub fn is_current_notification(&self, reminder_id: &str, notification_id: &str) -> bool {
-        self.current_notification
+        self.queue
             .lock()
             .unwrap()
+            .current
             .as_ref()
             .is_some_and(|current| current.matches(reminder_id, notification_id))
     }
 
     pub fn clear_all_active(&self) {
         self.active_reminders.lock().unwrap().clear();
-        self.current_notification.lock().unwrap().take();
-        self.pending_notifications.lock().unwrap().clear();
+        {
+            let mut queue = self.queue.lock().unwrap();
+            queue.current = None;
+            queue.pending.clear();
+            queue.revision += 1;
+        }
         self.emit_queue_state();
         crate::set_tray_visual_state(&self.app, crate::TrayVisualState::Idle);
     }
@@ -341,7 +368,11 @@ impl Scheduler {
             .map_err(|error| error.to_string())?;
             return Ok(());
         }
-        self.pending_notifications.lock().unwrap().push_back(data);
+        {
+            let mut queue = self.queue.lock().unwrap();
+            queue.pending.push_back(data);
+            queue.revision += 1;
+        }
         drop(conn);
         self.show_next_notification();
         self.emit_queue_state();
@@ -352,24 +383,19 @@ impl Scheduler {
         self.clear_active(reminder_id);
 
         let removed_current = {
-            let mut current = self.current_notification.lock().unwrap();
-            if current
+            let mut queue = self.queue.lock().unwrap();
+            let removed = queue
+                .current
                 .as_ref()
-                .is_some_and(|item| item.reminder_id == reminder_id)
-            {
-                current.take();
-                true
-            } else {
-                false
+                .is_some_and(|item| item.reminder_id == reminder_id);
+            if removed {
+                queue.current = None;
             }
+            queue.pending.retain(|item| item.reminder_id != reminder_id);
+            queue.revision += 1;
+            removed
         };
-
-        if !removed_current {
-            let mut pending = self.pending_notifications.lock().unwrap();
-            pending.retain(|item| item.reminder_id != reminder_id);
-            drop(pending);
-            self.emit_queue_state();
-        }
+        self.emit_queue_state();
 
         if removed_current {
             // Close on the native side before scheduling another instance.
@@ -411,7 +437,7 @@ impl Scheduler {
         // Serialize dispatch with database mutations and other queue workers.
         let db = self.app.state::<Database>();
         let conn = db.conn.lock().unwrap();
-        if self.current_notification.lock().unwrap().is_some() {
+        if self.queue.lock().unwrap().current.is_some() {
             self.update_tray_state();
             return;
         }
@@ -434,7 +460,14 @@ impl Scheduler {
         }
 
         loop {
-            let next = self.pending_notifications.lock().unwrap().pop_front();
+            let next = {
+                let mut queue = self.queue.lock().unwrap();
+                let next = queue.pending.pop_front();
+                if next.is_some() {
+                    queue.revision += 1;
+                }
+                next
+            };
 
             let Some(data) = next else {
                 self.emit_queue_state();
@@ -447,8 +480,9 @@ impl Scheduler {
                 continue;
             }
             {
-                let mut current = self.current_notification.lock().unwrap();
-                *current = Some(NotificationIdentity {
+                let mut queue = self.queue.lock().unwrap();
+                queue.revision += 1;
+                queue.current = Some(NotificationIdentity {
                     reminder_id: data.reminder_id.clone(),
                     notification_id: data.notification_id.clone(),
                 });
@@ -460,15 +494,20 @@ impl Scheduler {
                 break;
             }
 
-            self.current_notification.lock().unwrap().take();
+            {
+                let mut queue = self.queue.lock().unwrap();
+                queue.current = None;
+                queue.revision += 1;
+            }
             self.clear_active(&data.reminder_id);
             self.emit_queue_state();
         }
     }
 
     fn update_tray_state(&self) {
-        let has_current = self.current_notification.lock().unwrap().is_some();
-        let has_pending = !self.pending_notifications.lock().unwrap().is_empty();
+        let state = self.queue.lock().unwrap().snapshot();
+        let has_current = state.current_reminder_id.is_some();
+        let has_pending = state.pending_count > 0;
 
         if has_current || has_pending {
             crate::set_tray_visual_state(&self.app, crate::TrayVisualState::Alert);
@@ -482,8 +521,10 @@ impl Scheduler {
             return Err("通知窗口不存在".to_string());
         };
 
+        let state = self.queue.lock().unwrap().snapshot();
         let payload = NotificationData {
-            pending_count: self.pending_notifications.lock().unwrap().len(),
+            queue_revision: state.queue_revision,
+            pending_count: state.pending_count,
             ..data.clone()
         };
 
@@ -547,20 +588,8 @@ impl Scheduler {
     }
 
     fn emit_queue_state(&self) {
-        let current_reminder_id = self
-            .current_notification
-            .lock()
-            .unwrap()
-            .as_ref()
-            .map(|item| item.reminder_id.clone());
-        let pending_count = self.pending_notifications.lock().unwrap().len();
-        let _ = self.app.emit(
-            "notification:queue-updated",
-            NotificationQueueState {
-                current_reminder_id,
-                pending_count,
-            },
-        );
+        let state = self.queue.lock().unwrap().snapshot();
+        let _ = self.app.emit("notification:queue-updated", state);
     }
 
     async fn run_loop(app: AppHandle, running: Arc<AsyncMutex<bool>>, scheduler: Scheduler) {
@@ -673,6 +702,7 @@ impl Scheduler {
                         let _ = app.emit("reminder:triggered", &event);
 
                         let notification = NotificationData {
+                            queue_revision: 0,
                             notification_id: uuid::Uuid::new_v4().to_string(),
                             reminder_id: id.clone(),
                             name: name.clone(),

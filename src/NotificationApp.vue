@@ -42,6 +42,7 @@ interface NotificationOption {
 }
 
 interface NotificationPayload {
+  queue_revision: number
   notification_id?: string
   reminder_id?: string
   name?: string
@@ -59,6 +60,8 @@ interface NotificationPayload {
 }
 
 interface NotificationQueuePayload {
+  queue_revision: number
+  current_notification_id?: string | null
   current_reminder_id?: string | null
   pending_count?: number
 }
@@ -167,6 +170,7 @@ let unlistenQueueUpdated: (() => void) | null = null
 let unlistenSystemPaused: (() => void) | null = null
 let unlistenSystemResumed: (() => void) | null = null
 let systemTimersPaused = false
+let latestQueueRevision = -1
 let notificationRevision = 0
 let actionPending = false
 
@@ -179,6 +183,10 @@ onMounted(async () => {
     if (!data?.notification_id || !data?.reminder_id || !data?.name) {
       return
     }
+
+    if (data.queue_revision < latestQueueRevision)
+      return
+    latestQueueRevision = data.queue_revision
 
     notificationRevision += 1
     actionPending = false
@@ -215,7 +223,11 @@ onMounted(async () => {
 
   unlistenQueueUpdated = await appWindow.listen<NotificationQueuePayload>('notification:queue-updated', (event) => {
     const data = event.payload
-    if (!data)
+    if (!data || data.queue_revision < latestQueueRevision)
+      return
+    latestQueueRevision = data.queue_revision
+
+    if (data.current_notification_id && data.current_notification_id !== notificationId.value)
       return
 
     if (data.current_reminder_id && data.current_reminder_id !== reminderId.value)
