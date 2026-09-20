@@ -1031,13 +1031,16 @@ pub fn respond_reminder(
     db: State<'_, Database>,
     scheduler: State<'_, Scheduler>,
     reminder_id: String,
+    notification_id: String,
     action: String,
     hold_notification: Option<bool>,
 ) -> Result<(), String> {
     validate_response_action(&action)?;
 
     let conn = db.conn.lock().unwrap();
-    if all_reminders_paused(&conn) || !scheduler.is_current_notification(&reminder_id) {
+    if all_reminders_paused(&conn)
+        || !scheduler.is_current_notification(&reminder_id, &notification_id)
+    {
         return Err("通知已取消或过期".to_string());
     }
     let current = get_reminder_by_id(&conn, &reminder_id)?;
@@ -1127,12 +1130,15 @@ pub fn postpone_reminder(
     db: State<'_, Database>,
     scheduler: State<'_, Scheduler>,
     reminder_id: String,
+    notification_id: String,
     minutes: i64,
 ) -> Result<(), String> {
     validate_interval_minutes(minutes, "延后时间")?;
 
     let conn = db.conn.lock().unwrap();
-    if all_reminders_paused(&conn) || !scheduler.is_current_notification(&reminder_id) {
+    if all_reminders_paused(&conn)
+        || !scheduler.is_current_notification(&reminder_id, &notification_id)
+    {
         return Err("通知已取消或过期".to_string());
     }
     let current = get_reminder_by_id(&conn, &reminder_id)?;
@@ -1172,10 +1178,13 @@ pub fn release_notification(
     db: State<'_, Database>,
     scheduler: State<'_, Scheduler>,
     reminder_id: String,
+    notification_id: String,
     finish_break_now: Option<bool>,
 ) -> Result<(), String> {
     let conn = db.conn.lock().unwrap();
-    if all_reminders_paused(&conn) || !scheduler.is_current_notification(&reminder_id) {
+    if all_reminders_paused(&conn)
+        || !scheduler.is_current_notification(&reminder_id, &notification_id)
+    {
         return Err("通知已取消或过期".to_string());
     }
     if finish_break_now.unwrap_or(false) {

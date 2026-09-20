@@ -27,6 +27,6 @@ export async function toggleReminder(id: string): Promise<Reminder> {
 }
 
 /// 记录提醒响应
-export async function respondReminder(reminderId: string, action: string, holdNotification = false): Promise<void> {
-  return await invoke('respond_reminder', { reminderId, action, holdNotification })
+export async function respondReminder(reminderId: string, notificationId: string, action: string, holdNotification = false): Promise<void> {
+  return await invoke('respond_reminder', { reminderId, notificationId, action, holdNotification })
 }

@@ -10,6 +10,7 @@ import { getLocalizedReminderVisual } from './utils/reminderVisuals'
 const name = ref('')
 const message = ref('')
 const reminderId = ref('')
+const notificationId = ref('')
 const reminderType = ref('custom')
 const reminderIcon = ref('custom_star')
 const actionEnabled = ref(false)
@@ -41,6 +42,7 @@ interface NotificationOption {
 }
 
 interface NotificationPayload {
+  notification_id?: string
   reminder_id?: string
   name?: string
   message?: string
@@ -174,7 +176,7 @@ onMounted(async () => {
 
   unlistenShow = await appWindow.listen<NotificationPayload>('notification:show', (event) => {
     const data = event.payload
-    if (!data?.reminder_id || !data?.name) {
+    if (!data?.notification_id || !data?.reminder_id || !data?.name) {
       return
     }
 
@@ -186,6 +188,7 @@ onMounted(async () => {
     name.value = data.name
     message.value = data.message || ''
     reminderId.value = data.reminder_id
+    notificationId.value = data.notification_id
     reminderType.value = data.reminder_type || 'custom'
     reminderIcon.value = data.icon || data.reminder_type || 'custom_star'
     actionEnabled.value = Boolean(data.action_enabled)
@@ -361,6 +364,7 @@ function resetNotificationState() {
   name.value = ''
   message.value = ''
   reminderId.value = ''
+  notificationId.value = ''
   reminderType.value = 'custom'
   actionEnabled.value = false
   actionTitle.value = ''
@@ -370,14 +374,12 @@ function resetNotificationState() {
   pendingCount.value = 0
 }
 
-async function closeNotificationWindow() {
+function closeNotificationWindow() {
   visible.value = false
   breakMode.value = false
   clearAutoDismiss()
   stopBreakCountdown()
   resetNotificationState()
-  const appWindow = getCurrentWebviewWindow()
-  await appWindow.hide()
 }
 
 async function closeBreakPrompt(finishBreakNow: boolean) {
@@ -390,6 +392,7 @@ async function closeBreakPrompt(finishBreakNow: boolean) {
 
   try {
     await invoke('release_notification', {
+      notificationId: notificationId.value,
       reminderId: reminderId.value,
       finishBreakNow,
     })
@@ -399,7 +402,7 @@ async function closeBreakPrompt(finishBreakNow: boolean) {
   }
   finally {
     if (revision === notificationRevision)
-      await closeNotificationWindow()
+      closeNotificationWindow()
   }
 }
 
@@ -416,6 +419,7 @@ async function handleAction(action: string) {
 
   try {
     await invoke('respond_reminder', {
+      notificationId: notificationId.value,
       reminderId: reminderId.value,
       action,
       holdNotification: shouldHoldForBreak,
@@ -429,7 +433,7 @@ async function handleAction(action: string) {
       return
     }
 
-    await closeNotificationWindow()
+    closeNotificationWindow()
   }
   catch (err) {
     if (revision === notificationRevision) {
@@ -449,12 +453,13 @@ async function handlePostpone(minutes: number) {
 
   try {
     await invoke('postpone_reminder', {
+      notificationId: notificationId.value,
       reminderId: reminderId.value,
       minutes,
     })
 
     if (revision === notificationRevision)
-      await closeNotificationWindow()
+      closeNotificationWindow()
   }
   catch (err) {
     if (revision === notificationRevision) {

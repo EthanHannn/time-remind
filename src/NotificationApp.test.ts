@@ -36,7 +36,7 @@ function emit(name: string, payload: unknown = {}) {
   listener!({ payload })
 }
 
-const notification = { reminder_id: 'drink', name: 'Drink', action_enabled: true, action_duration_seconds: 10 }
+const notification = { notification_id: 'instance-1', reminder_id: 'drink', name: 'Drink', action_enabled: true, action_duration_seconds: 10 }
 
 describe('notification cancellation', () => {
   let wrapper: ReturnType<typeof mount>
@@ -83,7 +83,7 @@ describe('notification cancellation', () => {
     }))
     await wrapper.find('.skip-button').trigger('click')
     emit('notification:queue-updated', { current_reminder_id: null })
-    emit('notification:show', { ...notification, name: 'New drink' })
+    emit('notification:show', { ...notification, notification_id: 'instance-2', name: 'New drink' })
     await flushPromises()
     finish()
     await flushPromises()
@@ -113,6 +113,7 @@ describe('notification cancellation', () => {
     await vi.advanceTimersByTimeAsync(4000)
     expect(mocks.invoke).toHaveBeenCalledWith('respond_reminder', {
       reminderId: 'drink',
+      notificationId: 'instance-1',
       action: 'timeout',
       holdNotification: false,
     })

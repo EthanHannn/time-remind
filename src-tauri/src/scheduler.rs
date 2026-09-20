@@ -38,6 +38,7 @@ fn notification_window_position(
 /// 通知窗口显示数据
 #[derive(Debug, Clone, Serialize)]
 pub struct NotificationData {
+    pub notification_id: String,
     pub reminder_id: String,
     pub name: String,
     pub icon: String,
@@ -51,6 +52,18 @@ pub struct NotificationData {
     pub action_duration_seconds: i64,
     pub action_completion_mode: String,
     pub pending_count: usize,
+}
+
+#[derive(Clone)]
+struct NotificationIdentity {
+    reminder_id: String,
+    notification_id: String,
+}
+
+impl NotificationIdentity {
+    fn matches(&self, reminder_id: &str, notification_id: &str) -> bool {
+        self.reminder_id == reminder_id && self.notification_id == notification_id
+    }
 }
 
 /// 通知队列状态
@@ -262,7 +275,7 @@ pub struct Scheduler {
     app: AppHandle,
     running: Arc<AsyncMutex<bool>>,
     active_reminders: Arc<std::sync::Mutex<HashSet<String>>>,
-    current_notification: Arc<std::sync::Mutex<Option<String>>>,
+    current_notification: Arc<std::sync::Mutex<Option<NotificationIdentity>>>,
     pending_notifications: Arc<std::sync::Mutex<VecDeque<NotificationData>>>,
     next_notification_at: Arc<std::sync::Mutex<std::time::Instant>>,
 }
@@ -284,8 +297,12 @@ impl Scheduler {
         active_reminders.remove(reminder_id);
     }
 
-    pub fn is_current_notification(&self, reminder_id: &str) -> bool {
-        self.current_notification.lock().unwrap().as_deref() == Some(reminder_id)
+    pub fn is_current_notification(&self, reminder_id: &str, notification_id: &str) -> bool {
+        self.current_notification
+            .lock()
+            .unwrap()
+            .as_ref()
+            .is_some_and(|current| current.matches(reminder_id, notification_id))
     }
 
     pub fn clear_all_active(&self) {
@@ -336,7 +353,10 @@ impl Scheduler {
 
         let removed_current = {
             let mut current = self.current_notification.lock().unwrap();
-            if current.as_deref() == Some(reminder_id) {
+            if current
+                .as_ref()
+                .is_some_and(|item| item.reminder_id == reminder_id)
+            {
                 current.take();
                 true
             } else {
@@ -352,6 +372,13 @@ impl Scheduler {
         }
 
         if removed_current {
+            // Close on the native side before scheduling another instance.
+            // A delayed webview hide request could otherwise hide its successor.
+            if let Some(window) = self.app.get_webview_window("notification") {
+                if let Err(error) = window.hide() {
+                    crate::app_log::warn(format!("隐藏通知窗口失败：{error}"));
+                }
+            }
             *self.next_notification_at.lock().unwrap() =
                 std::time::Instant::now() + Duration::from_millis(NEXT_NOTIFICATION_DELAY_MS);
         }
@@ -421,7 +448,10 @@ impl Scheduler {
             }
             {
                 let mut current = self.current_notification.lock().unwrap();
-                *current = Some(data.reminder_id.clone());
+                *current = Some(NotificationIdentity {
+                    reminder_id: data.reminder_id.clone(),
+                    notification_id: data.notification_id.clone(),
+                });
             }
 
             if self.show_notification(&data).is_ok() {
@@ -517,7 +547,12 @@ impl Scheduler {
     }
 
     fn emit_queue_state(&self) {
-        let current_reminder_id = self.current_notification.lock().unwrap().clone();
+        let current_reminder_id = self
+            .current_notification
+            .lock()
+            .unwrap()
+            .as_ref()
+            .map(|item| item.reminder_id.clone());
         let pending_count = self.pending_notifications.lock().unwrap().len();
         let _ = self.app.emit(
             "notification:queue-updated",
@@ -638,6 +673,7 @@ impl Scheduler {
                         let _ = app.emit("reminder:triggered", &event);
 
                         let notification = NotificationData {
+                            notification_id: uuid::Uuid::new_v4().to_string(),
                             reminder_id: id.clone(),
                             name: name.clone(),
                             icon: icon.clone(),
@@ -738,6 +774,17 @@ impl Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_new_notification_for_the_same_reminder_rejects_the_old_response() {
+        let current = NotificationIdentity {
+            reminder_id: "drink".into(),
+            notification_id: "after-resume".into(),
+        };
+        assert!(current.matches("drink", "after-resume"));
+        assert!(!current.matches("drink", "before-pause"));
+        assert!(!current.matches("rest", "after-resume"));
+    }
 
     #[test]
     fn queued_notifications_recheck_fullscreen_and_lock_state() {
