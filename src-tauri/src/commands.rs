@@ -215,45 +215,6 @@ pub(crate) fn start_temp_dnd(conn: &Connection, minutes: i64) -> Result<(), Stri
     Ok(())
 }
 
-fn restore_legacy_all_paused_reminders(
-    conn: &Connection,
-    now: chrono::DateTime<Utc>,
-) -> Result<(), String> {
-    let enabled_count: i64 = conn
-        .query_row(
-            "SELECT COUNT(*) FROM reminders WHERE enabled = 1",
-            [],
-            |row| row.get(0),
-        )
-        .map_err(|e| e.to_string())?;
-
-    if enabled_count > 0 {
-        return Ok(());
-    }
-
-    let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
-    let mut stmt = conn
-        .prepare("SELECT id, interval_minutes FROM reminders WHERE enabled = 0")
-        .map_err(|e| e.to_string())?;
-    let reminders: Vec<(String, i64)> = stmt
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-    drop(stmt);
-
-    for (id, interval_minutes) in reminders {
-        let next = build_next_trigger_from(now, interval_minutes);
-        conn.execute(
-            "UPDATE reminders SET enabled = 1, next_trigger = ?1, updated_at = ?2 WHERE id = ?3",
-            (&next, &now_str, &id),
-        )
-        .map_err(|e| e.to_string())?;
-    }
-
-    Ok(())
-}
-
 pub(crate) fn resume_all_reminders(conn: &Connection) -> Result<(), String> {
     resume_all_reminders_at(conn, Utc::now())
 }
@@ -286,6 +247,9 @@ pub(crate) fn compensate_system_pause(conn: &Connection, started_at: chrono::Dat
 }
 
 fn resume_all_reminders_at(conn: &Connection, now: chrono::DateTime<Utc>) -> Result<(), String> {
+    if !all_reminders_paused(conn) {
+        return Ok(());
+    }
     let paused_at = conn
         .query_row(
             "SELECT value FROM settings WHERE key = ?1",
@@ -302,8 +266,6 @@ fn resume_all_reminders_at(conn: &Connection, now: chrono::DateTime<Utc>) -> Res
             shift_enabled_reminder_schedule(conn, paused_seconds, now)?;
         }
     }
-
-    restore_legacy_all_paused_reminders(conn, now)?;
 
     conn.execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, 'false')",
@@ -1991,27 +1953,46 @@ mod tests {
     }
 
     #[test]
-    fn resume_all_recovers_legacy_disabled_all_state() {
+    fn resume_preserves_individually_disabled_reminders_even_when_all_are_off() {
+        for paused in [false, true] {
+            let conn = prepare_pause_test_db();
+            conn.execute("INSERT INTO reminders VALUES ('off', 20, 0, NULL, '')", []).unwrap();
+            if paused {
+                pause_all_reminders(&conn).unwrap();
+            }
+            resume_all_reminders(&conn).unwrap();
+            resume_all_reminders(&conn).unwrap();
+            let (enabled, next): (bool, Option<String>) = conn.query_row("SELECT enabled, next_trigger FROM reminders", [], |row| Ok((row.get(0)?, row.get(1)?))).unwrap();
+            assert!(!enabled);
+            assert!(next.is_none());
+            assert!(!all_reminders_paused(&conn));
+        }
+    }
+
+    #[test]
+    fn resume_without_a_pause_timestamp_does_not_guess_legacy_enabled_state() {
         let conn = prepare_pause_test_db();
-        conn.execute(
-            "INSERT INTO reminders (id, interval_minutes, enabled, next_trigger, updated_at) VALUES ('drink', 90, 0, NULL, '')",
-            [],
-        )
-        .expect("test reminder should be inserted");
-
-        resume_all_reminders(&conn).expect("resume should succeed");
-
-        let (enabled, next_trigger): (i32, Option<String>) = conn
-            .query_row(
-                "SELECT enabled, next_trigger FROM reminders WHERE id = 'drink'",
-                [],
-                |row| Ok((row.get(0)?, row.get(1)?)),
-            )
-            .expect("reminder should exist");
-
-        assert_eq!(enabled, 1);
-        assert!(next_trigger.is_some());
+        conn.execute("INSERT INTO reminders VALUES ('off', 20, 0, NULL, '')", []).unwrap();
+        conn.execute("INSERT INTO settings VALUES (?1, 'true')", [ALL_REMINDERS_PAUSED_KEY]).unwrap();
+        resume_all_reminders(&conn).unwrap();
+        let enabled: bool = conn.query_row("SELECT enabled FROM reminders", [], |row| row.get(0)).unwrap();
+        assert!(!enabled);
         assert!(!all_reminders_paused(&conn));
+    }
+
+    #[test]
+    fn repeated_resume_does_not_shift_schedule_twice_or_enable_disabled_items() {
+        let conn = prepare_pause_test_db();
+        conn.execute("INSERT INTO reminders VALUES ('on', 20, 1, '2026-09-20T10:05:00', ''), ('off', 20, 0, NULL, '')", []).unwrap();
+        pause_all_reminders(&conn).unwrap();
+        conn.execute("UPDATE settings SET value = '2026-09-20T10:00:00' WHERE key = ?1", [ALL_REMINDERS_PAUSED_AT_KEY]).unwrap();
+        let now = NaiveDateTime::parse_from_str("2026-09-20T10:30:00", "%Y-%m-%dT%H:%M:%S").unwrap().and_utc();
+        resume_all_reminders_at(&conn, now).unwrap();
+        resume_all_reminders_at(&conn, now + Duration::minutes(10)).unwrap();
+        let next: String = conn.query_row("SELECT next_trigger FROM reminders WHERE id = 'on'", [], |row| row.get(0)).unwrap();
+        assert_eq!(next, "2026-09-20T10:35:00");
+        let enabled: bool = conn.query_row("SELECT enabled FROM reminders WHERE id = 'off'", [], |row| row.get(0)).unwrap();
+        assert!(!enabled);
     }
 
     #[test]
