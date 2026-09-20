@@ -13,6 +13,16 @@ pub struct Database {
 }
 
 impl Database {
+    #[cfg(test)]
+    pub(crate) fn in_memory() -> Self {
+        let db = Self {
+            conn: Mutex::new(Connection::open_in_memory().unwrap()),
+            db_path: PathBuf::new(),
+        };
+        db.migrate().unwrap();
+        db
+    }
+
     /// 初始化数据库
     pub fn init(app: &AppHandle) -> Result<Self> {
         let db_path = Self::get_db_path(app)?;
