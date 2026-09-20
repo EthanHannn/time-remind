@@ -87,6 +87,9 @@ pub(crate) fn all_reminders_paused(conn: &Connection) -> bool {
 }
 
 pub(crate) fn pause_all_reminders(conn: &Connection) -> Result<(), String> {
+    if all_reminders_paused(conn) {
+        return Ok(());
+    }
     let now = now_utc_string();
     conn.execute(
         "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, 'true')",
@@ -1970,6 +1973,21 @@ mod tests {
             ]
         );
         assert!(all_reminders_paused(&conn));
+    }
+
+    #[test]
+    fn repeated_pause_preserves_the_original_baseline() {
+        let conn = prepare_pause_test_db();
+        conn.execute("INSERT INTO reminders VALUES ('test', 20, 1, '2026-09-20T10:05:00', '')", []).unwrap();
+        pause_all_reminders(&conn).unwrap();
+        conn.execute("UPDATE settings SET value = '2026-09-20T10:00:00' WHERE key = ?1", [ALL_REMINDERS_PAUSED_AT_KEY]).unwrap();
+        pause_all_reminders(&conn).unwrap();
+        pause_all_reminders(&conn).unwrap();
+        let start = setting_timestamp(&conn, ALL_REMINDERS_PAUSED_AT_KEY).unwrap();
+        assert_eq!(start.format("%Y-%m-%dT%H:%M:%S").to_string(), "2026-09-20T10:00:00");
+        resume_all_reminders_at(&conn, start + Duration::minutes(30)).unwrap();
+        let next: String = conn.query_row("SELECT next_trigger FROM reminders", [], |row| row.get(0)).unwrap();
+        assert_eq!(next, "2026-09-20T10:35:00");
     }
 
     #[test]
