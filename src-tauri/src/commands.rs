@@ -15,6 +15,7 @@ use crate::scheduler::Scheduler;
 
 pub(crate) const ALL_REMINDERS_PAUSED_KEY: &str = "all_reminders_paused";
 const ALL_REMINDERS_PAUSED_AT_KEY: &str = "all_reminders_paused_at";
+pub(crate) const SYSTEM_PAUSED_AT_KEY: &str = "system_paused_at";
 const TEMP_DND_UNTIL_KEY: &str = "temp_dnd_until";
 const MIN_INTERVAL_MINUTES: i64 = 1;
 const MAX_INTERVAL_MINUTES: i64 = 1440;
@@ -251,7 +252,37 @@ fn restore_legacy_all_paused_reminders(
 }
 
 pub(crate) fn resume_all_reminders(conn: &Connection) -> Result<(), String> {
-    let now = Utc::now();
+    resume_all_reminders_at(conn, Utc::now())
+}
+
+fn setting_timestamp(conn: &Connection, key: &str) -> Option<chrono::DateTime<Utc>> {
+    conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| row.get::<_, String>(0))
+        .ok()
+        .and_then(|value| NaiveDateTime::parse_from_str(&value, "%Y-%m-%dT%H:%M:%S").ok())
+        .map(|timestamp| timestamp.and_utc())
+}
+
+// An overlapping pause that is still active owns compensation from its start.
+// Whichever pause ends first only accounts for its non-overlapping prefix.
+fn exclusive_pause_seconds(start: chrono::DateTime<Utc>, end: chrono::DateTime<Utc>, other_start: Option<chrono::DateTime<Utc>>) -> i64 {
+    (other_start.map(|other| other.min(end)).unwrap_or(end) - start).num_seconds().max(0)
+}
+
+pub(crate) fn compensate_system_pause(conn: &Connection, started_at: chrono::DateTime<Utc>, now: chrono::DateTime<Utc>) -> Result<(), String> {
+    let manual_start = if all_reminders_paused(conn) {
+        setting_timestamp(conn, ALL_REMINDERS_PAUSED_AT_KEY)
+    } else {
+        None
+    };
+    let seconds = exclusive_pause_seconds(started_at, now, manual_start);
+    if seconds > 0 {
+        shift_enabled_reminder_schedule(conn, seconds, now)?;
+    }
+    conn.execute("DELETE FROM settings WHERE key = ?1", [SYSTEM_PAUSED_AT_KEY]).map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn resume_all_reminders_at(conn: &Connection, now: chrono::DateTime<Utc>) -> Result<(), String> {
     let paused_at = conn
         .query_row(
             "SELECT value FROM settings WHERE key = ?1",
@@ -263,7 +294,7 @@ pub(crate) fn resume_all_reminders(conn: &Connection) -> Result<(), String> {
         .map(|timestamp| timestamp.and_utc());
 
     if let Some(paused_at) = paused_at {
-        let paused_seconds = (now - paused_at).num_seconds().max(0);
+        let paused_seconds = exclusive_pause_seconds(paused_at, now, setting_timestamp(conn, SYSTEM_PAUSED_AT_KEY));
         if paused_seconds > 0 {
             shift_enabled_reminder_schedule(conn, paused_seconds, now)?;
         }
@@ -1858,6 +1889,52 @@ mod tests {
         )
         .expect("test schema should be created");
         conn
+    }
+
+    #[test]
+    fn manual_and_system_pause_overlap_is_compensated_once_in_every_order() {
+        let base = NaiveDateTime::parse_from_str("2026-09-20T10:00:00", "%Y-%m-%dT%H:%M:%S").unwrap().and_utc();
+        // Event offsets in minutes: manual start/end and system start/end.
+        for (manual_start, manual_end, system_start, system_end) in [
+            (0, 30, 10, 20), (0, 20, 10, 30),
+            (10, 30, 0, 20), (10, 20, 0, 30),
+            (0, 10, 20, 30), (20, 30, 0, 10),
+            (0, 30, 0, 30),
+        ] {
+            let conn = prepare_pause_test_db();
+            conn.execute("INSERT INTO reminders VALUES ('test', 20, 1, '2026-09-20T10:05:00', '')", []).unwrap();
+            let mut events = vec![(manual_start, 0), (manual_end, 1), (system_start, 2), (system_end, 3)];
+            events.sort();
+            for (offset, kind) in events {
+                let at = base + Duration::minutes(offset);
+                match kind {
+                    0 => {
+                        conn.execute("INSERT OR REPLACE INTO settings VALUES (?1, 'true')", [ALL_REMINDERS_PAUSED_KEY]).unwrap();
+                        conn.execute("INSERT OR REPLACE INTO settings VALUES (?1, ?2)", (ALL_REMINDERS_PAUSED_AT_KEY, at.format("%Y-%m-%dT%H:%M:%S").to_string())).unwrap();
+                    }
+                    1 => resume_all_reminders_at(&conn, at).unwrap(),
+                    2 => { conn.execute("INSERT OR REPLACE INTO settings VALUES (?1, ?2)", (SYSTEM_PAUSED_AT_KEY, at.format("%Y-%m-%dT%H:%M:%S").to_string())).unwrap(); }
+                    3 => compensate_system_pause(&conn, base + Duration::minutes(system_start), at).unwrap(),
+                    _ => unreachable!(),
+                }
+            }
+            let overlap = (manual_end.min(system_end) - manual_start.max(system_start)).max(0);
+            let total = manual_end - manual_start + system_end - system_start - overlap;
+            let next: String = conn.query_row("SELECT next_trigger FROM reminders", [], |row| row.get(0)).unwrap();
+            assert_eq!(next, (base + Duration::minutes(5 + total)).format("%Y-%m-%dT%H:%M:%S").to_string(), "manual {manual_start}..{manual_end}, system {system_start}..{system_end}");
+        }
+    }
+
+    #[test]
+    fn system_resume_preserves_remaining_time_and_repairs_missing_schedule() {
+        let conn = prepare_pause_test_db();
+        conn.execute("INSERT INTO reminders VALUES ('scheduled', 20, 1, '2026-09-20T10:05:00', ''), ('missing', 20, 1, NULL, '')", []).unwrap();
+        let start = NaiveDateTime::parse_from_str("2026-09-20T10:00:00", "%Y-%m-%dT%H:%M:%S").unwrap().and_utc();
+        compensate_system_pause(&conn, start, start + Duration::minutes(30)).unwrap();
+        for (id, expected) in [("scheduled", "2026-09-20T10:35:00"), ("missing", "2026-09-20T10:50:00")] {
+            let next: String = conn.query_row("SELECT next_trigger FROM reminders WHERE id = ?1", [id], |row| row.get(0)).unwrap();
+            assert_eq!(next, expected);
+        }
     }
 
     #[test]

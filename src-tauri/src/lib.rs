@@ -733,6 +733,9 @@ fn reconcile_schedule_for_boot(db: &Database, current_marker: Option<String>) {
 
     {
         let conn = db.conn.lock().unwrap();
+        // System lock state is observed afresh by this process. A previous
+        // process's marker must not truncate a later manual resume.
+        let _ = conn.execute("DELETE FROM settings WHERE key = ?1", [commands::SYSTEM_PAUSED_AT_KEY]);
         let previous_marker = conn
             .query_row(
                 "SELECT value FROM settings WHERE key = ?1",

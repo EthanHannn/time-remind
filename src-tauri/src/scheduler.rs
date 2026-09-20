@@ -3,13 +3,13 @@ use serde::Serialize;
 use rusqlite::Connection;
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
-use tauri::{AppHandle, Emitter, Event, Listener, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::time::{interval, sleep, Duration};
 
 use crate::db::Database;
 use crate::fullscreen::is_foreground_window_fullscreen;
-use crate::power::{PowerMonitor, PowerStateChanged};
+use crate::power::PowerMonitor;
 
 const NOTIFICATION_WINDOW_WIDTH: f64 = 360.0;
 const NOTIFICATION_WINDOW_HEIGHT: f64 = 224.0;
@@ -242,51 +242,6 @@ fn reminder_is_due(conn: &Connection, id: &str, now: DateTime<Utc>) -> bool {
     conn.query_row("SELECT enabled = 1 AND next_trigger <= ?1 FROM reminders WHERE id = ?2",
         (now.format("%Y-%m-%dT%H:%M:%S").to_string(), id), |row| row.get::<_, bool>(0))
         .unwrap_or(false)
-}
-
-fn shifted_next_trigger(
-    next_trigger: Option<&str>,
-    interval_minutes: i64,
-    paused_seconds: i64,
-    now: DateTime<Utc>,
-) -> String {
-    next_trigger
-        .and_then(|value| NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S").ok())
-        .map(|timestamp| timestamp.and_utc() + ChronoDuration::seconds(paused_seconds))
-        .unwrap_or_else(|| now + ChronoDuration::minutes(interval_minutes))
-        .format("%Y-%m-%dT%H:%M:%S")
-        .to_string()
-}
-
-fn shift_enabled_reminders(db: &Database, paused_seconds: i64) -> Result<i64, String> {
-    let conn = db.conn.lock().unwrap();
-    let now = Utc::now();
-    let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
-
-    let mut stmt = conn
-        .prepare("SELECT id, interval_minutes, next_trigger FROM reminders WHERE enabled = 1")
-        .map_err(|e| e.to_string())?;
-
-    let reminders: Vec<(String, i64, Option<String>)> = stmt
-        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-
-    for (id, interval_minutes, next_trigger) in &reminders {
-        let new_next = shifted_next_trigger(
-            next_trigger.as_deref(),
-            *interval_minutes,
-            paused_seconds,
-            now,
-        );
-        let _ = conn.execute(
-            "UPDATE reminders SET next_trigger = ?1, updated_at = ?2 WHERE id = ?3",
-            (&new_next, &now_str, id),
-        );
-    }
-
-    Ok(reminders.len() as i64)
 }
 
 /// 定时器引擎
@@ -687,30 +642,6 @@ impl Scheduler {
         let running = self.running.clone();
         let scheduler = self.clone();
 
-        let app_clone = app.clone();
-        app.listen("power:state-changed", move |event: Event| {
-            if let Ok(data) = serde_json::from_str::<PowerStateChanged>(&event.payload()) {
-                if data.state == "resume" {
-                    let db = app_clone.state::<Database>();
-                    let paused_seconds = data.paused_seconds.unwrap_or(0).max(0);
-                    if paused_seconds == 0 {
-                        return;
-                    }
-
-                    if let Ok(affected) = shift_enabled_reminders(&db, paused_seconds) {
-                        let _ = app_clone.emit(
-                            "power:resumed",
-                            crate::power::PowerResumed {
-                                resumed_at: Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
-                                affected_reminders: affected,
-                            },
-                        );
-                        let _ = app_clone.emit("reminders:changed", ());
-                    }
-                }
-            }
-        });
-
         tokio::spawn(async move {
             loop {
                 {
@@ -765,7 +696,6 @@ impl Scheduler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use chrono::TimeZone;
 
     #[test]
     fn queued_notifications_recheck_fullscreen_and_lock_state() {
@@ -814,30 +744,6 @@ mod tests {
         assert!(!reminder_is_due(&conn, "test", now));
         conn.execute("DELETE FROM reminders", []).unwrap();
         assert!(!reminder_is_due(&conn, "test", now));
-    }
-
-    #[test]
-    fn shifted_next_trigger_keeps_remaining_time_after_pause() {
-        let now = Utc
-            .with_ymd_and_hms(2026, 7, 1, 10, 0, 0)
-            .single()
-            .expect("fixed time should be valid");
-
-        let shifted = shifted_next_trigger(Some("2026-07-01T10:01:00"), 20, 180, now);
-
-        assert_eq!(shifted, "2026-07-01T10:04:00");
-    }
-
-    #[test]
-    fn shifted_next_trigger_repairs_missing_timestamp() {
-        let now = Utc
-            .with_ymd_and_hms(2026, 7, 1, 10, 0, 0)
-            .single()
-            .expect("fixed time should be valid");
-
-        let shifted = shifted_next_trigger(None, 20, 180, now);
-
-        assert_eq!(shifted, "2026-07-01T10:20:00");
     }
 
     #[test]
