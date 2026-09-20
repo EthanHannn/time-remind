@@ -1021,6 +1021,9 @@ pub fn respond_reminder(
     validate_response_action(&action)?;
 
     let conn = db.conn.lock().unwrap();
+    if all_reminders_paused(&conn) || !scheduler.is_current_notification(&reminder_id) {
+        return Err("通知已取消或过期".to_string());
+    }
     let current = get_reminder_by_id(&conn, &reminder_id)?;
     let now = Utc::now();
     let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
@@ -1113,6 +1116,9 @@ pub fn postpone_reminder(
     validate_interval_minutes(minutes, "延后时间")?;
 
     let conn = db.conn.lock().unwrap();
+    if all_reminders_paused(&conn) || !scheduler.is_current_notification(&reminder_id) {
+        return Err("通知已取消或过期".to_string());
+    }
     let current = get_reminder_by_id(&conn, &reminder_id)?;
     if !current.enabled {
         return Err("提醒已禁用，无法延后".to_string());
@@ -1152,8 +1158,11 @@ pub fn release_notification(
     reminder_id: String,
     finish_break_now: Option<bool>,
 ) -> Result<(), String> {
+    let conn = db.conn.lock().unwrap();
+    if all_reminders_paused(&conn) || !scheduler.is_current_notification(&reminder_id) {
+        return Err("通知已取消或过期".to_string());
+    }
     if finish_break_now.unwrap_or(false) {
-        let conn = db.conn.lock().unwrap();
         let current = get_reminder_by_id(&conn, &reminder_id)?;
 
         if current.enabled && current.action_enabled && current.action_duration_seconds > 0 {

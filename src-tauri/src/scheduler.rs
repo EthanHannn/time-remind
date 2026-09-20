@@ -306,6 +306,10 @@ impl Scheduler {
         active_reminders.remove(reminder_id);
     }
 
+    pub fn is_current_notification(&self, reminder_id: &str) -> bool {
+        self.current_notification.lock().unwrap().as_deref() == Some(reminder_id)
+    }
+
     pub fn clear_all_active(&self) {
         self.active_reminders.lock().unwrap().clear();
         self.current_notification.lock().unwrap().take();

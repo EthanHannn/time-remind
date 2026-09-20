@@ -165,6 +165,8 @@ let unlistenQueueUpdated: (() => void) | null = null
 let unlistenSystemPaused: (() => void) | null = null
 let unlistenSystemResumed: (() => void) | null = null
 let systemTimersPaused = false
+let notificationRevision = 0
+let actionPending = false
 
 onMounted(async () => {
   const appWindow = getCurrentWebviewWindow()
@@ -176,6 +178,9 @@ onMounted(async () => {
       return
     }
 
+    notificationRevision += 1
+    actionPending = false
+    clearAutoDismiss()
     stopBreakCountdown()
     breakMode.value = false
     name.value = data.name
@@ -190,9 +195,9 @@ onMounted(async () => {
     pendingCount.value = Math.max(0, Number(data.pending_count || 0))
     visible.value = true
 
-    const shownReminderId = data.reminder_id
+    const shownRevision = notificationRevision
     void loadDisplaySettings().then(() => {
-      if (!visible.value || breakMode.value || reminderId.value !== shownReminderId)
+      if (!visible.value || breakMode.value || notificationRevision !== shownRevision)
         return
 
       if (soundEnabled.value) {
@@ -213,8 +218,15 @@ onMounted(async () => {
     if (data.current_reminder_id && data.current_reminder_id !== reminderId.value)
       return
 
-    if (!data.current_reminder_id && !visible.value)
+    if (!data.current_reminder_id) {
+      // Native hide does not stop JavaScript timers in this persistent webview.
+      clearAutoDismiss()
+      stopBreakCountdown()
+      visible.value = false
+      breakMode.value = false
+      resetNotificationState()
       return
+    }
 
     pendingCount.value = Math.max(0, Number(data.pending_count || 0))
   })
@@ -344,6 +356,8 @@ function resumeLocalTimers() {
 }
 
 function resetNotificationState() {
+  notificationRevision += 1
+  actionPending = false
   name.value = ''
   message.value = ''
   reminderId.value = ''
@@ -367,6 +381,10 @@ async function closeNotificationWindow() {
 }
 
 async function closeBreakPrompt(finishBreakNow: boolean) {
+  if (!visible.value || actionPending)
+    return
+  actionPending = true
+  const revision = notificationRevision
   stopBreakCountdown()
   breakMode.value = false
 
@@ -380,11 +398,16 @@ async function closeBreakPrompt(finishBreakNow: boolean) {
     console.error('Failed to release notification:', err)
   }
   finally {
-    await closeNotificationWindow()
+    if (revision === notificationRevision)
+      await closeNotificationWindow()
   }
 }
 
 async function handleAction(action: string) {
+  if (!visible.value || actionPending)
+    return
+  actionPending = true
+  const revision = notificationRevision
   clearAutoDismiss()
 
   const shouldHoldForBreak = action === 'completed'
@@ -398,6 +421,9 @@ async function handleAction(action: string) {
       holdNotification: shouldHoldForBreak,
     })
 
+    if (revision !== notificationRevision)
+      return
+    actionPending = false
     if (shouldHoldForBreak) {
       startBreakCountdown()
       return
@@ -406,11 +432,19 @@ async function handleAction(action: string) {
     await closeNotificationWindow()
   }
   catch (err) {
+    if (revision === notificationRevision) {
+      actionPending = false
+      startAutoDismiss()
+    }
     console.error('Failed to respond:', err)
   }
 }
 
 async function handlePostpone(minutes: number) {
+  if (!visible.value || actionPending)
+    return
+  actionPending = true
+  const revision = notificationRevision
   clearAutoDismiss()
 
   try {
@@ -419,9 +453,14 @@ async function handlePostpone(minutes: number) {
       minutes,
     })
 
-    await closeNotificationWindow()
+    if (revision === notificationRevision)
+      await closeNotificationWindow()
   }
   catch (err) {
+    if (revision === notificationRevision) {
+      actionPending = false
+      startAutoDismiss()
+    }
     console.error('Failed to postpone:', err)
   }
 }
