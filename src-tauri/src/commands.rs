@@ -788,6 +788,19 @@ fn validate_import_data(data: &ExportData) -> Result<(), String> {
 
 fn repair_imported_reminder_schedule(conn: &Connection) -> Result<(), String> {
     let now = Utc::now();
+    if all_reminders_paused(conn)
+        && setting_timestamp(conn, ALL_REMINDERS_PAUSED_AT_KEY).is_none_or(|start| start > now)
+    {
+        conn.execute(
+            "INSERT OR REPLACE INTO settings VALUES (?1, ?2)",
+            (
+                ALL_REMINDERS_PAUSED_AT_KEY,
+                now.format("%Y-%m-%dT%H:%M:%S").to_string(),
+            ),
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    let reference = schedule_base(conn, now);
     let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
 
     let mut stmt = conn
@@ -807,7 +820,7 @@ fn repair_imported_reminder_schedule(conn: &Connection) -> Result<(), String> {
     for (id, interval_minutes, next_trigger) in reminders {
         let should_reset = match next_trigger {
             Some(value) => NaiveDateTime::parse_from_str(&value, "%Y-%m-%dT%H:%M:%S")
-                .map(|timestamp| timestamp.and_utc() <= now)
+                .map(|timestamp| timestamp.and_utc() <= reference)
                 .unwrap_or(true),
             None => true,
         };
@@ -816,9 +829,7 @@ fn repair_imported_reminder_schedule(conn: &Connection) -> Result<(), String> {
             continue;
         }
 
-        let new_next = (now + Duration::minutes(interval_minutes))
-            .format("%Y-%m-%dT%H:%M:%S")
-            .to_string();
+        let new_next = build_next_trigger_for_state_at(conn, interval_minutes, now);
 
         conn.execute(
             "UPDATE reminders SET next_trigger = ?1, updated_at = ?2 WHERE id = ?3",
@@ -1676,6 +1687,7 @@ pub fn import_data(
     let mode = mode.unwrap_or_default();
     let mut conn = db.conn.lock().unwrap();
     let backup_path = create_import_backup(&app, &conn)?;
+    let live_system_pause = setting_timestamp(&conn, SYSTEM_PAUSED_AT_KEY);
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     if matches!(mode, ImportMode::Replace) {
@@ -1787,12 +1799,31 @@ pub fn import_data(
     };
 
     for (key, value) in &data.settings {
+        // A backup cannot describe the lock state of this running process.
+        if key == SYSTEM_PAUSED_AT_KEY {
+            continue;
+        }
         tx.execute(settings_insert_sql, (key, value))
             .map_err(|e| e.to_string())?;
     }
 
+    tx.execute(
+        "DELETE FROM settings WHERE key = ?1",
+        [SYSTEM_PAUSED_AT_KEY],
+    )
+    .map_err(|e| e.to_string())?;
+    if let Some(start) = live_system_pause {
+        tx.execute(
+            "INSERT INTO settings VALUES (?1, ?2)",
+            (
+                SYSTEM_PAUSED_AT_KEY,
+                start.format("%Y-%m-%dT%H:%M:%S").to_string(),
+            ),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    repair_imported_reminder_schedule(&tx)?;
     tx.commit().map_err(|e| e.to_string())?;
-    repair_imported_reminder_schedule(&conn)?;
 
     scheduler.clear_all_active();
     if all_reminders_paused(&conn) {
@@ -2490,5 +2521,77 @@ mod tests {
                 .format("%Y-%m-%dT%H:%M:%S")
                 .to_string()
         );
+    }
+
+    #[test]
+    fn importing_a_paused_schedule_preserves_remaining_time() {
+        let conn = prepare_pause_test_db();
+        let now = Utc::now();
+        let start = now - Duration::hours(1);
+        let next = (start + Duration::minutes(5))
+            .format("%Y-%m-%dT%H:%M:%S")
+            .to_string();
+        conn.execute(
+            "INSERT INTO reminders VALUES ('test', 20, 1, ?1, '')",
+            [&next],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO settings VALUES ('all_reminders_paused', 'true')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO settings VALUES (?1, ?2)",
+            (
+                ALL_REMINDERS_PAUSED_AT_KEY,
+                start.format("%Y-%m-%dT%H:%M:%S").to_string(),
+            ),
+        )
+        .unwrap();
+        repair_imported_reminder_schedule(&conn).unwrap();
+        let preserved: String = conn
+            .query_row("SELECT next_trigger FROM reminders", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(preserved, next);
+        resume_all_reminders_at(&conn, now).unwrap();
+        let next: String = conn
+            .query_row("SELECT next_trigger FROM reminders", [], |row| row.get(0))
+            .unwrap();
+        let next = NaiveDateTime::parse_from_str(&next, "%Y-%m-%dT%H:%M:%S")
+            .unwrap()
+            .and_utc();
+        assert!((next - now - Duration::minutes(5)).num_seconds().abs() <= 1);
+    }
+
+    #[test]
+    fn missing_imported_schedule_is_repaired_against_the_pause_baseline() {
+        let conn = prepare_pause_test_db();
+        let now = Utc::now();
+        let start = now - Duration::hours(1);
+        conn.execute("INSERT INTO reminders VALUES ('test', 20, 1, NULL, '')", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO settings VALUES ('all_reminders_paused', 'true')",
+            [],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO settings VALUES (?1, ?2)",
+            (
+                ALL_REMINDERS_PAUSED_AT_KEY,
+                start.format("%Y-%m-%dT%H:%M:%S").to_string(),
+            ),
+        )
+        .unwrap();
+        repair_imported_reminder_schedule(&conn).unwrap();
+        resume_all_reminders_at(&conn, now).unwrap();
+        let next: String = conn
+            .query_row("SELECT next_trigger FROM reminders", [], |row| row.get(0))
+            .unwrap();
+        let next = NaiveDateTime::parse_from_str(&next, "%Y-%m-%dT%H:%M:%S")
+            .unwrap()
+            .and_utc();
+        assert!((next - now - Duration::minutes(20)).num_seconds().abs() <= 1);
     }
 }
