@@ -1,6 +1,6 @@
 use chrono::{DateTime, Duration as ChronoDuration, Local, NaiveDateTime, NaiveTime, Utc};
-use serde::Serialize;
 use rusqlite::Connection;
+use serde::Serialize;
 use std::collections::{HashSet, VecDeque};
 use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager};
@@ -100,7 +100,6 @@ struct DndDecision {
 
 /// 从数据库读取免打扰配置
 fn get_dnd_config_from_db(conn: &Connection) -> DndConfig {
-
     let enabled: bool = conn
         .query_row(
             "SELECT value FROM settings WHERE key = 'dnd_enabled'",
@@ -208,7 +207,11 @@ fn are_all_reminders_paused(db: &Database) -> bool {
     crate::commands::all_reminders_paused(&conn)
 }
 
-fn resolve_dnd_decision(conn: &Connection, now: DateTime<Utc>, fullscreen: bool) -> Option<DndDecision> {
+fn resolve_dnd_decision(
+    conn: &Connection,
+    now: DateTime<Utc>,
+    fullscreen: bool,
+) -> Option<DndDecision> {
     let dnd_config = get_dnd_config_from_db(conn);
     if is_in_dnd_period(&dnd_config) {
         return Some(DndDecision {
@@ -233,15 +236,24 @@ fn resolve_dnd_decision(conn: &Connection, now: DateTime<Utc>, fullscreen: bool)
     None
 }
 
-fn notifications_suppressed(conn: &Connection, now: DateTime<Utc>, system_paused: bool, fullscreen: bool) -> bool {
-    crate::commands::all_reminders_paused(conn) || system_paused
+fn notifications_suppressed(
+    conn: &Connection,
+    now: DateTime<Utc>,
+    system_paused: bool,
+    fullscreen: bool,
+) -> bool {
+    crate::commands::all_reminders_paused(conn)
+        || system_paused
         || resolve_dnd_decision(conn, now, fullscreen).is_some()
 }
 
 fn reminder_is_due(conn: &Connection, id: &str, now: DateTime<Utc>) -> bool {
-    conn.query_row("SELECT enabled = 1 AND next_trigger <= ?1 FROM reminders WHERE id = ?2",
-        (now.format("%Y-%m-%dT%H:%M:%S").to_string(), id), |row| row.get::<_, bool>(0))
-        .unwrap_or(false)
+    conn.query_row(
+        "SELECT enabled = 1 AND next_trigger <= ?1 FROM reminders WHERE id = ?2",
+        (now.format("%Y-%m-%dT%H:%M:%S").to_string(), id),
+        |row| row.get::<_, bool>(0),
+    )
+    .unwrap_or(false)
 }
 
 /// 定时器引擎
@@ -296,11 +308,20 @@ impl Scheduler {
             self.clear_active(&data.reminder_id);
             return Ok(());
         }
-        if let Some(decision) = resolve_dnd_decision(&conn, now, is_foreground_window_fullscreen()) {
+        if let Some(decision) = resolve_dnd_decision(&conn, now, is_foreground_window_fullscreen())
+        {
             self.clear_active(&data.reminder_id);
-            conn.execute("UPDATE reminders SET next_trigger = ?1 WHERE id = ?2",
-                (decision.next_trigger.format("%Y-%m-%dT%H:%M:%S").to_string(), &data.reminder_id))
-                .map_err(|error| error.to_string())?;
+            conn.execute(
+                "UPDATE reminders SET next_trigger = ?1 WHERE id = ?2",
+                (
+                    decision
+                        .next_trigger
+                        .format("%Y-%m-%dT%H:%M:%S")
+                        .to_string(),
+                    &data.reminder_id,
+                ),
+            )
+            .map_err(|error| error.to_string())?;
             return Ok(());
         }
         self.pending_notifications.lock().unwrap().push_back(data);
@@ -331,8 +352,8 @@ impl Scheduler {
         }
 
         if removed_current {
-            *self.next_notification_at.lock().unwrap() = std::time::Instant::now()
-                + Duration::from_millis(NEXT_NOTIFICATION_DELAY_MS);
+            *self.next_notification_at.lock().unwrap() =
+                std::time::Instant::now() + Duration::from_millis(NEXT_NOTIFICATION_DELAY_MS);
         }
         self.schedule_next_notification();
         removed_current
@@ -347,6 +368,19 @@ impl Scheduler {
     }
 
     fn show_next_notification(&self) {
+        // Native monitor/window getters can wait for the UI thread. Dispatch
+        // there before acquiring the DB lock, so a tray command cannot deadlock
+        // waiting for that lock while a worker waits for the UI thread.
+        let scheduler = self.clone();
+        if let Err(error) = self
+            .app
+            .run_on_main_thread(move || scheduler.dispatch_next_notification())
+        {
+            crate::app_log::error(format!("调度通知窗口失败：{error}"));
+        }
+    }
+
+    fn dispatch_next_notification(&self) {
         // Serialize dispatch with database mutations and other queue workers.
         let db = self.app.state::<Database>();
         let conn = db.conn.lock().unwrap();
@@ -358,9 +392,17 @@ impl Scheduler {
         if std::time::Instant::now() < *self.next_notification_at.lock().unwrap() {
             return;
         }
-        let system_paused = self.app.try_state::<PowerMonitor>()
-            .map(|monitor| monitor.is_paused()).unwrap_or(false);
-        if notifications_suppressed(&conn, Utc::now(), system_paused, is_foreground_window_fullscreen()) {
+        let system_paused = self
+            .app
+            .try_state::<PowerMonitor>()
+            .map(|monitor| monitor.is_paused())
+            .unwrap_or(false);
+        if notifications_suppressed(
+            &conn,
+            Utc::now(),
+            system_paused,
+            is_foreground_window_fullscreen(),
+        ) {
             return;
         }
 
@@ -719,14 +761,38 @@ mod tests {
         crate::commands::pause_all_reminders(&conn).unwrap();
         assert!(notifications_suppressed(&conn, now, false, false));
         crate::commands::resume_all_reminders(&conn).unwrap();
-        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('temp_dnd_until', ?1)", [(now + ChronoDuration::minutes(30)).format("%Y-%m-%dT%H:%M:%S").to_string()]).unwrap();
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('temp_dnd_until', ?1)",
+            [(now + ChronoDuration::minutes(30))
+                .format("%Y-%m-%dT%H:%M:%S")
+                .to_string()],
+        )
+        .unwrap();
         assert!(notifications_suppressed(&conn, now, false, false));
-        assert!(!notifications_suppressed(&conn, now + ChronoDuration::minutes(31), false, false));
-        conn.execute("DELETE FROM settings WHERE key = 'temp_dnd_until'", []).unwrap();
-        let start = (Local::now() - ChronoDuration::hours(1)).format("%H:%M").to_string();
-        let end = (Local::now() + ChronoDuration::hours(1)).format("%H:%M").to_string();
-        for (key, value) in [("dnd_enabled", "true"), ("dnd_start", start.as_str()), ("dnd_end", end.as_str())] {
-            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)", (key, value)).unwrap();
+        assert!(!notifications_suppressed(
+            &conn,
+            now + ChronoDuration::minutes(31),
+            false,
+            false
+        ));
+        conn.execute("DELETE FROM settings WHERE key = 'temp_dnd_until'", [])
+            .unwrap();
+        let start = (Local::now() - ChronoDuration::hours(1))
+            .format("%H:%M")
+            .to_string();
+        let end = (Local::now() + ChronoDuration::hours(1))
+            .format("%H:%M")
+            .to_string();
+        for (key, value) in [
+            ("dnd_enabled", "true"),
+            ("dnd_start", start.as_str()),
+            ("dnd_end", end.as_str()),
+        ] {
+            conn.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+                (key, value),
+            )
+            .unwrap();
         }
         assert!(notifications_suppressed(&conn, now, false, false));
     }
@@ -738,9 +804,14 @@ mod tests {
         let now = Utc::now();
         conn.execute("INSERT INTO reminders (id, name, reminder_type, icon, message, interval_minutes, enabled, next_trigger, created_at, updated_at) VALUES ('test', 'test', 'drink', '', '', 20, 1, '2000-01-01T00:00:00', '', '')", []).unwrap();
         assert!(reminder_is_due(&conn, "test", now));
-        conn.execute("UPDATE reminders SET enabled = 0", []).unwrap();
+        conn.execute("UPDATE reminders SET enabled = 0", [])
+            .unwrap();
         assert!(!reminder_is_due(&conn, "test", now));
-        conn.execute("UPDATE reminders SET enabled = 1, next_trigger = '2999-01-01T00:00:00'", []).unwrap();
+        conn.execute(
+            "UPDATE reminders SET enabled = 1, next_trigger = '2999-01-01T00:00:00'",
+            [],
+        )
+        .unwrap();
         assert!(!reminder_is_due(&conn, "test", now));
         conn.execute("DELETE FROM reminders", []).unwrap();
         assert!(!reminder_is_due(&conn, "test", now));

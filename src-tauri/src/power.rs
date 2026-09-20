@@ -151,8 +151,13 @@ fn start_pause(
         *state = Some(SystemPause { paused_at: now });
     }
 
-    if let Err(error) = conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-        (crate::commands::SYSTEM_PAUSED_AT_KEY, now.format("%Y-%m-%dT%H:%M:%S").to_string())) {
+    if let Err(error) = conn.execute(
+        "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
+        (
+            crate::commands::SYSTEM_PAUSED_AT_KEY,
+            now.format("%Y-%m-%dT%H:%M:%S").to_string(),
+        ),
+    ) {
         crate::app_log::error(format!("记录锁屏暂停失败：{error}"));
     }
     drop(conn);
@@ -198,12 +203,21 @@ fn compensate_pause(app: &AppHandle, started_at: DateTime<Utc>, now: DateTime<Ut
     let conn = db.conn.lock().unwrap();
     match crate::commands::compensate_system_pause(&conn, started_at, now) {
         Ok(()) => {
-            let affected = conn.query_row("SELECT COUNT(*) FROM reminders WHERE enabled = 1", [], |row| row.get::<_, i64>(0)).unwrap_or(0);
+            let affected = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM reminders WHERE enabled = 1",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap_or(0);
             drop(conn);
-            let _ = app.emit("power:resumed", PowerResumed {
-                resumed_at: now.format("%Y-%m-%dT%H:%M:%S").to_string(),
-                affected_reminders: affected,
-            });
+            let _ = app.emit(
+                "power:resumed",
+                PowerResumed {
+                    resumed_at: now.format("%Y-%m-%dT%H:%M:%S").to_string(),
+                    affected_reminders: affected,
+                },
+            );
             let _ = app.emit("reminders:changed", ());
         }
         Err(error) => crate::app_log::error(format!("恢复锁屏/休眠暂停失败：{error}")),

@@ -730,12 +730,14 @@ fn reconcile_schedule_on_startup(db: &Database) {
 }
 
 fn reconcile_schedule_for_boot(db: &Database, current_marker: Option<String>) {
-
     {
         let conn = db.conn.lock().unwrap();
         // System lock state is observed afresh by this process. A previous
         // process's marker must not truncate a later manual resume.
-        let _ = conn.execute("DELETE FROM settings WHERE key = ?1", [commands::SYSTEM_PAUSED_AT_KEY]);
+        let _ = conn.execute(
+            "DELETE FROM settings WHERE key = ?1",
+            [commands::SYSTEM_PAUSED_AT_KEY],
+        );
         let previous_marker = conn
             .query_row(
                 "SELECT value FROM settings WHERE key = ?1",
@@ -1093,24 +1095,37 @@ pub fn run() {
 
 #[cfg(test)]
 mod tests {
-    use super::{reconcile_schedule_for_boot, Database, LAST_BOOT_MARKER_KEY};
     use super::should_use_xwayland_fallback;
+    use super::{reconcile_schedule_for_boot, Database, LAST_BOOT_MARKER_KEY};
     use chrono::{Duration, NaiveDateTime, Utc};
 
     #[test]
     fn paused_schedule_survives_app_and_system_restarts() {
-        for marker in [None, Some("same-boot".to_string()), Some("new-boot".to_string())] {
+        for marker in [
+            None,
+            Some("same-boot".to_string()),
+            Some("new-boot".to_string()),
+        ] {
             let db = Database::in_memory();
             let now = Utc::now();
             let paused_at = now - Duration::hours(1);
             let original_next = (paused_at + Duration::minutes(5))
-                .format("%Y-%m-%dT%H:%M:%S").to_string();
+                .format("%Y-%m-%dT%H:%M:%S")
+                .to_string();
             {
                 let conn = db.conn.lock().unwrap();
                 conn.execute("INSERT INTO reminders (id, name, reminder_type, icon, message, interval_minutes, enabled, next_trigger, created_at, updated_at) VALUES ('test', 'test', 'drink', '', '', 20, 1, ?1, '', '')", [&original_next]).unwrap();
                 crate::commands::pause_all_reminders(&conn).unwrap();
-                conn.execute("UPDATE settings SET value = ?1 WHERE key = 'all_reminders_paused_at'", [paused_at.format("%Y-%m-%dT%H:%M:%S").to_string()]).unwrap();
-                conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES (?1, 'same-boot')", [LAST_BOOT_MARKER_KEY]).unwrap();
+                conn.execute(
+                    "UPDATE settings SET value = ?1 WHERE key = 'all_reminders_paused_at'",
+                    [paused_at.format("%Y-%m-%dT%H:%M:%S").to_string()],
+                )
+                .unwrap();
+                conn.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, 'same-boot')",
+                    [LAST_BOOT_MARKER_KEY],
+                )
+                .unwrap();
             }
 
             reconcile_schedule_for_boot(&db, marker.clone());
@@ -1118,11 +1133,27 @@ mod tests {
             reconcile_schedule_for_boot(&db, marker);
 
             let conn = db.conn.lock().unwrap();
-            let next: String = conn.query_row("SELECT next_trigger FROM reminders WHERE id = 'test'", [], |row| row.get(0)).unwrap();
+            let next: String = conn
+                .query_row(
+                    "SELECT next_trigger FROM reminders WHERE id = 'test'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
             assert_eq!(next, original_next);
             crate::commands::resume_all_reminders(&conn).unwrap();
-            let next: String = conn.query_row("SELECT next_trigger FROM reminders WHERE id = 'test'", [], |row| row.get(0)).unwrap();
-            let remaining = (NaiveDateTime::parse_from_str(&next, "%Y-%m-%dT%H:%M:%S").unwrap().and_utc() - Utc::now()).num_seconds();
+            let next: String = conn
+                .query_row(
+                    "SELECT next_trigger FROM reminders WHERE id = 'test'",
+                    [],
+                    |row| row.get(0),
+                )
+                .unwrap();
+            let remaining = (NaiveDateTime::parse_from_str(&next, "%Y-%m-%dT%H:%M:%S")
+                .unwrap()
+                .and_utc()
+                - Utc::now())
+            .num_seconds();
             assert!((298..=300).contains(&remaining), "remaining = {remaining}");
         }
     }

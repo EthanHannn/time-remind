@@ -23,7 +23,8 @@ pub fn is_foreground_window_fullscreen() -> bool {
         }
         let mut class_name = [0u16; 256];
         let length = GetClassNameW(hwnd, &mut class_name);
-        if length > 0 && is_desktop_class(&String::from_utf16_lossy(&class_name[..length as usize])) {
+        if length > 0 && is_desktop_class(&String::from_utf16_lossy(&class_name[..length as usize]))
+        {
             return false;
         }
 
@@ -76,9 +77,24 @@ pub fn is_foreground_window_fullscreen() -> bool {
         }
 
         bounds_cover_monitor(
-            [window_rect.left, window_rect.top, window_rect.right, window_rect.bottom],
-            [client_top_left.x, client_top_left.y, client_bottom_right.x, client_bottom_right.y],
-            [monitor_rect.left, monitor_rect.top, monitor_rect.right, monitor_rect.bottom],
+            [
+                window_rect.left,
+                window_rect.top,
+                window_rect.right,
+                window_rect.bottom,
+            ],
+            [
+                client_top_left.x,
+                client_top_left.y,
+                client_bottom_right.x,
+                client_bottom_right.y,
+            ],
+            [
+                monitor_rect.left,
+                monitor_rect.top,
+                monitor_rect.right,
+                monitor_rect.bottom,
+            ],
         )
     }
 }
@@ -104,16 +120,32 @@ mod tests {
     fn fullscreen_supports_secondary_monitors_with_negative_coordinates() {
         let monitor = [-2560, -200, 0, 1240];
         assert!(bounds_cover_monitor(monitor, monitor, monitor));
-        assert!(bounds_cover_monitor([-2568, -208, 8, 1248], monitor, monitor));
+        assert!(bounds_cover_monitor(
+            [-2568, -208, 8, 1248],
+            monitor,
+            monitor
+        ));
     }
 
     #[test]
     fn maximized_and_partial_windows_are_not_fullscreen() {
         let monitor = [0, 0, 1920, 1080];
-        assert!(!bounds_cover_monitor([-8, -8, 1928, 1048], [0, 30, 1920, 1040], monitor));
+        assert!(!bounds_cover_monitor(
+            [-8, -8, 1928, 1048],
+            [0, 30, 1920, 1040],
+            monitor
+        ));
         assert!(!bounds_cover_monitor(monitor, [0, 30, 1920, 1080], monitor));
-        assert!(!bounds_cover_monitor([0, 0, 960, 1080], [0, 0, 960, 1080], monitor));
-        assert!(!bounds_cover_monitor([i32::MIN; 4], [i32::MIN; 4], [i32::MAX; 4]));
+        assert!(!bounds_cover_monitor(
+            [0, 0, 960, 1080],
+            [0, 0, 960, 1080],
+            monitor
+        ));
+        assert!(!bounds_cover_monitor(
+            [i32::MIN; 4],
+            [i32::MIN; 4],
+            [i32::MAX; 4]
+        ));
     }
 }
 #[cfg(any(target_os = "windows", test))]
@@ -124,7 +156,10 @@ fn is_desktop_class(class_name: &str) -> bool {
 #[cfg(any(target_os = "windows", test))]
 fn bounds_cover_monitor(window: [i32; 4], client: [i32; 4], monitor: [i32; 4]) -> bool {
     const TOLERANCE: i64 = 8;
-    [window, client].iter().all(|bounds| bounds.iter().zip(monitor).all(|(edge, target)| {
-        (i64::from(*edge) - i64::from(target)).abs() <= TOLERANCE
-    }))
+    [window, client].iter().all(|bounds| {
+        bounds
+            .iter()
+            .zip(monitor)
+            .all(|(edge, target)| (i64::from(*edge) - i64::from(target)).abs() <= TOLERANCE)
+    })
 }
