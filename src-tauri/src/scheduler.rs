@@ -335,6 +335,7 @@ impl Scheduler {
             queue.current = None;
             queue.pending.clear();
             queue.revision += 1;
+            self.hide_notification_window();
         }
         self.emit_queue_state();
         crate::set_tray_visual_state(&self.app, crate::TrayVisualState::Idle);
@@ -403,16 +404,20 @@ impl Scheduler {
         if removed_current {
             // Close on the native side before scheduling another instance.
             // A delayed webview hide request could otherwise hide its successor.
-            if let Some(window) = self.app.get_webview_window("notification") {
-                if let Err(error) = window.hide() {
-                    crate::app_log::warn(format!("隐藏通知窗口失败：{error}"));
-                }
-            }
+            self.hide_notification_window();
             *self.next_notification_at.lock().unwrap() =
                 std::time::Instant::now() + Duration::from_millis(NEXT_NOTIFICATION_DELAY_MS);
         }
         self.schedule_next_notification();
         removed_current
+    }
+
+    fn hide_notification_window(&self) {
+        if let Some(window) = self.app.get_webview_window("notification") {
+            if let Err(error) = window.hide() {
+                crate::app_log::warn(format!("隐藏通知窗口失败：{error}"));
+            }
+        }
     }
 
     fn schedule_next_notification(&self) {
@@ -527,7 +532,15 @@ impl Scheduler {
             return Err("通知窗口不存在".to_string());
         };
 
-        let state = self.queue.lock().unwrap().snapshot();
+        let queue = self.queue.lock().unwrap();
+        if !queue
+            .current
+            .as_ref()
+            .is_some_and(|current| current.matches(&data.reminder_id, &data.notification_id))
+        {
+            return Err("通知已取消".into());
+        }
+        let state = queue.snapshot();
         let payload = NotificationData {
             queue_revision: state.queue_revision,
             pending_count: state.pending_count,

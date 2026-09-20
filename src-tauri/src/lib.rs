@@ -962,9 +962,6 @@ pub fn run() {
                         let _ = commands::pause_all_reminders(&conn);
                         let scheduler = app.state::<Scheduler>();
                         scheduler.clear_all_active();
-                        if let Some(notification_window) = app.get_webview_window("notification") {
-                            let _ = notification_window.hide();
-                        }
                         drop(conn);
                         let _ = app.emit("reminders:changed", ());
                         set_tray_visual_state(app, TrayVisualState::Muted);
@@ -990,11 +987,6 @@ pub fn run() {
                         if result.is_ok() {
                             let scheduler = app.state::<Scheduler>();
                             scheduler.clear_all_active();
-                            if let Some(notification_window) =
-                                app.get_webview_window("notification")
-                            {
-                                let _ = notification_window.hide();
-                            }
                             let _ = app.emit("reminders:changed", ());
                             set_tray_visual_state(app, TrayVisualState::Muted);
                         }

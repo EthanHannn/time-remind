@@ -1007,7 +1007,6 @@ pub fn create_reminder(
 /// 更新提醒
 #[tauri::command]
 pub fn update_reminder(
-    app: AppHandle,
     db: State<'_, Database>,
     scheduler: State<'_, Scheduler>,
     id: String,
@@ -1078,10 +1077,7 @@ pub fn update_reminder(
     drop(conn);
 
     if !enabled {
-        let removed_current = scheduler.release_notification(&id);
-        if removed_current {
-            hide_notification_window(&app);
-        }
+        scheduler.release_notification(&id);
     }
 
     Ok(Reminder {
@@ -1108,7 +1104,6 @@ pub fn update_reminder(
 /// 删除提醒
 #[tauri::command]
 pub fn delete_reminder(
-    app: AppHandle,
     db: State<'_, Database>,
     scheduler: State<'_, Scheduler>,
     id: String,
@@ -1120,10 +1115,7 @@ pub fn delete_reminder(
         .map_err(|e| e.to_string())?;
     drop(conn);
 
-    let removed_current = scheduler.release_notification(&id);
-    if removed_current {
-        hide_notification_window(&app);
-    }
+    scheduler.release_notification(&id);
 
     Ok(())
 }
@@ -1131,7 +1123,6 @@ pub fn delete_reminder(
 /// 切换提醒启用/禁用
 #[tauri::command]
 pub fn toggle_reminder(
-    app: AppHandle,
     db: State<'_, Database>,
     scheduler: State<'_, Scheduler>,
     id: String,
@@ -1158,10 +1149,7 @@ pub fn toggle_reminder(
     drop(conn);
 
     if !enabled {
-        let removed_current = scheduler.release_notification(&id);
-        if removed_current {
-            hide_notification_window(&app);
-        }
+        scheduler.release_notification(&id);
     }
 
     Ok(Reminder {
@@ -1369,12 +1357,6 @@ pub fn release_notification(
 
     scheduler.release_notification(&reminder_id);
     Ok(())
-}
-
-fn hide_notification_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("notification") {
-        let _ = window.hide();
-    }
 }
 
 /// 保存设置
@@ -1889,9 +1871,6 @@ pub fn toggle_all_reminders(
     } else {
         pause_all_reminders(&conn)?;
         scheduler.clear_all_active();
-        if let Some(window) = app.get_webview_window("notification") {
-            let _ = window.hide();
-        }
         crate::set_tray_visual_state(&app, crate::TrayVisualState::Muted);
     }
     drop(conn);
@@ -1914,7 +1893,6 @@ pub fn set_temp_dnd(
     start_temp_dnd(&conn, minutes)?;
 
     scheduler.clear_all_active();
-    hide_notification_window(&app);
     drop(conn);
     app.emit("reminders:changed", ())
         .map_err(|e| e.to_string())?;
