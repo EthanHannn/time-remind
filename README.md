@@ -48,7 +48,7 @@ The Windows installer is not code-signed yet, so Windows may show an unknown pub
 
 Requirements:
 
-- Node.js 20 or later
+- Node.js 22.13 or later
 - pnpm 11 or later
 - Rust stable
 - Windows: Visual Studio Build Tools 2022
