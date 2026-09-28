@@ -49,7 +49,7 @@ Windows 是当前已验证发布平台。macOS 和 Linux 安装包属于社区�
 环境要求：
 
 - Node.js 20 或更高版本
-- pnpm 9 或更高版本
+- pnpm 11 或更高版本
 - Rust stable
 - Windows：Visual Studio Build Tools 2022
 - macOS：Xcode Command Line Tools

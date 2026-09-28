@@ -49,7 +49,7 @@ The Windows installer is not code-signed yet, so Windows may show an unknown pub
 Requirements:
 
 - Node.js 20 or later
-- pnpm 9 or later
+- pnpm 11 or later
 - Rust stable
 - Windows: Visual Studio Build Tools 2022
 - macOS: Xcode Command Line Tools
