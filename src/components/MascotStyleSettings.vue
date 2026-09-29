@@ -67,7 +67,7 @@ function closePreview() {
     <div class="mascot-options" role="radiogroup" :aria-labelledby="`${groupId}-title`">
       <label v-for="option in mascotStyleOptions" :key="option.id" class="mascot-option" :class="{ 'mascot-option-selected': model === option.id }">
         <input v-model="model" :name="groupId" :value="option.id" :disabled="disabled" class="mascot-radio" type="radio">
-        <span class="mascot-thumbnail" :class="{ 'mascot-thumbnail-paper': option.id !== 'classic' }">
+        <span class="mascot-thumbnail">
           <img :src="option.image" alt="" class="mascot-image" width="112" height="112">
         </span>
         <span class="mascot-name">{{ t(option.nameKey) }}</span>
@@ -178,10 +178,6 @@ function closePreview() {
   border-radius: 9px;
   background: var(--bg-secondary);
   overflow: hidden;
-}
-
-.mascot-thumbnail-paper {
-  background: #f7f5f0;
 }
 
 .mascot-image {

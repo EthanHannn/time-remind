@@ -14,7 +14,7 @@ import catEyeCare from '../assets/illustrations/mascot/cat-eye-care.png'
 import catRest from '../assets/illustrations/mascot/cat-rest.png'
 import catSnooze from '../assets/illustrations/mascot/cat-snooze.png'
 import { messages } from '../i18n/messages'
-import { getMascotAsset, normalizeMascotStyle } from './mascotStyles'
+import { getMascotAsset } from './mascotStyles'
 
 export type ReminderTypeKey = 'drink' | 'rest' | 'eye_care' | 'custom'
 export type CustomReminderIconKey = 'custom_star' | 'custom_bell' | 'custom_checklist' | 'custom_leaf'
@@ -50,7 +50,6 @@ export interface ReminderVisual {
   badgeBackground: string
   iconAsset?: string
   mascotAsset?: string
-  illustrationBackground?: string
   statusAsset?: string
   iconText?: string
 }
@@ -139,7 +138,6 @@ export function getReminderVisual(type: string, icon?: string, style: MascotStyl
       ...visual,
       mascotAsset: getMascotAsset(style, visual.type),
       statusAsset: getMascotAsset(style, 'snooze'),
-      illustrationBackground: normalizeMascotStyle(style) === 'classic' ? undefined : '#f7f5f0',
     }
   }
 

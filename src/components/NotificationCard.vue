@@ -33,7 +33,7 @@ const notificationStyle = computed(() => ({
 <template>
   <div class="notification-wrapper" :class="{ 'notification-wrapper-visible': visible }">
     <div v-if="visible" class="notification-shell" :style="notificationStyle" :aria-label="preview ? t('settings.previewReminder') : undefined">
-      <div class="notification-visual" :style="{ background: visual.illustrationBackground }">
+      <div class="notification-visual">
         <img
           v-if="visual.mascotAsset"
           :src="breakMode ? visual.statusAsset || visual.mascotAsset : visual.mascotAsset"
@@ -157,12 +157,14 @@ const notificationStyle = computed(() => ({
 }
 
 .notification-visual {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.54), var(--notification-soft));
+  border: 1px solid var(--notification-border);
+  background: linear-gradient(180deg, var(--bg-secondary), var(--notification-soft));
 }
 
 .notification-image {
