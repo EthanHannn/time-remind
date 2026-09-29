@@ -349,3 +349,24 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: gh release upload "${{ steps.release.outputs.tag }}" src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg --clobber
+
+  checksums:
+    name: Release checksums
+    needs: [build, macos-arm64-dmg]
+    if: ${{ always() && needs.build.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download release assets and publish SHA256 checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && format('v{0}', github.event.inputs.version) || github.ref_name }}
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-assets"
+          cd "$RUNNER_TEMP/release-assets"
+          gh release download "$RELEASE_TAG" --skip-existing
+          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 -r sha256sum > SHA256SUMS.txt
+          test -s SHA256SUMS.txt
+          gh release upload "$RELEASE_TAG" SHA256SUMS.txt --clobber

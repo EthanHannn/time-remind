@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.1.8 Beta - 2026-09-29
+
+### Added
+
+- Two independently selectable reminder popup styles: Soft colors and Vivid gradients.
+- Three cat illustration styles with transparent artwork and instant reminder previews.
+- Eight additional languages: Spanish, Brazilian Portuguese, Indonesian, Italian, Russian, Turkish, Arabic, and Hindi, bringing the total to 19.
+- Arabic right-to-left layouts, localized chart dates and labels, and translated native tray menus and default reminders.
+- English and Simplified Chinese screenshot galleries in the corresponding READMEs.
+- SHA256SUMS.txt for downloadable release assets.
+
+### Improved
+
+- Reorganized settings into compact groups, with inline theme controls and a two-column layout in wider windows, while retaining the glass appearance.
+- Replaced the native language dropdown with a scrollable, keyboard-accessible selector.
+- Completed missing translations in existing languages and added checks for translation keys and placeholders.
+- Refined popup spacing, action controls, countdowns, and artwork across light and dark themes.
+
+### Verified
+
+- 43 frontend tests and 40 Rust tests passed, covering translations, persistence, reminder scheduling, and native language support.
+- TypeScript checking, production build, source ESLint, and Rust formatting passed.
+- Windows tests confirmed that preview and scheduled reminder windows stay above maximized applications on a dual-monitor, high-DPI desktop.
+- Settings layouts checked at the 400 × 500 minimum window size, including Arabic and long translations.
+- macOS and Linux remain community previews; their native behavior has not been verified on real devices.
+
 ## 0.1.7 Beta - 2026-09-20
 
 ### Fixed

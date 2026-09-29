@@ -560,7 +560,8 @@ fn reminder_template_text(language: &str) -> ReminderTemplateText {
             eye_name: "Отдых для глаз",
             eye_message: "Смотрите на объект примерно в 6 метрах от вас в течение 20 секунд.",
             eye_action_title: "Отдых для глаз",
-            eye_action_message: "Смотрите на объект примерно в 6 метрах от вас в течение 20 секунд.",
+            eye_action_message:
+                "Смотрите на объект примерно в 6 метрах от вас в течение 20 секунд.",
         },
         "tr-TR" => ReminderTemplateText {
             drink_name: "Su içme hatırlatıcısı",
@@ -1292,23 +1293,68 @@ mod tests {
     #[test]
     fn new_locales_cover_native_menus_and_default_reminders() {
         for (system_locale, locale, json) in [
-            ("es-MX", "es-ES", include_str!("../../src/i18n/locales/es-ES.json")),
-            ("pt-PT", "pt-BR", include_str!("../../src/i18n/locales/pt-BR.json")),
-            ("id", "id-ID", include_str!("../../src/i18n/locales/id-ID.json")),
-            ("it", "it-IT", include_str!("../../src/i18n/locales/it-IT.json")),
-            ("ru", "ru-RU", include_str!("../../src/i18n/locales/ru-RU.json")),
-            ("tr", "tr-TR", include_str!("../../src/i18n/locales/tr-TR.json")),
-            ("ar-SA", "ar", include_str!("../../src/i18n/locales/ar.json")),
-            ("hi", "hi-IN", include_str!("../../src/i18n/locales/hi-IN.json")),
+            (
+                "es-MX",
+                "es-ES",
+                include_str!("../../src/i18n/locales/es-ES.json"),
+            ),
+            (
+                "pt-PT",
+                "pt-BR",
+                include_str!("../../src/i18n/locales/pt-BR.json"),
+            ),
+            (
+                "id",
+                "id-ID",
+                include_str!("../../src/i18n/locales/id-ID.json"),
+            ),
+            (
+                "it",
+                "it-IT",
+                include_str!("../../src/i18n/locales/it-IT.json"),
+            ),
+            (
+                "ru",
+                "ru-RU",
+                include_str!("../../src/i18n/locales/ru-RU.json"),
+            ),
+            (
+                "tr",
+                "tr-TR",
+                include_str!("../../src/i18n/locales/tr-TR.json"),
+            ),
+            (
+                "ar-SA",
+                "ar",
+                include_str!("../../src/i18n/locales/ar.json"),
+            ),
+            (
+                "hi",
+                "hi-IN",
+                include_str!("../../src/i18n/locales/hi-IN.json"),
+            ),
         ] {
             assert_eq!(super::match_template_language(system_locale), locale);
             let messages: serde_json::Value = serde_json::from_str(json).unwrap();
             let tray = super::tray_menu_text(system_locale);
-            assert_eq!(tray.settings, messages["settings"]["title"].as_str().unwrap());
+            assert_eq!(
+                tray.settings,
+                messages["settings"]["title"].as_str().unwrap()
+            );
             assert_ne!(tray.quit, "Quit");
             let reminder = super::reminder_template_text(locale);
-            assert_eq!(reminder.drink_name, messages["reminderTypes"]["drink"]["defaultName"].as_str().unwrap());
-            assert_eq!(reminder.eye_message, messages["reminderTypes"]["eyeCare"]["shortMessage"].as_str().unwrap());
+            assert_eq!(
+                reminder.drink_name,
+                messages["reminderTypes"]["drink"]["defaultName"]
+                    .as_str()
+                    .unwrap()
+            );
+            assert_eq!(
+                reminder.eye_message,
+                messages["reminderTypes"]["eyeCare"]["shortMessage"]
+                    .as_str()
+                    .unwrap()
+            );
         }
     }
 
