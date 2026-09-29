@@ -140,6 +140,31 @@ fn match_template_language(value: &str) -> &'static str {
         return "km-KH";
     }
 
+    if normalized.split('-').next() == Some("es") {
+        return "es-ES";
+    }
+    if normalized.split('-').next() == Some("pt") {
+        return "pt-BR";
+    }
+    if normalized.split('-').next() == Some("id") {
+        return "id-ID";
+    }
+    if normalized.split('-').next() == Some("it") {
+        return "it-IT";
+    }
+    if normalized.split('-').next() == Some("ru") {
+        return "ru-RU";
+    }
+    if normalized.split('-').next() == Some("tr") {
+        return "tr-TR";
+    }
+    if normalized.split('-').next() == Some("ar") {
+        return "ar";
+    }
+    if normalized.split('-').next() == Some("hi") {
+        return "hi-IN";
+    }
+
     "en-US"
 }
 
@@ -244,6 +269,78 @@ fn tray_menu_text(language: &str) -> TrayMenuText {
             settings: "ការកំណត់",
             show: "បង្ហាញបង្អួច",
             quit: "ចាកចេញ",
+        },
+        "es-ES" => TrayMenuText {
+            pause_all: "Pausar todo",
+            resume_all: "Reanudar todo",
+            dnd_30: "No molestar durante 30 min",
+            dnd_60: "No molestar durante 60 min",
+            show: "Mostrar ventana",
+            quit: "Salir",
+            settings: "Configuración",
+        },
+        "pt-BR" => TrayMenuText {
+            pause_all: "Pausar tudo",
+            resume_all: "Retomar tudo",
+            dnd_30: "Não perturbar por 30 min",
+            dnd_60: "Não perturbar por 60 min",
+            show: "Mostrar janela",
+            quit: "Sair",
+            settings: "Configurações",
+        },
+        "id-ID" => TrayMenuText {
+            pause_all: "Jeda semua",
+            resume_all: "Lanjutkan semua",
+            dnd_30: "Jangan ganggu selama 30 menit",
+            dnd_60: "Jangan ganggu selama 60 menit",
+            show: "Tampilkan jendela",
+            quit: "Keluar",
+            settings: "Pengaturan",
+        },
+        "it-IT" => TrayMenuText {
+            pause_all: "Sospendi tutto",
+            resume_all: "Riprendi tutto",
+            dnd_30: "Non disturbare per 30 min",
+            dnd_60: "Non disturbare per 60 min",
+            show: "Mostra finestra",
+            quit: "Esci",
+            settings: "Impostazioni",
+        },
+        "ru-RU" => TrayMenuText {
+            pause_all: "Приостановить всё",
+            resume_all: "Возобновить всё",
+            dnd_30: "Не беспокоить 30 мин",
+            dnd_60: "Не беспокоить 60 мин",
+            show: "Показать окно",
+            quit: "Выход",
+            settings: "Настройки",
+        },
+        "tr-TR" => TrayMenuText {
+            pause_all: "Tümünü duraklat",
+            resume_all: "Tümünü sürdür",
+            dnd_30: "30 dakika rahatsız etme",
+            dnd_60: "60 dakika rahatsız etme",
+            show: "Pencereyi göster",
+            quit: "Çıkış",
+            settings: "Ayarlar",
+        },
+        "ar" => TrayMenuText {
+            pause_all: "إيقاف الكل مؤقتًا",
+            resume_all: "استئناف الكل",
+            dnd_30: "عدم الإزعاج لمدة 30 دقيقة",
+            dnd_60: "عدم الإزعاج لمدة 60 دقيقة",
+            show: "إظهار النافذة",
+            quit: "خروج",
+            settings: "الإعدادات",
+        },
+        "hi-IN" => TrayMenuText {
+            pause_all: "सभी रोकें",
+            resume_all: "सभी फिर शुरू करें",
+            dnd_30: "30 मिनट परेशान न करें",
+            dnd_60: "60 मिनट परेशान न करें",
+            show: "विंडो दिखाएँ",
+            quit: "बाहर निकलें",
+            settings: "सेटिंग्स",
         },
         _ => TrayMenuText {
             pause_all: "Pause all",
@@ -404,6 +501,102 @@ fn reminder_template_text(language: &str) -> ReminderTemplateText {
             eye_message: "ឱ្យភ្នែកមើលទៅឆ្ងាយបន្តិច។",
             eye_action_title: "រំលឹកសម្រាកភ្នែក",
             eye_action_message: "ឱ្យភ្នែកមើលទៅឆ្ងាយបន្តិច។",
+        },
+        "es-ES" => ReminderTemplateText {
+            drink_name: "Recordatorio de agua",
+            drink_message: "Toma un poco de agua y relájate.",
+            rest_name: "Recordatorio de descanso",
+            rest_message: "Levántate y muévete durante dos minutos.",
+            rest_action_title: "Iniciar descanso",
+            rest_action_message: "El siguiente ciclo comienza al terminar la cuenta atrás.",
+            eye_name: "Descanso visual",
+            eye_message: "Mira a unos 6 metros de distancia durante 20 segundos.",
+            eye_action_title: "Descanso visual",
+            eye_action_message: "Mira a unos 6 metros de distancia durante 20 segundos.",
+        },
+        "pt-BR" => ReminderTemplateText {
+            drink_name: "Lembrete de água",
+            drink_message: "Tome um pouco de água e relaxe.",
+            rest_name: "Lembrete de descanso",
+            rest_message: "Levante-se e mova-se por dois minutos.",
+            rest_action_title: "Iniciar descanso",
+            rest_action_message: "O próximo ciclo começa após a contagem regressiva.",
+            eye_name: "Descanso visual",
+            eye_message: "Olhe a 6 metros de distância por 20 segundos.",
+            eye_action_title: "Descanso visual",
+            eye_action_message: "Olhe a 6 metros de distância por 20 segundos.",
+        },
+        "id-ID" => ReminderTemplateText {
+            drink_name: "Pengingat minum air",
+            drink_message: "Minumlah air dan bersantai.",
+            rest_name: "Pengingat istirahat",
+            rest_message: "Berdiri dan bergerak selama dua menit.",
+            rest_action_title: "Mulai Istirahat",
+            rest_action_message: "Siklus berikutnya dimulai setelah hitung mundur selesai.",
+            eye_name: "Pengingat perawatan mata",
+            eye_message: "Lihat objek sejauh sekitar 6 meter selama 20 detik.",
+            eye_action_title: "Pengingat perawatan mata",
+            eye_action_message: "Lihat objek sejauh sekitar 6 meter selama 20 detik.",
+        },
+        "it-IT" => ReminderTemplateText {
+            drink_name: "Promemoria per bere",
+            drink_message: "Bevi un po' d'acqua e rilassati.",
+            rest_name: "Promemoria di riposo",
+            rest_message: "Alzati e muoviti per due minuti.",
+            rest_action_title: "Inizia il riposo",
+            rest_action_message: "Il ciclo successivo inizia al termine del conto alla rovescia.",
+            eye_name: "Promemoria per la cura degli occhi",
+            eye_message: "Guarda a circa 6 metri di distanza per 20 secondi.",
+            eye_action_title: "Promemoria per la cura degli occhi",
+            eye_action_message: "Guarda a circa 6 metri di distanza per 20 secondi.",
+        },
+        "ru-RU" => ReminderTemplateText {
+            drink_name: "Напоминание пить воду",
+            drink_message: "Выпейте воды и расслабьтесь.",
+            rest_name: "Напоминание об отдыхе",
+            rest_message: "Встаньте и двигайтесь в течение двух минут.",
+            rest_action_title: "Начать отдых",
+            rest_action_message: "Следующий цикл начнётся после обратного отсчёта.",
+            eye_name: "Отдых для глаз",
+            eye_message: "Смотрите на объект примерно в 6 метрах от вас в течение 20 секунд.",
+            eye_action_title: "Отдых для глаз",
+            eye_action_message: "Смотрите на объект примерно в 6 метрах от вас в течение 20 секунд.",
+        },
+        "tr-TR" => ReminderTemplateText {
+            drink_name: "Su içme hatırlatıcısı",
+            drink_message: "Biraz su iç ve rahatla.",
+            rest_name: "Dinlenme hatırlatıcısı",
+            rest_message: "Ayağa kalkın ve iki dakika boyunca hareket edin.",
+            rest_action_title: "Dinlenmeye Başla",
+            rest_action_message: "Geri sayım bitince sonraki döngü başlar.",
+            eye_name: "Göz bakımı hatırlatıcısı",
+            eye_message: "20 saniye boyunca yaklaşık 6 metre uzağa bakın.",
+            eye_action_title: "Göz bakımı hatırlatıcısı",
+            eye_action_message: "20 saniye boyunca yaklaşık 6 metre uzağa bakın.",
+        },
+        "ar" => ReminderTemplateText {
+            drink_name: "تذكير بشرب الماء",
+            drink_message: "تناول بعض الماء واسترخي.",
+            rest_name: "تذكير بالراحة",
+            rest_message: "قف وتحرك لمدة دقيقتين.",
+            rest_action_title: "ابدأ الراحة",
+            rest_action_message: "تبدأ الدورة التالية بعد انتهاء العد التنازلي.",
+            eye_name: "تذكير بإراحة العينين",
+            eye_message: "انظر إلى شيء يبعد نحو 6 أمتار لمدة 20 ثانية.",
+            eye_action_title: "تذكير بإراحة العينين",
+            eye_action_message: "انظر إلى شيء يبعد نحو 6 أمتار لمدة 20 ثانية.",
+        },
+        "hi-IN" => ReminderTemplateText {
+            drink_name: "पानी पीने का अनुस्मारक",
+            drink_message: "थोड़ा पानी पियें और आराम करें।",
+            rest_name: "आराम का अनुस्मारक",
+            rest_message: "उठें और दो मिनट टहलें।",
+            rest_action_title: "विश्राम प्रारंभ करें",
+            rest_action_message: "उल्टी गिनती समाप्त होने पर अगला चक्र शुरू होगा।",
+            eye_name: "नेत्र देखभाल अनुस्मारक",
+            eye_message: "लगभग 6 मीटर दूर किसी चीज़ को 20 सेकंड तक देखें।",
+            eye_action_title: "नेत्र देखभाल अनुस्मारक",
+            eye_action_message: "लगभग 6 मीटर दूर किसी चीज़ को 20 सेकंड तक देखें।",
         },
         _ => ReminderTemplateText {
             drink_name: "Drink reminder",
@@ -1095,6 +1288,29 @@ mod tests {
     use super::should_use_xwayland_fallback;
     use super::{reconcile_schedule_for_boot, Database, LAST_BOOT_MARKER_KEY};
     use chrono::{Duration, NaiveDateTime, Utc};
+
+    #[test]
+    fn new_locales_cover_native_menus_and_default_reminders() {
+        for (system_locale, locale, json) in [
+            ("es-MX", "es-ES", include_str!("../../src/i18n/locales/es-ES.json")),
+            ("pt-PT", "pt-BR", include_str!("../../src/i18n/locales/pt-BR.json")),
+            ("id", "id-ID", include_str!("../../src/i18n/locales/id-ID.json")),
+            ("it", "it-IT", include_str!("../../src/i18n/locales/it-IT.json")),
+            ("ru", "ru-RU", include_str!("../../src/i18n/locales/ru-RU.json")),
+            ("tr", "tr-TR", include_str!("../../src/i18n/locales/tr-TR.json")),
+            ("ar-SA", "ar", include_str!("../../src/i18n/locales/ar.json")),
+            ("hi", "hi-IN", include_str!("../../src/i18n/locales/hi-IN.json")),
+        ] {
+            assert_eq!(super::match_template_language(system_locale), locale);
+            let messages: serde_json::Value = serde_json::from_str(json).unwrap();
+            let tray = super::tray_menu_text(system_locale);
+            assert_eq!(tray.settings, messages["settings"]["title"].as_str().unwrap());
+            assert_ne!(tray.quit, "Quit");
+            let reminder = super::reminder_template_text(locale);
+            assert_eq!(reminder.drink_name, messages["reminderTypes"]["drink"]["defaultName"].as_str().unwrap());
+            assert_eq!(reminder.eye_message, messages["reminderTypes"]["eyeCare"]["shortMessage"].as_str().unwrap());
+        }
+    }
 
     #[test]
     fn paused_schedule_survives_app_and_system_restarts() {

@@ -49,6 +49,10 @@ describe('messages', () => {
     const loanwords: Record<string, string[]> = {
       'fr-FR': ['common.minute', 'common.minutes', 'app.stats', 'form.type', 'form.content', 'settings.notification', 'settings.soundVolume', 'stats.title'],
       'de-DE': ['reminder.countdown', 'form.name', 'settings.systemTheme', 'settings.system', 'stats.trend'],
+      'es-ES': ['common.minute', 'common.minutes'],
+      'pt-BR': ['common.minute', 'common.minutes', 'settings.soundVolume'],
+      'it-IT': ['common.minute', 'common.minutes', 'settings.soundVolume'],
+      'id-ID': ['settings.soundVolume'],
       'ms-MY': ['common.minute', 'common.minutes', 'common.durationUnit', 'settings.importData', 'stats.trend'],
     }
     const english = flattenMessages(messages['en-US'])

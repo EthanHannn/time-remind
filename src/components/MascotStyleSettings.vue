@@ -107,19 +107,19 @@ function closePreview() {
 
 <style scoped>
 .mascot-settings {
-  padding-top: 22px;
+  padding-top: 16px;
 }
 
 .mascot-heading {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--text-secondary);
 }
 
 .mascot-description, .mascot-hint {
   margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.6;
+  font-size: 11px;
+  line-height: 1.5;
   color: var(--text-secondary);
 }
 
@@ -165,7 +165,7 @@ function closePreview() {
 .mascot-radio {
   position: absolute;
   top: 13px;
-  right: 13px;
+  inset-inline-end: 13px;
   width: 14px;
   height: 14px;
   accent-color: var(--color-primary);
@@ -182,15 +182,14 @@ function closePreview() {
 
 .mascot-image {
   width: 100%;
-  height: auto;
-  aspect-ratio: 1;
+  height: 76px;
   object-fit: contain;
   padding: 8px;
 }
 
 .mascot-name {
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-primary);
 }
 
@@ -205,7 +204,7 @@ function closePreview() {
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  margin-top: 16px;
+  margin-top: 12px;
 }
 
 .mascot-preview-label {
@@ -215,7 +214,7 @@ function closePreview() {
 
 .mascot-state-select {
   min-width: 0;
-  flex: 1;
+  flex: 1 1 110px;
   padding: 8px;
   border: 1px solid var(--border-color);
   border-radius: 9px;

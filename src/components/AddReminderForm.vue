@@ -383,7 +383,7 @@ function handleSubmit() {
   border-radius: 18px;
   border: 1px solid rgba(148, 163, 184, 0.16);
   background: rgba(255, 255, 255, 0.72);
-  text-align: left;
+  text-align: start;
   transition:
     transform 0.18s ease,
     border-color 0.18s ease,

@@ -17,7 +17,7 @@ const props = defineProps<{
   dailyStats: ReminderStat[]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 const TYPE_COLORS: Record<string, string> = {
   drink: '#0ea5e9',
@@ -75,11 +75,14 @@ const chartData = computed<ChartData<'doughnut'>>(() => {
 })
 
 const chartOptions = computed<ChartOptions<'doughnut'>>(() => ({
+  locale: locale.value,
   responsive: true,
   maintainAspectRatio: false,
   cutout: '68%',
   plugins: {
     legend: {
+      rtl: locale.value === 'ar',
+      textDirection: locale.value === 'ar' ? 'rtl' : 'ltr',
       display: true,
       position: 'bottom' as const,
       labels: {
@@ -92,6 +95,8 @@ const chartOptions = computed<ChartOptions<'doughnut'>>(() => ({
       },
     },
     tooltip: {
+      rtl: locale.value === 'ar',
+      textDirection: locale.value === 'ar' ? 'rtl' : 'ltr',
       backgroundColor: isDark.value ? 'rgba(24,24,27,0.95)' : 'rgba(255,255,255,0.98)',
       titleColor: isDark.value ? '#f4f4f5' : '#18181b',
       bodyColor: isDark.value ? '#d4d4d8' : '#3f3f46',
@@ -112,12 +117,13 @@ const centerTextPlugin: Plugin<'doughnut'> = {
     const centerY = (chartArea.top + chartArea.bottom) / 2
 
     ctx.save()
+    ctx.direction = locale.value === 'ar' ? 'rtl' : 'ltr'
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
 
     ctx.font = 'bold 24px -apple-system, sans-serif'
     ctx.fillStyle = isDark.value ? '#f4f4f5' : '#18181b'
-    ctx.fillText(`${overallRate.value}%`, centerX, centerY - 8)
+    ctx.fillText(new Intl.NumberFormat(locale.value, { style: 'percent' }).format(overallRate.value / 100), centerX, centerY - 8)
 
     ctx.font = '12px -apple-system, sans-serif'
     ctx.fillStyle = isDark.value ? '#a1a1aa' : '#71717a'

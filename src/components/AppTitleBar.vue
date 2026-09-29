@@ -117,6 +117,7 @@ onUnmounted(() => {
 
 <style scoped>
 .app-titlebar {
+  direction: ltr;
   height: 44px;
   flex: 0 0 44px;
   display: flex;

@@ -282,7 +282,7 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
 }
 
 .skip-button {
-  margin-left: auto;
+  margin-inline-start: auto;
   flex-shrink: 0;
   padding: 2px 0 2px 4px;
   color: var(--text-secondary);
@@ -490,4 +490,5 @@ button:focus-visible {
   from { transform: translateY(8px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+[dir='rtl'] .countdown-fill { transform-origin: right; }
 </style>

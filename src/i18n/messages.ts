@@ -1,3 +1,12 @@
+import ar from './locales/ar.json'
+import esES from './locales/es-ES.json'
+import hiIN from './locales/hi-IN.json'
+import idID from './locales/id-ID.json'
+import itIT from './locales/it-IT.json'
+import ptBR from './locales/pt-BR.json'
+import ruRU from './locales/ru-RU.json'
+import trTR from './locales/tr-TR.json'
+
 export type Language
   = | 'zh-CN'
     | 'zh-TW'
@@ -10,6 +19,14 @@ export type Language
     | 'th-TH'
     | 'ms-MY'
     | 'km-KH'
+    | 'es-ES'
+    | 'pt-BR'
+    | 'id-ID'
+    | 'it-IT'
+    | 'ru-RU'
+    | 'tr-TR'
+    | 'ar'
+    | 'hi-IN'
 
 export const languageOptions: Array<{ value: Language, label: string }> = [
   { value: 'zh-CN', label: '简体中文' },
@@ -23,6 +40,14 @@ export const languageOptions: Array<{ value: Language, label: string }> = [
   { value: 'th-TH', label: 'ไทย' },
   { value: 'ms-MY', label: 'Bahasa Melayu' },
   { value: 'km-KH', label: 'ភាសាខ្មែរ' },
+  { value: 'es-ES', label: 'Español' },
+  { value: 'pt-BR', label: 'Português (Brasil)' },
+  { value: 'id-ID', label: 'Bahasa Indonesia' },
+  { value: 'it-IT', label: 'Italiano' },
+  { value: 'ru-RU', label: 'Русский' },
+  { value: 'tr-TR', label: 'Türkçe' },
+  { value: 'ar', label: 'العربية' },
+  { value: 'hi-IN', label: 'हिन्दी' },
 ]
 
 const enUS = {
@@ -233,6 +258,14 @@ const enUS = {
 } as const
 
 export const messages = {
+  'es-ES': esES,
+  'pt-BR': ptBR,
+  'id-ID': idID,
+  'it-IT': itIT,
+  'ru-RU': ruRU,
+  'tr-TR': trTR,
+  'ar': ar,
+  'hi-IN': hiIN,
   'zh-CN': {
     common: {
       appName: 'Time Remind',

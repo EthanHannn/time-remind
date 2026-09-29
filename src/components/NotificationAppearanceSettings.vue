@@ -23,16 +23,16 @@ const { t } = useI18n()
 </template>
 
 <style scoped>
-.appearance-settings { border: 0; padding: 20px 0 0; min-width: 0; }
-legend { float: left; width: 100%; font-size: 14px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; }
+.appearance-settings { border: 0; padding: 0; min-width: 0; }
+legend { float: left; width: 100%; font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 10px; }
 .appearance-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; clear: both; }
-.appearance-option { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 12px; border: 1px solid var(--border-color); border-radius: 12px; cursor: pointer; font-size: 12px; color: var(--text-primary); }
+.appearance-option { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--border-color); border-radius: 12px; cursor: pointer; font-size: 12px; color: var(--text-primary); }
 .appearance-option.selected { border-color: var(--color-primary); }
 .appearance-option:has(:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 3px; }
 .appearance-option input { grid-column: 2; grid-row: 1; accent-color: var(--color-primary); }
 .appearance-option > span:last-child { grid-column: 1 / -1; }
 .appearance-sample { display: flex; gap: 4px; grid-column: 1; grid-row: 1; }
-.appearance-sample i { display: block; width: 24px; height: 14px; border-radius: 4px; background: #e9edf1; }
+.appearance-sample i { display: block; width: 18px; height: 14px; border-radius: 4px; background: #e9edf1; }
 .soft i:nth-child(1) { background: #d3e3f1; }
 .soft i:nth-child(2) { background: #d7e3ce; }
 .soft i:nth-child(3) { background: #cce2df; }

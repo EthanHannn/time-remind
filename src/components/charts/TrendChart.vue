@@ -14,7 +14,7 @@ const props = defineProps<{
   trendStats: TrendStat[]
 }>()
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 // 主题色（与 uno.config.ts 保持一致）
 const BRAND_PRIMARY = '#0ea5e9'
@@ -44,10 +44,10 @@ onUnmounted(() => {
 const textColor = computed(() => isDark.value ? '#a1a1aa' : '#71717a')
 const gridColor = computed(() => isDark.value ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')
 
-// 日期短格式 M/D
+// Format calendar dates in the selected locale without shifting the day.
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr)
-  return `${date.getMonth() + 1}/${date.getDate()}`
+  return new Intl.DateTimeFormat(locale.value, { month: 'numeric', day: 'numeric', timeZone: 'UTC' }).format(date)
 }
 
 const chartData = computed<ChartData<'bar' | 'line'>>(() => {
@@ -92,6 +92,7 @@ const chartData = computed<ChartData<'bar' | 'line'>>(() => {
 })
 
 const chartOptions = computed<ChartOptions<'bar'>>(() => ({
+  locale: locale.value,
   responsive: true,
   maintainAspectRatio: false,
   interaction: {
@@ -100,6 +101,8 @@ const chartOptions = computed<ChartOptions<'bar'>>(() => ({
   },
   plugins: {
     legend: {
+      rtl: locale.value === 'ar',
+      textDirection: locale.value === 'ar' ? 'rtl' : 'ltr',
       display: true,
       position: 'top' as const,
       align: 'end' as const,
@@ -112,6 +115,8 @@ const chartOptions = computed<ChartOptions<'bar'>>(() => ({
       },
     },
     tooltip: {
+      rtl: locale.value === 'ar',
+      textDirection: locale.value === 'ar' ? 'rtl' : 'ltr',
       backgroundColor: isDark.value ? 'rgba(24,24,27,0.95)' : 'rgba(255,255,255,0.98)',
       titleColor: isDark.value ? '#f4f4f5' : '#18181b',
       bodyColor: isDark.value ? '#d4d4d8' : '#3f3f46',
@@ -144,7 +149,7 @@ const chartOptions = computed<ChartOptions<'bar'>>(() => ({
       ticks: {
         color: textColor.value,
         font: { size: 11 },
-        callback: value => `${value}%`,
+        callback: value => new Intl.NumberFormat(locale.value, { style: 'percent' }).format(Number(value) / 100),
       },
       border: { display: false },
     },

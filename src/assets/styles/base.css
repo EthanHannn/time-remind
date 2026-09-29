@@ -77,3 +77,11 @@ textarea {
 ::-webkit-scrollbar-thumb:hover {
   background-color: var(--text-secondary);
 }
+
+/* Keep clock notation stable when the surrounding interface is right-to-left. */
+input[type='time'],
+.break-countdown,
+.countdown-value {
+  direction: ltr;
+  unicode-bidi: isolate;
+}

@@ -1,10 +1,18 @@
 import type { Language, MessageSchema } from './messages'
 import { invoke } from '@tauri-apps/api/core'
-import { computed, shallowRef } from 'vue'
+import { computed, shallowRef, watch } from 'vue'
 import { languageOptions, messages } from './messages'
 
 const STORAGE_KEY = 'app-language'
 const language = shallowRef<Language>(resolveSystemLanguage())
+
+// Apply to each WebView, including the independent reminder window.
+watch(language, (value) => {
+  if (typeof document !== 'undefined') {
+    document.documentElement.lang = value
+    document.documentElement.dir = value === 'ar' ? 'rtl' : 'ltr'
+  }
+}, { immediate: true, flush: 'sync' })
 
 function matchLanguage(value: string): Language | null {
   const normalized = value.toLowerCase().replace('_', '-')
@@ -35,7 +43,7 @@ function matchLanguage(value: string): Language | null {
   if (normalized.startsWith('km'))
     return 'km-KH'
 
-  return null
+  return languageOptions.find(option => option.value.split('-')[0] === normalized.split('-')[0])?.value ?? null
 }
 
 function resolveSystemLanguage(): Language {
