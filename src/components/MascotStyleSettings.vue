@@ -6,7 +6,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core'
 import { nextTick, shallowRef, useId, useTemplateRef } from 'vue'
 import { useI18n } from '../i18n'
 import NotificationApp from '../NotificationApp.vue'
-import { mascotStyleOptions } from '../utils/mascotStyles'
+import { getMascotAsset, mascotStyleOptions } from '../utils/mascotStyles'
 
 const props = defineProps<{
   settings: FrontendSettings
@@ -68,7 +68,7 @@ function closePreview() {
       <label v-for="option in mascotStyleOptions" :key="option.id" class="mascot-option" :class="{ 'mascot-option-selected': model === option.id }">
         <input v-model="model" :name="groupId" :value="option.id" :disabled="disabled" class="mascot-radio" type="radio">
         <span class="mascot-thumbnail">
-          <img :src="option.image" alt="" class="mascot-image" width="112" height="112">
+          <img :src="getMascotAsset(option.id, previewType)" alt="" class="mascot-image" width="112" height="112">
         </span>
         <span class="mascot-name">{{ t(option.nameKey) }}</span>
         <span class="mascot-caption">{{ t(option.descriptionKey) }}</span>
@@ -185,6 +185,7 @@ function closePreview() {
   height: auto;
   aspect-ratio: 1;
   object-fit: contain;
+  padding: 8px;
 }
 
 .mascot-name {

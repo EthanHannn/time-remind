@@ -33,7 +33,7 @@ const notificationStyle = computed(() => ({
 <template>
   <div class="notification-wrapper" :class="{ 'notification-wrapper-visible': visible }">
     <div v-if="visible" class="notification-shell" :style="notificationStyle" :aria-label="preview ? t('settings.previewReminder') : undefined">
-      <div class="notification-visual">
+      <div class="notification-visual" :class="{ 'notification-visual-mascot': visual.mascotAsset }">
         <img
           v-if="visual.mascotAsset"
           :src="breakMode ? visual.statusAsset || visual.mascotAsset : visual.mascotAsset"
@@ -139,18 +139,13 @@ const notificationStyle = computed(() => ({
   overflow: hidden;
   border-radius: 24px;
   border: 1px solid var(--notification-border);
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.48), transparent 45%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.9));
+  background: var(--bg-primary);
   box-shadow:
     0 4px 10px rgba(15, 23, 42, 0.12),
     0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 [data-theme='dark'] .notification-shell {
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 45%),
-    linear-gradient(180deg, rgba(24, 28, 37, 0.96), rgba(17, 21, 30, 0.94));
   box-shadow:
     0 4px 12px rgba(2, 6, 23, 0.32),
     0 1px 3px rgba(2, 6, 23, 0.24);
@@ -171,6 +166,18 @@ const notificationStyle = computed(() => ({
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.notification-visual-mascot {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.notification-visual-mascot .notification-image {
+  height: auto;
+  max-height: 128px;
 }
 
 .notification-fallback-icon {

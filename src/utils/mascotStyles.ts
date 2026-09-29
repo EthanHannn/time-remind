@@ -11,6 +11,8 @@ import watercolorEyeCare from '../assets/illustrations/mascot/watercolor/eye-car
 import watercolorRest from '../assets/illustrations/mascot/watercolor/rest.webp'
 import watercolorSnooze from '../assets/illustrations/mascot/watercolor/snooze.webp'
 
+// Persisted IDs are retained for existing settings and imported backups.
+// Their current artwork is flat, line drawing, and paper cut respectively.
 export type MascotStyle = 'classic' | 'editorial' | 'watercolor'
 export type MascotState = 'drink' | 'rest' | 'eye_care' | 'snooze'
 export type PreviewReminderType = Exclude<MascotState, 'snooze'>
