@@ -1,4 +1,5 @@
 import type { Language } from '../i18n'
+import type { MascotStyle } from '../utils/mascotStyles'
 import type { NotificationSoundPreset } from '../utils/notificationSound'
 import type { Reminder } from './reminder'
 
@@ -12,6 +13,7 @@ export interface ReminderLog {
 
 export interface FrontendSettings {
   theme: 'light' | 'dark' | 'system'
+  mascotStyle?: MascotStyle
   language?: Language
   notificationDuration: number
   postponeOptions: number[]

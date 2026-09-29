@@ -1,12 +1,22 @@
 <script setup lang="ts">
+import type { NotificationPreviewRequest } from './types/notificationPreview'
+import type { MascotStyle } from './utils/mascotStyles'
 import type { NotificationSoundPreset } from './utils/notificationSound'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import NotificationCard from './components/NotificationCard.vue'
 import { loadLanguage, useI18n } from './i18n'
+import { normalizeMascotStyle } from './utils/mascotStyles'
 import { playNotificationSound } from './utils/notificationSound'
 import { getLocalizedReminderVisual } from './utils/reminderVisuals'
 
+const props = defineProps<{
+  preview?: boolean
+  previewRequest?: NotificationPreviewRequest
+}>()
+const emit = defineEmits<{ closed: [] }>()
+const mascotStyle = shallowRef<MascotStyle>('classic')
 const name = ref('')
 const message = ref('')
 const reminderId = ref('')
@@ -29,6 +39,7 @@ const { locale, t } = useI18n()
 
 interface SettingsPayload {
   theme?: string
+  mascotStyle?: MascotStyle
   notificationDuration?: number
   postponeOptions?: number[]
   soundEnabled?: boolean
@@ -66,12 +77,7 @@ interface NotificationQueuePayload {
   pending_count?: number
 }
 
-const visual = computed(() => getLocalizedReminderVisual(reminderType.value, locale.value, reminderIcon.value))
-const notificationStyle = computed(() => ({
-  '--notification-accent': visual.value.accent,
-  '--notification-soft': visual.value.accentSoft,
-  '--notification-border': visual.value.borderSoft,
-}))
+const visual = computed(() => getLocalizedReminderVisual(reminderType.value, locale.value, reminderIcon.value, mascotStyle.value))
 
 const breakCountdownLabel = computed(() => {
   const safe = Math.max(0, breakRemainingSeconds.value)
@@ -141,6 +147,7 @@ function applyTheme(theme: string) {
 async function loadDisplaySettings() {
   try {
     const settings = await invoke<Record<string, string>>('get_all_settings')
+    mascotStyle.value = normalizeMascotStyle(settings.mascot_style)
     notificationDuration.value = Math.min(Math.max(Number(settings.notification_duration || 30), 5), 120) * 1000
     soundEnabled.value = settings.sound_enabled !== 'false'
     soundPreset.value = normalizeSoundPreset(settings.sound_preset)
@@ -152,6 +159,7 @@ async function loadDisplaySettings() {
   catch {
     await loadLanguage()
     const legacy = getLegacySettings()
+    mascotStyle.value = normalizeMascotStyle(legacy?.mascotStyle)
     notificationDuration.value = Math.min(Math.max(legacy?.notificationDuration || 30, 5), 120) * 1000
     soundEnabled.value = legacy?.soundEnabled ?? true
     soundPreset.value = normalizeSoundPreset(legacy?.soundPreset)
@@ -173,8 +181,73 @@ let systemTimersPaused = false
 let latestQueueRevision = -1
 let notificationRevision = 0
 let actionPending = false
+let disposed = false
+
+async function showPreview(request: NotificationPreviewRequest) {
+  const revision = ++notificationRevision
+  clearAutoDismiss()
+  stopBreakCountdown()
+  visible.value = false
+  await loadLanguage({ language: request.settings.language || locale.value })
+  if (disposed || revision !== notificationRevision)
+    return
+
+  mascotStyle.value = normalizeMascotStyle(request.mascotStyle)
+  reminderType.value = request.reminderType
+  reminderIcon.value = request.reminderType
+  applyTheme(request.settings.theme)
+  notificationDuration.value = Math.min(Math.max(request.settings.notificationDuration || 30, 5), 120) * 1000
+  postponeOptions.value = buildPostponeOptions(request.settings.postponeOptions)
+  name.value = visual.value.defaultName
+  message.value = visual.value.shortMessage
+  actionEnabled.value = request.reminderType !== 'drink'
+  actionDurationSeconds.value = visual.value.defaultActionDurationSeconds || 0
+  actionTitle.value = t('notification.startBreak')
+  actionMessage.value = ''
+  actionPending = false
+  breakMode.value = false
+  pendingCount.value = 0
+  visible.value = true
+  if (request.settings.soundEnabled !== false) {
+    playNotificationSound({
+      preset: normalizeSoundPreset(request.settings.soundPreset),
+      volume: normalizeSoundVolume(request.settings.soundVolume),
+    })
+  }
+  startAutoDismiss()
+}
+
+watch(() => props.previewRequest, (request) => {
+  if (props.preview && request)
+    void showPreview(request)
+}, { immediate: true })
+
+function handlePreviewKeydown(event: KeyboardEvent) {
+  if (props.preview && event.key === 'Escape')
+    closeNotificationWindow()
+}
 
 onMounted(async () => {
+  if (props.preview) {
+    window.addEventListener('keydown', handlePreviewKeydown)
+    if (props.previewRequest)
+      return
+
+    const appWindow = getCurrentWebviewWindow()
+    const stop = await appWindow.listen<NotificationPreviewRequest>('notification:preview', (event) => {
+      void showPreview(event.payload)
+    })
+    if (disposed) {
+      stop()
+      return
+    }
+    unlistenShow = stop
+    const revision = notificationRevision
+    const initial = await invoke<NotificationPreviewRequest | null>('get_notification_preview')
+    if (initial && !disposed && revision === notificationRevision)
+      await showPreview(initial)
+    return
+  }
   const appWindow = getCurrentWebviewWindow()
   await loadDisplaySettings()
 
@@ -256,6 +329,9 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  disposed = true
+  notificationRevision += 1
+  window.removeEventListener('keydown', handlePreviewKeydown)
   unlistenShow?.()
   unlistenQueueUpdated?.()
   unlistenSystemPaused?.()
@@ -392,11 +468,20 @@ function closeNotificationWindow() {
   clearAutoDismiss()
   stopBreakCountdown()
   resetNotificationState()
+  if (props.preview) {
+    emit('closed')
+    if (!props.previewRequest)
+      void getCurrentWebviewWindow().hide().catch(console.error)
+  }
 }
 
 async function closeBreakPrompt(finishBreakNow: boolean) {
   if (!visible.value || actionPending)
     return
+  if (props.preview) {
+    closeNotificationWindow()
+    return
+  }
   actionPending = true
   const revision = notificationRevision
   stopBreakCountdown()
@@ -429,6 +514,15 @@ async function handleAction(action: string) {
     && actionDurationSeconds.value > 0
     && actionEnabled.value
 
+  if (props.preview) {
+    actionPending = false
+    if (shouldHoldForBreak)
+      startBreakCountdown()
+    else
+      closeNotificationWindow()
+    return
+  }
+
   try {
     await invoke('respond_reminder', {
       notificationId: notificationId.value,
@@ -459,6 +553,10 @@ async function handleAction(action: string) {
 async function handlePostpone(minutes: number) {
   if (!visible.value || actionPending)
     return
+  if (props.preview) {
+    closeNotificationWindow()
+    return
+  }
   actionPending = true
   const revision = notificationRevision
   clearAutoDismiss()
@@ -484,287 +582,21 @@ async function handlePostpone(minutes: number) {
 </script>
 
 <template>
-  <div class="notification-wrapper" :class="{ 'notification-wrapper-visible': visible }">
-    <div v-if="visible" class="notification-shell" :style="notificationStyle">
-      <div class="notification-visual">
-        <img
-          v-if="visual.mascotAsset"
-          :src="visual.mascotAsset"
-          :alt="visual.label"
-          class="notification-image"
-        >
-        <img
-          v-else-if="visual.iconAsset"
-          :src="visual.iconAsset"
-          :alt="visual.label"
-          class="notification-image"
-        >
-        <span v-else class="notification-fallback-icon">{{ visual.iconText }}</span>
-      </div>
-
-      <div class="notification-content">
-        <template v-if="breakMode">
-          <span class="notification-tag">
-            {{ visual.label }}
-          </span>
-          <p v-if="pendingLabel" class="notification-queue">
-            {{ pendingLabel }}
-          </p>
-          <h2 class="notification-title">
-            {{ actionTitle }}
-          </h2>
-          <p class="notification-message">
-            {{ actionMessage || t('notification.breakMessage', { time: breakCountdownLabel }) }}
-          </p>
-
-          <div class="break-countdown">
-            {{ breakCountdownLabel }}
-          </div>
-
-          <button class="complete-button" type="button" @click="closeBreakPrompt(true)">
-            {{ t('notification.finishBreak') }}
-          </button>
-        </template>
-
-        <template v-else>
-          <span class="notification-tag">
-            {{ visual.label }}
-          </span>
-          <p v-if="pendingLabel" class="notification-queue">
-            {{ pendingLabel }}
-          </p>
-          <h2 class="notification-title">
-            {{ name }}
-          </h2>
-          <p class="notification-message">
-            {{ message }}
-          </p>
-
-          <div class="action-grid">
-            <button class="complete-button" type="button" @click="handleAction('completed')">
-              {{ t('notification.complete') }}
-            </button>
-
-            <button class="skip-button" type="button" @click="handleAction('skipped')">
-              {{ t('notification.skip') }}
-            </button>
-          </div>
-
-          <div class="postpone-grid">
-            <button
-              v-for="option in postponeOptions"
-              :key="option.minutes"
-              class="postpone-button"
-              type="button"
-              @click="handlePostpone(option.minutes)"
-            >
-              {{ option.label }}
-            </button>
-          </div>
-        </template>
-      </div>
-    </div>
-  </div>
+  <NotificationCard
+    :visible="visible"
+    :visual="visual"
+    :name="name"
+    :message="message"
+    :break-mode="breakMode"
+    :action-title="actionTitle"
+    :action-message="actionMessage"
+    :break-countdown-label="breakCountdownLabel"
+    :pending-label="pendingLabel"
+    :postpone-options="postponeOptions"
+    :preview="preview"
+    @complete="handleAction('completed')"
+    @skip="handleAction('skipped')"
+    @postpone="handlePostpone"
+    @finish="closeBreakPrompt(true)"
+  />
 </template>
-
-<style scoped>
-.notification-wrapper {
-  width: 100%;
-  height: 100%;
-  display: flex;
-  padding: 12px;
-  background: transparent;
-  overflow: hidden;
-}
-
-.notification-wrapper-visible {
-  animation: slide-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.notification-shell {
-  width: 100%;
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 104px minmax(0, 1fr);
-  gap: 12px;
-  padding: 12px;
-  overflow: hidden;
-  border-radius: 24px;
-  border: 1px solid var(--notification-border);
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.48), transparent 45%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.9));
-  box-shadow:
-    0 22px 42px rgba(15, 23, 42, 0.16),
-    0 10px 18px rgba(15, 23, 42, 0.08);
-}
-
-[data-theme='dark'] .notification-shell {
-  background:
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 45%),
-    linear-gradient(180deg, rgba(24, 28, 37, 0.96), rgba(17, 21, 30, 0.94));
-  box-shadow:
-    0 24px 50px rgba(2, 6, 23, 0.42),
-    0 10px 20px rgba(2, 6, 23, 0.3);
-}
-
-.notification-visual {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.54), var(--notification-soft));
-}
-
-.notification-image {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.notification-fallback-icon {
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--notification-accent);
-}
-
-.notification-content {
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-.notification-tag {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--notification-accent);
-}
-
-.notification-title {
-  margin: 4px 0 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1.25;
-}
-
-.notification-message {
-  margin: 6px 0 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--text-secondary);
-}
-
-.notification-queue {
-  margin: 6px 0 0;
-  font-size: 11px;
-  line-height: 1.4;
-  color: var(--text-secondary);
-}
-
-.complete-button {
-  padding: 9px 12px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, var(--notification-accent), rgba(79, 140, 255, 0.94));
-  color: white;
-  font-size: 13px;
-  font-weight: 700;
-  box-shadow: 0 12px 20px rgba(15, 23, 42, 0.14);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.complete-button:hover {
-  box-shadow: 0 16px 24px rgba(15, 23, 42, 0.18);
-}
-
-.action-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 12px;
-}
-
-.complete-button:active,
-.postpone-button:active,
-.skip-button:active {
-  transform: scale(0.97);
-}
-
-.postpone-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
-  margin-top: 8px;
-}
-
-.postpone-button {
-  padding: 8px 0;
-  border-radius: 12px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255, 255, 255, 0.7);
-  color: var(--text-primary);
-  font-size: 12px;
-  font-weight: 600;
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease;
-}
-
-[data-theme='dark'] .postpone-button {
-  background: rgba(30, 35, 46, 0.84);
-}
-
-.postpone-button:hover {
-  border-color: var(--notification-border);
-  background: var(--notification-soft);
-}
-
-.skip-button {
-  padding: 9px 12px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--text-primary);
-  font-size: 13px;
-  font-weight: 700;
-  transition:
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    transform 0.2s ease;
-}
-
-[data-theme='dark'] .skip-button {
-  background: rgba(30, 35, 46, 0.84);
-}
-
-.skip-button:hover {
-  border-color: var(--notification-border);
-  background: var(--notification-soft);
-}
-
-.break-countdown {
-  margin-top: 10px;
-  font-size: 28px;
-  font-weight: 700;
-  color: var(--notification-accent);
-  letter-spacing: -0.04em;
-  font-variant-numeric: tabular-nums;
-}
-
-@keyframes slide-in {
-  from {
-    transform: translateX(24px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-</style>

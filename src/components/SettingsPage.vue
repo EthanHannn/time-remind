@@ -2,6 +2,7 @@
 import type { Language } from '../i18n'
 import type { ExportData, FrontendSettings, ImportMode } from '../types/data'
 import type { PlatformCapabilities } from '../types/platform'
+import type { MascotStyle } from '../utils/mascotStyles'
 import type { NotificationSoundPreset } from '../utils/notificationSound'
 import { invoke } from '@tauri-apps/api/core'
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
@@ -10,8 +11,10 @@ import { computed, onMounted, ref, shallowRef, watch } from 'vue'
 import { exportData, importData, readTextFile, writeTextFile } from '../api/data'
 import { getPlatformCapabilities } from '../api/platform'
 import { loadLanguage, useI18n } from '../i18n'
+import { normalizeMascotStyle } from '../utils/mascotStyles'
 import { playNotificationSound } from '../utils/notificationSound'
 import { appIconMain } from '../utils/reminderVisuals'
+import MascotStyleSettings from './MascotStyleSettings.vue'
 
 const emit = defineEmits<{
   close: []
@@ -21,6 +24,7 @@ const AUTO_START_SETTING_KEY = 'auto_start'
 
 const { language: currentLanguage, languageOptions, setLanguage, t } = useI18n()
 const theme = ref<'light' | 'dark' | 'system'>('system')
+const mascotStyle = shallowRef<MascotStyle>('classic')
 const language = ref<Language>(currentLanguage.value)
 const notificationDuration = ref(30)
 const postponeOptions = ref([5, 10, 15])
@@ -78,6 +82,7 @@ const importRiskLabel = computed(() => {
 function buildFrontendSettings(): FrontendSettings {
   return {
     theme: theme.value,
+    mascotStyle: mascotStyle.value,
     language: language.value,
     notificationDuration: notificationDuration.value,
     postponeOptions: postponeOptions.value,
@@ -88,6 +93,7 @@ function buildFrontendSettings(): FrontendSettings {
 }
 
 async function saveFrontendSettings() {
+  await invoke('save_setting', { key: 'mascot_style', value: mascotStyle.value })
   await invoke('save_setting', { key: 'theme', value: theme.value })
   await invoke('save_setting', { key: 'language', value: language.value })
   await invoke('save_setting', { key: 'notification_duration', value: String(notificationDuration.value) })
@@ -98,9 +104,15 @@ async function saveFrontendSettings() {
 }
 
 async function loadSettings() {
+  const wasLoaded = settingsLoaded.value
+  settingsLoaded.value = false
+  mascotStyle.value = 'classic'
   let hasFrontendSettingsInDb = false
   try {
     const settings = await invoke<Record<string, string>>('get_all_settings')
+    mascotStyle.value = normalizeMascotStyle(settings.mascot_style)
+    if (settings.mascot_style)
+      hasFrontendSettingsInDb = true
     if (settings.theme) {
       theme.value = settings.theme as 'light' | 'dark' | 'system'
       hasFrontendSettingsInDb = true
@@ -158,6 +170,7 @@ async function loadSettings() {
     try {
       const settings = JSON.parse(saved) as FrontendSettings
       theme.value = settings.theme || 'system'
+      mascotStyle.value = normalizeMascotStyle(settings.mascotStyle)
       language.value = settings.language || 'zh-CN'
       notificationDuration.value = settings.notificationDuration || 30
       postponeOptions.value = settings.postponeOptions || [5, 10, 15]
@@ -172,6 +185,7 @@ async function loadSettings() {
 
   applyTheme(theme.value)
   language.value = currentLanguage.value
+  settingsLoaded.value = wasLoaded
 }
 
 async function loadPlatformCapabilities() {
@@ -255,7 +269,9 @@ onMounted(async () => {
   settingsLoaded.value = true
 })
 
-watch([theme, language, notificationDuration, postponeOptions, soundEnabled, soundPreset, soundVolume], () => {
+watch([theme, mascotStyle, language, notificationDuration, postponeOptions, soundEnabled, soundPreset, soundVolume], () => {
+  if (!settingsLoaded.value)
+    return
   localStorage.setItem('app-settings', JSON.stringify(buildFrontendSettings()))
   applyTheme(theme.value)
   void setLanguage(language.value).catch((err) => {
@@ -468,6 +484,7 @@ async function handleImport() {
       if (data.frontend_settings) {
         localStorage.setItem('app-settings', JSON.stringify(data.frontend_settings))
         theme.value = data.frontend_settings.theme
+        mascotStyle.value = normalizeMascotStyle(data.frontend_settings.mascotStyle)
         language.value = data.frontend_settings.language || language.value
         notificationDuration.value = data.frontend_settings.notificationDuration
         postponeOptions.value = data.frontend_settings.postponeOptions
@@ -543,6 +560,12 @@ async function handleImport() {
             </select>
           </div>
         </section>
+
+        <MascotStyleSettings
+          v-model="mascotStyle"
+          :settings="buildFrontendSettings()"
+          :disabled="!settingsLoaded"
+        />
 
         <section class="setting-section">
           <div class="section-heading">

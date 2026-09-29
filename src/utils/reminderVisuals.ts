@@ -1,4 +1,5 @@
 import type { Language } from '../i18n/messages'
+import type { MascotStyle } from './mascotStyles'
 import appIconMain from '../assets/icons/app/app-icon-main.png'
 import customBell from '../assets/icons/reminder/custom-bell.png'
 import customChecklist from '../assets/icons/reminder/custom-checklist.png'
@@ -13,6 +14,7 @@ import catEyeCare from '../assets/illustrations/mascot/cat-eye-care.png'
 import catRest from '../assets/illustrations/mascot/cat-rest.png'
 import catSnooze from '../assets/illustrations/mascot/cat-snooze.png'
 import { messages } from '../i18n/messages'
+import { getMascotAsset, normalizeMascotStyle } from './mascotStyles'
 
 export type ReminderTypeKey = 'drink' | 'rest' | 'eye_care' | 'custom'
 export type CustomReminderIconKey = 'custom_star' | 'custom_bell' | 'custom_checklist' | 'custom_leaf'
@@ -48,6 +50,7 @@ export interface ReminderVisual {
   badgeBackground: string
   iconAsset?: string
   mascotAsset?: string
+  illustrationBackground?: string
   statusAsset?: string
   iconText?: string
 }
@@ -129,10 +132,16 @@ function getCustomReminderIconAsset(icon?: string): string {
   return customReminderIconMap[icon as CustomReminderIconKey] ?? customStar
 }
 
-export function getReminderVisual(type: string, icon?: string): ReminderVisual {
+export function getReminderVisual(type: string, icon?: string, style: MascotStyle = 'classic'): ReminderVisual {
   const visual = reminderVisualMap[type as ReminderTypeKey] ?? reminderVisualMap.custom
-  if (visual.type !== 'custom')
-    return visual
+  if (visual.type !== 'custom') {
+    return {
+      ...visual,
+      mascotAsset: getMascotAsset(style, visual.type),
+      statusAsset: getMascotAsset(style, 'snooze'),
+      illustrationBackground: normalizeMascotStyle(style) === 'classic' ? undefined : '#f7f5f0',
+    }
+  }
 
   return {
     ...visual,
@@ -140,8 +149,8 @@ export function getReminderVisual(type: string, icon?: string): ReminderVisual {
   }
 }
 
-export function getLocalizedReminderVisual(type: string, language: Language, icon?: string): ReminderVisual {
-  const visual = getReminderVisual(type, icon)
+export function getLocalizedReminderVisual(type: string, language: Language, icon?: string, style: MascotStyle = 'classic'): ReminderVisual {
+  const visual = getReminderVisual(type, icon, style)
   const localizedMap = messages[language].reminderTypes
   const localized = visual.type === 'eye_care'
     ? localizedMap.eyeCare

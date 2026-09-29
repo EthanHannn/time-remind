@@ -39,6 +39,21 @@
         "visible": false,
         "url": "notification.html",
         "transparent": true
+      },
+      {
+        "label": "notification-preview",
+        "title": "Time Remind Preview",
+        "width": 360,
+        "height": 224,
+        "decorations": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "focus": false,
+        "skipTaskbar": true,
+        "shadow": false,
+        "visible": false,
+        "url": "notification.html?preview=true",
+        "transparent": true
       }
     ],
     "security": {

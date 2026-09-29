@@ -4,6 +4,7 @@ mod db;
 mod fullscreen;
 mod models;
 pub mod power;
+mod preview;
 mod scheduler;
 
 use chrono::{NaiveDateTime, Utc};
@@ -853,6 +854,7 @@ pub fn run() {
     app_log::install_panic_hook();
 
     tauri::Builder::default()
+        .manage(preview::PreviewState::default())
         .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
             let is_autostart = args.iter().any(|arg| arg == "--autostart");
             if !is_autostart {
@@ -1057,6 +1059,8 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            preview::preview_notification,
+            preview::get_notification_preview,
             commands::get_reminders,
             commands::get_reminder_overview,
             commands::create_reminder,

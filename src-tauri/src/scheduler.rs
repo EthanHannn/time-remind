@@ -17,7 +17,7 @@ const NOTIFICATION_WINDOW_RIGHT_MARGIN: f64 = 20.0;
 const NOTIFICATION_WINDOW_BOTTOM_MARGIN: f64 = 96.0;
 const NEXT_NOTIFICATION_DELAY_MS: u64 = 220;
 
-fn notification_window_position(
+pub(crate) fn notification_window_position(
     work_area_position: tauri::PhysicalPosition<i32>,
     work_area_size: tauri::PhysicalSize<u32>,
     scale_factor: f64,
