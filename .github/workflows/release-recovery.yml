@@ -1,0 +1,59 @@
+name: Recover macOS ARM64 release upload
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (defaults to the package version)
+        required: false
+        type: string
+  push:
+    branches: [master]
+    paths: [.github/workflows/release-recovery.yml]
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  recover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Recover the original DMG artifact without rebuilding or replacing published installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+        shell: bash
+        run: |
+          tag="${REQUESTED_TAG:-v$(node -p 'require("./package.json").version')}"
+          [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          version="${tag#v}"
+          git fetch origin "refs/tags/$tag:refs/tags/$tag"
+          commit="$(git rev-list -n 1 "$tag")"
+          run_id="$(gh api "repos/$GH_REPO/actions/workflows/manual-release.yml/runs?event=push&per_page=100" \
+            --jq ".workflow_runs[] | select(.head_sha == \"$commit\") | .id" | head -n 1)"
+          test -n "$run_id"
+          # Wait for all uploads and the original checksum job before changing the asset list.
+          gh run watch "$run_id" --interval 30
+
+          mkdir -p "$RUNNER_TEMP/recovered-dmg" "$RUNNER_TEMP/release-assets"
+          gh run download "$run_id" \
+            --name "Time-Remind_${version}-macos-aarch64-dmg" \
+            --dir "$RUNNER_TEMP/recovered-dmg"
+          mapfile -d '' files < <(find "$RUNNER_TEMP/recovered-dmg" -type f -name '*.dmg' -print0)
+          test "${#files[@]}" -eq 1
+          filename="$(basename "${files[0]}")"
+          gh release view "$tag" --json assets --jq '.assets[].name' > "$RUNNER_TEMP/published-assets.txt"
+          if ! grep -Fxq "$filename" "$RUNNER_TEMP/published-assets.txt"; then
+            gh release upload "$tag" "${files[0]}"
+          fi
+
+          cd "$RUNNER_TEMP/release-assets"
+          gh release download "$tag"
+          find . -maxdepth 1 -type f ! -name SHA256SUMS.txt -print0 \
+            | sort -z | xargs -0 -r sha256sum > SHA256SUMS.txt
+          test -s SHA256SUMS.txt
+          gh release upload "$tag" SHA256SUMS.txt --clobber

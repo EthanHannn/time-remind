@@ -208,7 +208,7 @@ jobs:
           gh release view "${{ steps.release.outputs.tag }}" >/dev/null 2>&1 || gh release create "${{ steps.release.outputs.tag }}" \
             --title "Time Remind ${{ steps.release.outputs.tag }}" \
             --notes-file "$RUNNER_TEMP/release-notes.md" \
-            "${release_flags[@]}"
+            "${release_flags[@]}" || gh release view "${{ steps.release.outputs.tag }}" >/dev/null
 
       - name: Upload macOS ARM64 app bundle asset
         if: ${{ matrix.label == 'macOS ARM64' }}
@@ -341,7 +341,7 @@ jobs:
           gh release view "${{ steps.release.outputs.tag }}" >/dev/null 2>&1 || gh release create "${{ steps.release.outputs.tag }}" \
             --title "Time Remind ${{ steps.release.outputs.tag }}" \
             --notes-file "$RUNNER_TEMP/release-notes.md" \
-            "${release_flags[@]}"
+            "${release_flags[@]}" || gh release view "${{ steps.release.outputs.tag }}" >/dev/null
 
       - name: Upload macOS ARM64 DMG release asset
         if: ${{ success() }}
