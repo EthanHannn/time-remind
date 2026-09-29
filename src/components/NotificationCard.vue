@@ -119,7 +119,7 @@ const notificationStyle = computed(() => ({
   width: 100%;
   height: 100%;
   display: flex;
-  padding: 12px;
+  padding: 16px;
   background: transparent;
   overflow: hidden;
 }
@@ -143,8 +143,8 @@ const notificationStyle = computed(() => ({
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.48), transparent 45%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.9));
   box-shadow:
-    0 22px 42px rgba(15, 23, 42, 0.16),
-    0 10px 18px rgba(15, 23, 42, 0.08);
+    0 4px 10px rgba(15, 23, 42, 0.12),
+    0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 [data-theme='dark'] .notification-shell {
@@ -152,8 +152,8 @@ const notificationStyle = computed(() => ({
     radial-gradient(circle at top left, rgba(255, 255, 255, 0.06), transparent 45%),
     linear-gradient(180deg, rgba(24, 28, 37, 0.96), rgba(17, 21, 30, 0.94));
   box-shadow:
-    0 24px 50px rgba(2, 6, 23, 0.42),
-    0 10px 20px rgba(2, 6, 23, 0.3);
+    0 4px 12px rgba(2, 6, 23, 0.32),
+    0 1px 3px rgba(2, 6, 23, 0.24);
 }
 
 .notification-visual {
