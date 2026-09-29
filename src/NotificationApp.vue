@@ -1,13 +1,16 @@
 <script setup lang="ts">
 import type { NotificationPreviewRequest } from './types/notificationPreview'
 import type { MascotStyle } from './utils/mascotStyles'
+import type { NotificationAppearance } from './utils/notificationAppearance'
 import type { NotificationSoundPreset } from './utils/notificationSound'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
+import ClassicNotificationCard from './components/ClassicNotificationCard.vue'
 import NotificationCard from './components/NotificationCard.vue'
 import { loadLanguage, useI18n } from './i18n'
 import { normalizeMascotStyle } from './utils/mascotStyles'
+import { normalizeNotificationAppearance } from './utils/notificationAppearance'
 import { playNotificationSound } from './utils/notificationSound'
 import { getLocalizedReminderVisual } from './utils/reminderVisuals'
 
@@ -17,6 +20,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ closed: [] }>()
 const mascotStyle = shallowRef<MascotStyle>('classic')
+const notificationAppearance = shallowRef<NotificationAppearance>('soft')
 const name = ref('')
 const message = ref('')
 const reminderId = ref('')
@@ -40,6 +44,7 @@ const { locale, t } = useI18n()
 interface SettingsPayload {
   theme?: string
   mascotStyle?: MascotStyle
+  notificationAppearance?: NotificationAppearance
   notificationDuration?: number
   postponeOptions?: number[]
   soundEnabled?: boolean
@@ -148,6 +153,7 @@ async function loadDisplaySettings() {
   try {
     const settings = await invoke<Record<string, string>>('get_all_settings')
     mascotStyle.value = normalizeMascotStyle(settings.mascot_style)
+    notificationAppearance.value = normalizeNotificationAppearance(settings.notification_appearance)
     notificationDuration.value = Math.min(Math.max(Number(settings.notification_duration || 30), 5), 120) * 1000
     soundEnabled.value = settings.sound_enabled !== 'false'
     soundPreset.value = normalizeSoundPreset(settings.sound_preset)
@@ -160,6 +166,7 @@ async function loadDisplaySettings() {
     await loadLanguage()
     const legacy = getLegacySettings()
     mascotStyle.value = normalizeMascotStyle(legacy?.mascotStyle)
+    notificationAppearance.value = normalizeNotificationAppearance(legacy?.notificationAppearance)
     notificationDuration.value = Math.min(Math.max(legacy?.notificationDuration || 30, 5), 120) * 1000
     soundEnabled.value = legacy?.soundEnabled ?? true
     soundPreset.value = normalizeSoundPreset(legacy?.soundPreset)
@@ -193,6 +200,7 @@ async function showPreview(request: NotificationPreviewRequest) {
     return
 
   mascotStyle.value = normalizeMascotStyle(request.mascotStyle)
+  notificationAppearance.value = normalizeNotificationAppearance(request.settings.notificationAppearance)
   reminderType.value = request.reminderType
   reminderIcon.value = request.reminderType
   applyTheme(request.settings.theme)
@@ -202,7 +210,7 @@ async function showPreview(request: NotificationPreviewRequest) {
   message.value = visual.value.shortMessage
   actionEnabled.value = request.reminderType !== 'drink'
   actionDurationSeconds.value = visual.value.defaultActionDurationSeconds || 0
-  actionTitle.value = t('notification.startBreak')
+  actionTitle.value = t(request.reminderType === 'eye_care' ? 'notification.startEyeCare' : 'notification.startBreak')
   actionMessage.value = ''
   actionPending = false
   breakMode.value = false
@@ -582,7 +590,8 @@ async function handlePostpone(minutes: number) {
 </script>
 
 <template>
-  <NotificationCard
+  <component
+    :is="notificationAppearance === 'classic' ? ClassicNotificationCard : NotificationCard"
     :visible="visible"
     :visual="visual"
     :name="name"
@@ -590,6 +599,8 @@ async function handlePostpone(minutes: number) {
     :break-mode="breakMode"
     :action-title="actionTitle"
     :action-message="actionMessage"
+    :action-enabled="actionEnabled && actionDurationSeconds > 0"
+    :remaining-progress="actionDurationSeconds > 0 ? breakRemainingSeconds / actionDurationSeconds : 0"
     :break-countdown-label="breakCountdownLabel"
     :pending-label="pendingLabel"
     :postpone-options="postponeOptions"

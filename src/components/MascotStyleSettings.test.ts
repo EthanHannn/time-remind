@@ -30,7 +30,7 @@ describe('cat style settings', () => {
   it('keeps classic for existing installs, persists a new selection, and restores it on reopening', async () => {
     wrapper = mount(SettingsPage)
     await flushPromises()
-    expect((wrapper.get('input[value="classic"]').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.get('.mascot-options input[value="classic"]').element as HTMLInputElement).checked).toBe(true)
     await wrapper.get('input[value="editorial"]').setValue()
     await flushPromises()
     expect(mocks.settings.mascot_style).toBe('editorial')
@@ -58,7 +58,26 @@ describe('cat style settings', () => {
     mocks.settings.mascot_style = 'removed-theme'
     wrapper = mount(SettingsPage)
     await flushPromises()
-    expect((wrapper.get('input[value="classic"]').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.get('.mascot-options input[value="classic"]').element as HTMLInputElement).checked).toBe(true)
+  })
+
+  it('saves and restores popup appearance independently of the cat style and includes it in previews', async () => {
+    wrapper = mount(SettingsPage)
+    await flushPromises()
+    await wrapper.get('.appearance-settings input[value="classic"]').setValue()
+    await flushPromises()
+    expect(mocks.settings.notification_appearance).toBe('classic')
+    expect(JSON.parse(localStorage.getItem('app-settings')!).notificationAppearance).toBe('classic')
+    await wrapper.get('.mascot-preview-button').trigger('click')
+    await flushPromises()
+    expect(mocks.invoke).toHaveBeenCalledWith('preview_notification', {
+      request: expect.objectContaining({ settings: expect.objectContaining({ notificationAppearance: 'classic' }) }),
+    })
+    wrapper.unmount()
+    wrapper = mount(SettingsPage)
+    await flushPromises()
+    expect((wrapper.get('.appearance-settings input[value="classic"]').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.get('.mascot-options input[value="classic"]').element as HTMLInputElement).checked).toBe(true)
   })
 
   it('shows a useful error when the native preview cannot open', async () => {

@@ -84,6 +84,39 @@ describe('isolated notification preview', () => {
     expect(mocks.invoke).not.toHaveBeenCalled()
   })
 
+  it('starts eye care with matching artwork and updates its remaining progress', async () => {
+    wrapper = mount(NotificationApp, { props: { preview: true, previewRequest: request('eye_care') } })
+    await flushPromises()
+    expect(wrapper.get('.complete-button').text()).toBe('远眺一会儿')
+    await wrapper.get('.complete-button').trigger('click')
+    expect(wrapper.get('.notification-image').attributes('src')).toContain('editorial/eye-care.webp')
+    expect(wrapper.get('[role="timer"]').text()).toBe('00:20')
+    await vi.advanceTimersByTimeAsync(10000)
+    expect(wrapper.get('[role="timer"]').text()).toBe('00:10')
+    expect(wrapper.get('.countdown-fill').attributes('style')).toContain('scaleX(0.5)')
+    await wrapper.get('.finish-button').trigger('click')
+    expect(wrapper.find('.notification-shell').exists()).toBe(false)
+    expect(mocks.invoke).not.toHaveBeenCalled()
+  })
+
+  it('switches between the original and soft popup layouts while keeping preview actions isolated', async () => {
+    const original = request('rest')
+    original.settings.notificationAppearance = 'classic'
+    wrapper = mount(NotificationApp, { props: { preview: true, previewRequest: original } })
+    await flushPromises()
+    expect(wrapper.find('.action-grid').exists()).toBe(true)
+    await wrapper.get('.complete-button').trigger('click')
+    expect(wrapper.get('.break-countdown').text()).toBe('05:00')
+    expect(wrapper.get('.notification-image').attributes('src')).toContain('editorial/snooze.webp')
+    await wrapper.setProps({ previewRequest: request('drink') })
+    await flushPromises()
+    expect(wrapper.find('.action-grid').exists()).toBe(false)
+    expect(wrapper.get('.complete-button').text()).toBe('喝好了')
+    await wrapper.get('.skip-button').trigger('click')
+    expect(wrapper.find('.notification-shell').exists()).toBe(false)
+    expect(mocks.invoke).not.toHaveBeenCalled()
+  })
+
   it('gets the first native preview even if the request arrived before the webview loaded', async () => {
     mocks.invoke.mockResolvedValue(request())
     wrapper = mount(NotificationApp, { props: { preview: true } })
