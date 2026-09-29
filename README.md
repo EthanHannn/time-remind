@@ -1,12 +1,30 @@
 # Time Remind
 
-[简体中文](README.zh-CN.md)
+**English** | [简体中文](README.zh-CN.md)
 
 Time Remind is a lightweight desktop wellness reminder app for people who spend long hours at a computer. It helps you keep a steady rhythm for drinking water, taking short breaks, and resting your eyes.
 
-<img src="assets/main-preview.png" alt="Time Remind main window" width="420">
+## Screenshots
 
-<img src="assets/setting-preview.png" alt="Time Remind settings" width="420">
+The current interface with example reminders. Available in 19 languages, with light, dark, and system themes.
+
+### Main window
+
+Keep track of drinking water, breaks, and eye care in light or dark mode.
+
+<img src="assets/screenshots/main-en.png" alt="English main window in light and dark mode, showing drink, rest, and eye care reminders" width="960">
+
+### Reminder popups
+
+Choose between **Soft colors** and **Vivid gradients**, with three cat illustration styles. The middle column shows a rest countdown.
+
+<img src="assets/screenshots/popups-en.png" alt="Two popup styles with soft flat, gentle line, and paper cut cats, including a rest countdown" width="1120">
+
+### Settings
+
+Choose your theme, language, popup style, sounds, and Do Not Disturb schedule. Wider windows display settings in two columns.
+
+<img src="assets/screenshots/settings-en.png" alt="English settings page with appearance, cat styles, notification sound, Do Not Disturb, and data management" width="960">
 
 ## Platform Status
 

@@ -1,12 +1,30 @@
 # Time Remind
 
-[English](README.md)
+[English](README.md) | **简体中文**
 
 Time Remind 是一款轻量级桌面健康提醒工具，帮助长时间使用电脑的人保持饮水、休息和护眼节奏。
 
-<img src="assets/main-preview.png" alt="Time Remind 主界面" width="420">
+## 界面预览
 
-<img src="assets/setting-preview.png" alt="Time Remind 设置页" width="420">
+以下为当前界面搭配示例提醒的截图。支持 19 种语言，以及浅色、深色和跟随系统主题。
+
+### 主界面
+
+查看饮水、休息和护眼提醒的倒计时，支持浅色与深色外观。
+
+<img src="assets/screenshots/main-zh-CN.png" alt="简体中文主界面的浅色与深色外观，展示饮水、休息和护眼提醒" width="960">
+
+### 提醒弹窗
+
+可选择**柔和彩色**或**明快渐变**两种样式，并搭配三套猫咪插画。中间一列展示休息倒计时。
+
+<img src="assets/screenshots/popups-zh-CN.png" alt="柔和彩色和明快渐变两种弹窗，搭配清爽扁平、温柔线绘、柔软剪纸三套猫咪插画，包含休息倒计时" width="1120">
+
+### 设置页
+
+调整主题、语言、弹窗样式、提醒声音和免打扰时段，宽窗口下以双列展示设置。
+
+<img src="assets/screenshots/settings-zh-CN.png" alt="简体中文设置页，包含外观、猫咪风格、通知声音、免打扰和数据管理" width="960">
 
 ## 平台支持状态
 
