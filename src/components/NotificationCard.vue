@@ -17,6 +17,8 @@ const props = defineProps<{
   actionEnabled?: boolean
   remainingProgress?: number
   preview?: boolean
+  pending?: boolean
+  error?: string
 }>()
 const emit = defineEmits<{
   complete: []
@@ -61,7 +63,7 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
       <header class="notification-header">
         <span class="notification-tag">{{ preview ? t('settings.previewBadge') : visual.label }}</span>
         <span v-if="pendingLabel" class="notification-queue" :title="pendingLabel">{{ pendingLabel }}</span>
-        <button v-if="!breakMode" class="skip-button" type="button" @click="emit('skip')">
+        <button v-if="!breakMode" class="skip-button" :disabled="pending" type="button" @click="emit('skip')">
           {{ t('notification.skip') }}
         </button>
       </header>
@@ -75,14 +77,14 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
           <h2 class="notification-title" :title="breakMode ? actionTitle : name">
             {{ breakMode ? actionTitle : name }}
           </h2>
-          <p class="notification-message" :title="breakMode ? countdownMessage : message">
-            {{ breakMode ? countdownMessage : message }}
+          <p class="notification-message" :role="error ? 'alert' : undefined" :title="breakMode ? countdownMessage : message">
+            {{ error || (breakMode ? countdownMessage : message) }}
           </p>
           <div v-if="breakMode" class="countdown-row">
             <span class="break-countdown" role="timer" :aria-label="t('notification.remaining')">{{ breakCountdownLabel }}</span>
             <span class="countdown-label">{{ t('notification.remaining') }}</span>
           </div>
-          <button v-else class="complete-button" type="button" :title="primaryLabel" @click="emit('complete')">
+          <button v-else class="complete-button" :disabled="pending" type="button" :title="primaryLabel" @click="emit('complete')">
             {{ primaryLabel }}
           </button>
         </div>
@@ -92,7 +94,7 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
         <div class="countdown-track" aria-hidden="true">
           <div class="countdown-fill" :style="{ transform: `scaleX(${progress})` }" />
         </div>
-        <button class="complete-button finish-button" type="button" @click="emit('finish')">
+        <button class="complete-button finish-button" :disabled="pending" type="button" @click="emit('finish')">
           {{ t(visual.type === 'rest' ? 'notification.finishBreak' : 'notification.complete') }}
         </button>
       </footer>
@@ -103,7 +105,7 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
             v-for="option in postponeOptions"
             :key="option.minutes"
             class="postpone-button"
-            type="button"
+            :disabled="pending" type="button"
             @click="emit('postpone', option.minutes)"
           >
             {{ option.label }}

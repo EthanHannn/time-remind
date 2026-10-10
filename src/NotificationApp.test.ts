@@ -76,6 +76,35 @@ describe('notification cancellation', () => {
     expect(mocks.invoke.mock.calls.filter(([command]) => command === 'release_notification')).toHaveLength(0)
   })
 
+  it('keeps a failed completion visible and retries without starting a second action', async () => {
+    await wrapper.find('.complete-button').trigger('click')
+    await flushPromises()
+    mocks.invoke.mockRejectedValueOnce('disk full')
+    await wrapper.find('.finish-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.break-countdown').exists()).toBe(true)
+    expect(wrapper.find('[role="alert"]').text()).toContain('feedback.failed')
+    expect(wrapper.find('.finish-button').attributes('disabled')).toBeUndefined()
+    await wrapper.find('.finish-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.notification-shell').exists()).toBe(false)
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === 'respond_reminder')).toHaveLength(1)
+    expect(mocks.invoke.mock.calls.filter(([command]) => command === 'release_notification')).toHaveLength(2)
+  })
+
+  it('uses the remaining duration returned by the backend', async () => {
+    mocks.invoke.mockResolvedValueOnce({ remaining_seconds: 3 })
+    await wrapper.find('.complete-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.break-countdown').text()).toBe('00:03')
+    await vi.advanceTimersByTimeAsync(3000)
+    expect(mocks.invoke).toHaveBeenCalledWith('release_notification', {
+      reminderId: 'drink',
+      notificationId: 'instance-1',
+      finishBreakNow: false,
+    })
+  })
+
   it('does not let an old response close a new notification', async () => {
     let finish!: () => void
     mocks.invoke.mockImplementationOnce(() => new Promise<void>((resolve) => {

@@ -15,6 +15,8 @@ const props = defineProps<{
   pendingLabel: string
   postponeOptions: { label: string, minutes: number }[]
   preview?: boolean
+  pending?: boolean
+  error?: string
 }>()
 const emit = defineEmits<{
   complete: []
@@ -60,15 +62,15 @@ const notificationStyle = computed(() => ({
           <h2 class="notification-title" :title="actionTitle">
             {{ actionTitle }}
           </h2>
-          <p class="notification-message">
-            {{ actionMessage || t('notification.breakMessage', { time: breakCountdownLabel }) }}
+          <p class="notification-message" :role="error ? 'alert' : undefined">
+            {{ error || actionMessage || t('notification.breakMessage', { time: breakCountdownLabel }) }}
           </p>
 
           <div class="break-countdown">
             {{ breakCountdownLabel }}
           </div>
 
-          <button class="complete-button" type="button" @click="emit('finish')">
+          <button class="complete-button" :disabled="pending" type="button" @click="emit('finish')">
             {{ t('notification.finishBreak') }}
           </button>
         </template>
@@ -83,16 +85,16 @@ const notificationStyle = computed(() => ({
           <h2 class="notification-title" :title="name">
             {{ name }}
           </h2>
-          <p class="notification-message" :title="message">
-            {{ message }}
+          <p class="notification-message" :role="error ? 'alert' : undefined" :title="message">
+            {{ error || message }}
           </p>
 
           <div class="action-grid">
-            <button class="complete-button" type="button" @click="emit('complete')">
+            <button class="complete-button" :disabled="pending" type="button" @click="emit('complete')">
               {{ t('notification.complete') }}
             </button>
 
-            <button class="skip-button" type="button" @click="emit('skip')">
+            <button class="skip-button" :disabled="pending" type="button" @click="emit('skip')">
               {{ t('notification.skip') }}
             </button>
           </div>
@@ -102,7 +104,7 @@ const notificationStyle = computed(() => ({
               v-for="option in postponeOptions"
               :key="option.minutes"
               class="postpone-button"
-              type="button"
+              :disabled="pending" type="button"
               @click="emit('postpone', option.minutes)"
             >
               {{ option.label }}

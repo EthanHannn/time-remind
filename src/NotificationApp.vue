@@ -187,7 +187,9 @@ let unlistenSystemResumed: (() => void) | null = null
 let systemTimersPaused = false
 let latestQueueRevision = -1
 let notificationRevision = 0
-let actionPending = false
+const actionPending = ref(false)
+const actionError = ref('')
+let breakDeadline = 0
 let disposed = false
 
 async function showPreview(request: NotificationPreviewRequest) {
@@ -212,7 +214,7 @@ async function showPreview(request: NotificationPreviewRequest) {
   actionDurationSeconds.value = visual.value.defaultActionDurationSeconds || 0
   actionTitle.value = t(request.reminderType === 'eye_care' ? 'notification.startEyeCare' : 'notification.startBreak')
   actionMessage.value = ''
-  actionPending = false
+  actionPending.value = false
   breakMode.value = false
   pendingCount.value = 0
   visible.value = true
@@ -270,7 +272,8 @@ onMounted(async () => {
     latestQueueRevision = data.queue_revision
 
     notificationRevision += 1
-    actionPending = false
+    actionPending.value = false
+    actionError.value = ''
     clearAutoDismiss()
     stopBreakCountdown()
     breakMode.value = false
@@ -411,8 +414,10 @@ function runBreakCountdown() {
   if (systemTimersPaused)
     return
 
+  stopBreakCountdown()
+  breakDeadline = Date.now() + breakRemainingSeconds.value * 1000
   breakTimer = setInterval(() => {
-    breakRemainingSeconds.value = Math.max(0, breakRemainingSeconds.value - 1)
+    breakRemainingSeconds.value = Math.max(0, Math.ceil((breakDeadline - Date.now()) / 1000))
     if (breakRemainingSeconds.value <= 0) {
       stopBreakCountdown()
       void closeBreakPrompt(false)
@@ -420,10 +425,10 @@ function runBreakCountdown() {
   }, 1000)
 }
 
-function startBreakCountdown() {
+function startBreakCountdown(seconds = actionDurationSeconds.value) {
   stopBreakCountdown()
   breakMode.value = true
-  breakRemainingSeconds.value = actionDurationSeconds.value
+  breakRemainingSeconds.value = seconds
   runBreakCountdown()
 }
 
@@ -436,12 +441,30 @@ function pauseLocalTimers() {
   stopBreakCountdown()
 }
 
-function resumeLocalTimers() {
+async function resumeLocalTimers() {
   if (!systemTimersPaused)
     return
 
   systemTimersPaused = false
   if (breakMode.value) {
+    if (!props.preview) {
+      const revision = notificationRevision
+      try {
+        const progress = await invoke<{ remaining_seconds: number } | null>('get_action_progress', {
+          reminderId: reminderId.value,
+          notificationId: notificationId.value,
+        })
+        if (revision !== notificationRevision)
+          return
+        if (progress)
+          breakRemainingSeconds.value = progress.remaining_seconds
+      }
+      catch (error) {
+        if (revision !== notificationRevision)
+          return
+        actionError.value = t('feedback.failed', { error: String(error) })
+      }
+    }
     if (breakRemainingSeconds.value <= 0) {
       void closeBreakPrompt(false)
       return
@@ -456,7 +479,8 @@ function resumeLocalTimers() {
 
 function resetNotificationState() {
   notificationRevision += 1
-  actionPending = false
+  actionPending.value = false
+  actionError.value = ''
   name.value = ''
   message.value = ''
   reminderId.value = ''
@@ -484,16 +508,16 @@ function closeNotificationWindow() {
 }
 
 async function closeBreakPrompt(finishBreakNow: boolean) {
-  if (!visible.value || actionPending)
+  if (!visible.value || actionPending.value)
     return
   if (props.preview) {
     closeNotificationWindow()
     return
   }
-  actionPending = true
+  actionPending.value = true
   const revision = notificationRevision
   stopBreakCountdown()
-  breakMode.value = false
+  actionError.value = ''
 
   try {
     await invoke('release_notification', {
@@ -501,20 +525,22 @@ async function closeBreakPrompt(finishBreakNow: boolean) {
       reminderId: reminderId.value,
       finishBreakNow,
     })
-  }
-  catch (err) {
-    console.error('Failed to release notification:', err)
-  }
-  finally {
     if (revision === notificationRevision)
       closeNotificationWindow()
+  }
+  catch (error) {
+    if (revision === notificationRevision) {
+      actionPending.value = false
+      actionError.value = t('feedback.failed', { error: String(error) })
+      runBreakCountdown()
+    }
   }
 }
 
 async function handleAction(action: string) {
-  if (!visible.value || actionPending)
+  if (!visible.value || actionPending.value)
     return
-  actionPending = true
+  actionPending.value = true
   const revision = notificationRevision
   clearAutoDismiss()
 
@@ -523,7 +549,7 @@ async function handleAction(action: string) {
     && actionEnabled.value
 
   if (props.preview) {
-    actionPending = false
+    actionPending.value = false
     if (shouldHoldForBreak)
       startBreakCountdown()
     else
@@ -532,7 +558,7 @@ async function handleAction(action: string) {
   }
 
   try {
-    await invoke('respond_reminder', {
+    const progress = await invoke<{ remaining_seconds: number } | null>('respond_reminder', {
       notificationId: notificationId.value,
       reminderId: reminderId.value,
       action,
@@ -541,9 +567,9 @@ async function handleAction(action: string) {
 
     if (revision !== notificationRevision)
       return
-    actionPending = false
+    actionPending.value = false
     if (shouldHoldForBreak) {
-      startBreakCountdown()
+      startBreakCountdown(progress?.remaining_seconds ?? actionDurationSeconds.value)
       return
     }
 
@@ -551,7 +577,8 @@ async function handleAction(action: string) {
   }
   catch (err) {
     if (revision === notificationRevision) {
-      actionPending = false
+      actionPending.value = false
+      actionError.value = t('feedback.failed', { error: String(err) })
       startAutoDismiss()
     }
     console.error('Failed to respond:', err)
@@ -559,13 +586,13 @@ async function handleAction(action: string) {
 }
 
 async function handlePostpone(minutes: number) {
-  if (!visible.value || actionPending)
+  if (!visible.value || actionPending.value)
     return
   if (props.preview) {
     closeNotificationWindow()
     return
   }
-  actionPending = true
+  actionPending.value = true
   const revision = notificationRevision
   clearAutoDismiss()
 
@@ -581,7 +608,8 @@ async function handlePostpone(minutes: number) {
   }
   catch (err) {
     if (revision === notificationRevision) {
-      actionPending = false
+      actionPending.value = false
+      actionError.value = t('feedback.failed', { error: String(err) })
       startAutoDismiss()
     }
     console.error('Failed to postpone:', err)
@@ -593,6 +621,8 @@ async function handlePostpone(minutes: number) {
   <component
     :is="notificationAppearance === 'classic' ? ClassicNotificationCard : NotificationCard"
     :visible="visible"
+    :pending="actionPending"
+    :error="actionError"
     :visual="visual"
     :name="name"
     :message="message"

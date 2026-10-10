@@ -110,6 +110,7 @@ impl Database {
     /// 执行数据库迁移
     fn migrate(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+        conn.execute_batch(crate::lifecycle::SCHEMA)?;
         let existing_database: bool = conn.query_row(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reminders')",
             [], |row| row.get(0),

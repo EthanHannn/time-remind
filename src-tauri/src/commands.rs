@@ -65,12 +65,6 @@ fn validate_existing_backup_file(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
-fn build_next_trigger(minutes: i64) -> String {
-    (Utc::now() + Duration::minutes(minutes))
-        .format("%Y-%m-%dT%H:%M:%S")
-        .to_string()
-}
-
 fn build_next_trigger_from(base: chrono::DateTime<Utc>, minutes: i64) -> String {
     (base + Duration::minutes(minutes))
         .format("%Y-%m-%dT%H:%M:%S")
@@ -130,7 +124,7 @@ fn covered_seconds(periods: &[CompensatedPeriod], start: i64, end: i64) -> i64 {
     covered
 }
 
-fn build_next_trigger_for_state_at(
+pub(crate) fn build_next_trigger_for_state_at(
     conn: &Connection,
     minutes: i64,
     now: chrono::DateTime<Utc>,
@@ -354,7 +348,7 @@ pub(crate) fn resume_all_reminders(conn: &Connection) -> Result<(), String> {
     resume_all_reminders_at(conn, Utc::now())
 }
 
-fn setting_timestamp(conn: &Connection, key: &str) -> Option<chrono::DateTime<Utc>> {
+pub(crate) fn setting_timestamp(conn: &Connection, key: &str) -> Option<chrono::DateTime<Utc>> {
     conn.query_row("SELECT value FROM settings WHERE key = ?1", [key], |row| {
         row.get::<_, String>(0)
     })
@@ -380,6 +374,7 @@ pub(crate) fn compensate_system_pause(
     started_at: chrono::DateTime<Utc>,
     now: chrono::DateTime<Utc>,
 ) -> Result<(), String> {
+    crate::lifecycle::extend_deadlines(conn, (now - started_at).num_seconds())?;
     let manual_start = if all_reminders_paused(conn) {
         setting_timestamp(conn, ALL_REMINDERS_PAUSED_AT_KEY)
     } else {
@@ -551,18 +546,6 @@ fn normalize_action_text(value: String, fallback: &str) -> String {
     }
 }
 
-fn calculate_next_trigger(reminder: &Reminder, action: &str, now: chrono::DateTime<Utc>) -> String {
-    let action_seconds =
-        if action == "completed" && reminder.action_enabled && reminder.action_duration_seconds > 0
-        {
-            reminder.action_duration_seconds
-        } else {
-            0
-        };
-
-    build_next_trigger_from_parts(now, reminder.interval_minutes, action_seconds)
-}
-
 fn validate_response_action(action: &str) -> Result<(), String> {
     match action {
         "completed" | "skipped" | "timeout" => Ok(()),
@@ -570,7 +553,7 @@ fn validate_response_action(action: &str) -> Result<(), String> {
     }
 }
 
-fn get_reminder_by_id(conn: &Connection, id: &str) -> Result<Reminder, String> {
+pub(crate) fn get_reminder_by_id(conn: &Connection, id: &str) -> Result<Reminder, String> {
     conn.query_row(
         "SELECT id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at FROM reminders WHERE id = ?1",
         [id],
@@ -776,7 +759,7 @@ fn validate_import_data(data: &ExportData) -> Result<(), String> {
             || log.reminder_id.len() > 128
             || !matches!(
                 log.action.as_str(),
-                "completed" | "postponed" | "skipped" | "timeout"
+                "completed" | "postponed" | "skipped" | "timeout" | "interrupted"
             )
         {
             return Err("无效的提醒日志".to_string());
@@ -1130,11 +1113,11 @@ pub fn update_reminder(
         "UPDATE reminders SET name = ?1, reminder_type = ?2, icon = ?3, message = ?4, interval_minutes = ?5, break_duration_minutes = ?6, break_notification_enabled = ?7, action_enabled = ?8, action_title = ?9, action_message = ?10, action_duration_seconds = ?11, action_completion_mode = ?12, enabled = ?13, next_trigger = ?14, updated_at = ?15 WHERE id = ?16",
         (&name, &reminder_type, &icon, &message, interval_minutes, break_duration_minutes, break_notification_enabled as i32, action_enabled as i32, &action_title, &action_message, action_duration_seconds, &action_completion_mode, enabled as i32, &next_trigger, &now, &id),
     ).map_err(|e| e.to_string())?;
-    drop(conn);
-
     if !enabled {
+        crate::lifecycle::interrupt(&conn, Some(&id), Utc::now())?;
         scheduler.release_notification(&id);
     }
+    drop(conn);
 
     Ok(Reminder {
         id,
@@ -1165,6 +1148,7 @@ pub fn delete_reminder(
     id: String,
 ) -> Result<(), String> {
     let conn = db.conn.lock().unwrap();
+    crate::lifecycle::interrupt(&conn, Some(&id), Utc::now())?;
     conn.execute("DELETE FROM reminder_logs WHERE reminder_id = ?1", [&id])
         .map_err(|e| e.to_string())?;
     conn.execute("DELETE FROM reminders WHERE id = ?1", [&id])
@@ -1202,11 +1186,11 @@ pub fn toggle_reminder(
         (enabled as i32, &next_trigger, &now, &id),
     )
     .map_err(|e| e.to_string())?;
-    drop(conn);
-
     if !enabled {
+        crate::lifecycle::interrupt(&conn, Some(&id), Utc::now())?;
         scheduler.release_notification(&id);
     }
+    drop(conn);
 
     Ok(Reminder {
         id: current.id,
@@ -1239,45 +1223,47 @@ pub fn respond_reminder(
     notification_id: String,
     action: String,
     hold_notification: Option<bool>,
-) -> Result<(), String> {
+) -> Result<Option<crate::lifecycle::ActionProgress>, String> {
     validate_response_action(&action)?;
-
     let conn = db.conn.lock().unwrap();
-    if all_reminders_paused(&conn)
-        || !scheduler.is_current_notification(&reminder_id, &notification_id)
-    {
-        return Err("通知已取消或过期".to_string());
-    }
+    validate_live_notification(&conn, &scheduler, &reminder_id, &notification_id)?;
     let current = get_reminder_by_id(&conn, &reminder_id)?;
-    let now = Utc::now();
-    let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
-    let id = Uuid::new_v4().to_string();
-    let next_trigger = if current.enabled {
-        Some(calculate_next_trigger(&current, &action, now))
-    } else {
-        None
-    };
-
-    conn.execute(
-        "INSERT INTO reminder_logs (id, reminder_id, action, triggered_at, responded_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-        (&id, &reminder_id, &action, &now_str, &now_str),
-    )
-    .map_err(|e| e.to_string())?;
-
-    conn.execute(
-        "UPDATE reminders SET next_trigger = ?1, updated_at = ?2 WHERE id = ?3",
-        (&next_trigger, &now_str, &reminder_id),
-    )
-    .map_err(|e| e.to_string())?;
-
-    app.emit("reminders:changed", ())
-        .map_err(|e| e.to_string())?;
-
-    if !hold_notification.unwrap_or(false) {
+    let result =
+        crate::lifecycle::respond(&conn, &current, &notification_id, &action, None, Utc::now())?;
+    // The backend decides whether this action has a countdown.
+    let _ = hold_notification;
+    if result.is_none() {
         scheduler.release_notification(&reminder_id);
     }
+    let _ = app.emit("reminders:changed", ());
+    Ok(result)
+}
 
+fn validate_live_notification(
+    conn: &Connection,
+    scheduler: &Scheduler,
+    reminder_id: &str,
+    notification_id: &str,
+) -> Result<(), String> {
+    if all_reminders_paused(conn)
+        || setting_timestamp(conn, SYSTEM_PAUSED_AT_KEY).is_some()
+        || !scheduler.is_current_notification(reminder_id, notification_id)
+    {
+        return Err("通知已取消、暂停或过期".into());
+    }
     Ok(())
+}
+
+#[tauri::command]
+pub fn get_action_progress(
+    db: State<'_, Database>,
+    scheduler: State<'_, Scheduler>,
+    reminder_id: String,
+    notification_id: String,
+) -> Result<Option<crate::lifecycle::ActionProgress>, String> {
+    let conn = db.conn.lock().unwrap();
+    validate_live_notification(&conn, &scheduler, &reminder_id, &notification_id)?;
+    crate::lifecycle::progress(&conn, &notification_id, Utc::now())
 }
 
 /// 获取今日统计
@@ -1339,44 +1325,23 @@ pub fn postpone_reminder(
     minutes: i64,
 ) -> Result<(), String> {
     validate_interval_minutes(minutes, "延后时间")?;
-
     let conn = db.conn.lock().unwrap();
-    if all_reminders_paused(&conn)
-        || !scheduler.is_current_notification(&reminder_id, &notification_id)
-    {
-        return Err("通知已取消或过期".to_string());
-    }
+    validate_live_notification(&conn, &scheduler, &reminder_id, &notification_id)?;
     let current = get_reminder_by_id(&conn, &reminder_id)?;
-    if !current.enabled {
-        return Err("提醒已禁用，无法延后".to_string());
-    }
-
-    let now = now_utc_string();
-    let new_next = build_next_trigger(minutes);
-
-    // 记录延后操作
-    let log_id = Uuid::new_v4().to_string();
-    conn.execute(
-        "INSERT INTO reminder_logs (id, reminder_id, action, triggered_at, responded_at) VALUES (?1, ?2, 'postponed', ?3, ?3)",
-        (&log_id, &reminder_id, &now),
-    )
-    .map_err(|e| e.to_string())?;
-
-    // 更新下次触发时间
-    conn.execute(
-        "UPDATE reminders SET next_trigger = ?1, updated_at = ?2 WHERE id = ?3",
-        (&new_next, &now, &reminder_id),
-    )
-    .map_err(|e| e.to_string())?;
-
-    app.emit("reminders:changed", ())
-        .map_err(|e| e.to_string())?;
+    crate::lifecycle::respond(
+        &conn,
+        &current,
+        &notification_id,
+        "postponed",
+        Some(minutes),
+        Utc::now(),
+    )?;
     scheduler.release_notification(&reminder_id);
-
+    let _ = app.emit("reminders:changed", ());
     Ok(())
 }
 
-/// 释放当前通知并展示下一条
+/// Complete the current action before releasing its notification.
 #[tauri::command]
 pub fn release_notification(
     app: AppHandle,
@@ -1387,31 +1352,17 @@ pub fn release_notification(
     finish_break_now: Option<bool>,
 ) -> Result<(), String> {
     let conn = db.conn.lock().unwrap();
-    if all_reminders_paused(&conn)
-        || !scheduler.is_current_notification(&reminder_id, &notification_id)
-    {
-        return Err("通知已取消或过期".to_string());
-    }
-    if finish_break_now.unwrap_or(false) {
-        let current = get_reminder_by_id(&conn, &reminder_id)?;
-
-        if current.enabled && current.action_enabled && current.action_duration_seconds > 0 {
-            let now = Utc::now();
-            let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
-            let next_trigger = build_next_trigger_from(now, current.interval_minutes);
-
-            conn.execute(
-                "UPDATE reminders SET next_trigger = ?1, updated_at = ?2 WHERE id = ?3",
-                (&next_trigger, &now_str, &reminder_id),
-            )
-            .map_err(|e| e.to_string())?;
-
-            app.emit("reminders:changed", ())
-                .map_err(|e| e.to_string())?;
-        }
-    }
-
+    validate_live_notification(&conn, &scheduler, &reminder_id, &notification_id)?;
+    let current = get_reminder_by_id(&conn, &reminder_id)?;
+    crate::lifecycle::finish(
+        &conn,
+        &current,
+        &notification_id,
+        finish_break_now.unwrap_or(false),
+        Utc::now(),
+    )?;
     scheduler.release_notification(&reminder_id);
+    let _ = app.emit("reminders:changed", ());
     Ok(())
 }
 
@@ -1850,6 +1801,7 @@ pub fn import_data(
     let live_system_pause = setting_timestamp(&conn, SYSTEM_PAUSED_AT_KEY);
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
+    crate::lifecycle::interrupt_in_transaction(&tx, None, Utc::now())?;
     if matches!(mode, ImportMode::Replace) {
         tx.execute("DELETE FROM reminder_logs", [])
             .map_err(|e| e.to_string())?;
@@ -1985,7 +1937,7 @@ pub fn import_data(
     repair_imported_reminder_schedule(&tx)?;
     tx.commit().map_err(|e| e.to_string())?;
 
-    scheduler.clear_all_active();
+    scheduler.clear_all_active(&conn)?;
     if all_reminders_paused(&conn) {
         crate::set_tray_visual_state(&app, crate::TrayVisualState::Muted);
     }
@@ -2099,7 +2051,7 @@ pub fn toggle_all_reminders(
         crate::set_tray_visual_state(&app, crate::TrayVisualState::Idle);
     } else {
         pause_all_reminders(&conn)?;
-        scheduler.clear_all_active();
+        scheduler.clear_all_active(&conn)?;
         crate::set_tray_visual_state(&app, crate::TrayVisualState::Muted);
     }
     drop(conn);
@@ -2121,7 +2073,7 @@ pub fn set_temp_dnd(
     let conn = db.conn.lock().unwrap();
     start_temp_dnd(&conn, minutes)?;
 
-    scheduler.clear_all_active();
+    scheduler.clear_all_active(&conn)?;
     drop(conn);
     app.emit("reminders:changed", ())
         .map_err(|e| e.to_string())?;
@@ -2343,37 +2295,6 @@ mod tests {
         assert!(error.contains("内容为空"));
     }
 
-    #[test]
-    fn completed_action_countdown_keeps_second_precision() {
-        let now = Utc
-            .with_ymd_and_hms(2026, 6, 11, 10, 0, 0)
-            .single()
-            .expect("fixed test time should be valid");
-        let reminder = Reminder {
-            id: "default-eye-care".to_string(),
-            name: "Eye care".to_string(),
-            reminder_type: "eye_care".to_string(),
-            icon: "eye_care".to_string(),
-            message: "Look away".to_string(),
-            interval_minutes: 20,
-            break_duration_minutes: 0,
-            break_notification_enabled: false,
-            action_enabled: true,
-            action_title: "Eye care".to_string(),
-            action_message: "Look away".to_string(),
-            action_duration_seconds: 20,
-            action_completion_mode: "auto".to_string(),
-            enabled: true,
-            next_trigger: None,
-            created_at: String::new(),
-            updated_at: String::new(),
-        };
-
-        let next_trigger = calculate_next_trigger(&reminder, "completed", now);
-
-        assert_eq!(next_trigger, "2026-06-11T10:20:20");
-    }
-
     fn prepare_pause_test_db() -> Connection {
         let conn = Connection::open_in_memory().expect("test database should open");
         conn.execute_batch(
@@ -2392,6 +2313,7 @@ mod tests {
             ",
         )
         .expect("test schema should be created");
+        conn.execute_batch(crate::lifecycle::SCHEMA).unwrap();
         conn
     }
 

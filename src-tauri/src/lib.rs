@@ -2,6 +2,7 @@ mod app_log;
 mod commands;
 mod db;
 mod fullscreen;
+mod lifecycle;
 mod models;
 pub mod power;
 mod preview;
@@ -1038,6 +1039,8 @@ pub fn run() {
 
             // 初始化数据库
             let db = Database::init(app.handle()).expect("failed to init database");
+            lifecycle::interrupt(&db.conn.lock().unwrap(), None, Utc::now())
+                .expect("failed to reconcile interrupted actions");
             cleanup_old_logs(&db);
             insert_default_reminders(app.handle(), &db);
             reconcile_schedule_on_startup(&db);
@@ -1119,7 +1122,7 @@ pub fn run() {
                         let conn = db.conn.lock().unwrap();
                         let _ = commands::pause_all_reminders(&conn);
                         let scheduler = app.state::<Scheduler>();
-                        scheduler.clear_all_active();
+                        let _ = scheduler.clear_all_active(&conn);
                         drop(conn);
                         let _ = app.emit("reminders:changed", ());
                         set_tray_visual_state(app, TrayVisualState::Muted);
@@ -1144,13 +1147,15 @@ pub fn run() {
 
                         if result.is_ok() {
                             let scheduler = app.state::<Scheduler>();
-                            scheduler.clear_all_active();
+                            let _ = scheduler.clear_all_active(&conn);
                             let _ = app.emit("reminders:changed", ());
                             set_tray_visual_state(app, TrayVisualState::Muted);
                         }
                         drop(conn);
                     }
                     "quit" => {
+                        let db = app.state::<Database>();
+                        let _ = lifecycle::interrupt(&db.conn.lock().unwrap(), None, Utc::now());
                         app.exit(0);
                     }
                     _ => {}
@@ -1226,6 +1231,7 @@ pub fn run() {
             commands::respond_reminder,
             commands::postpone_reminder,
             commands::release_notification,
+            commands::get_action_progress,
             commands::get_daily_stats,
             commands::get_trend_stats,
             commands::get_streak_stats,

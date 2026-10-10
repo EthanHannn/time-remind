@@ -328,7 +328,8 @@ impl Scheduler {
             .is_some_and(|current| current.matches(reminder_id, notification_id))
     }
 
-    pub fn clear_all_active(&self) {
+    pub fn clear_all_active(&self, conn: &Connection) -> Result<(), String> {
+        crate::lifecycle::interrupt(conn, None, Utc::now())?;
         self.active_reminders.lock().unwrap().clear();
         {
             let mut queue = self.queue.lock().unwrap();
@@ -339,6 +340,7 @@ impl Scheduler {
         }
         self.emit_queue_state();
         crate::set_tray_visual_state(&self.app, crate::TrayVisualState::Idle);
+        Ok(())
     }
 
     pub fn enqueue_notification(&self, data: NotificationData) -> Result<(), String> {
@@ -499,7 +501,10 @@ impl Scheduler {
                 });
             }
 
-            if self.show_notification(&data).is_ok() {
+            if crate::lifecycle::shown(&conn, &data.reminder_id, &data.notification_id, Utc::now())
+                .and_then(|_| self.show_notification(&data))
+                .is_ok()
+            {
                 self.emit_queue_state();
                 crate::set_tray_visual_state(&self.app, crate::TrayVisualState::Alert);
                 break;
@@ -511,6 +516,7 @@ impl Scheduler {
                 queue.revision += 1;
             }
             self.clear_active(&data.reminder_id);
+            let _ = crate::lifecycle::interrupt(&conn, Some(&data.reminder_id), Utc::now());
             self.emit_queue_state();
         }
     }
@@ -611,6 +617,46 @@ impl Scheduler {
         let _ = self.app.emit("notification:queue-updated", state);
     }
 
+    fn finish_due_action(&self) {
+        let db = self.app.state::<Database>();
+        let conn = db.conn.lock().unwrap();
+        if crate::commands::all_reminders_paused(&conn)
+            || crate::commands::setting_timestamp(&conn, crate::commands::SYSTEM_PAUSED_AT_KEY)
+                .is_some()
+        {
+            return;
+        }
+        let current = self.queue.lock().unwrap().current.clone();
+        let Some(current) = current else {
+            return;
+        };
+        let now = Utc::now();
+        if let Ok(Some(progress)) = crate::lifecycle::progress(&conn, &current.notification_id, now)
+        {
+            if progress.remaining_seconds == 0 {
+                if let Ok(reminder) =
+                    crate::commands::get_reminder_by_id(&conn, &current.reminder_id)
+                {
+                    match crate::lifecycle::finish(
+                        &conn,
+                        &reminder,
+                        &current.notification_id,
+                        false,
+                        now,
+                    ) {
+                        Ok(()) => {
+                            self.release_notification(&current.reminder_id);
+                            let _ = self.app.emit("reminders:changed", ());
+                        }
+                        Err(error) => {
+                            crate::app_log::warn(format!("完成动作失败，将重试：{error}"))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     async fn run_loop(app: AppHandle, running: Arc<AsyncMutex<bool>>, scheduler: Scheduler) {
         let mut tick_interval = interval(Duration::from_secs(1));
 
@@ -640,6 +686,7 @@ impl Scheduler {
                 continue;
             }
 
+            scheduler.finish_due_action();
             scheduler.show_next_notification();
             let now = Utc::now();
 
@@ -803,7 +850,11 @@ impl Scheduler {
                     }
                     Err(error) if error.is_panic() => {
                         crate::app_log::error(format!("定时器工作循环崩溃，准备重启：{error}"));
-                        scheduler.clear_all_active();
+                        {
+                            let db = app.state::<Database>();
+                            let conn = db.conn.lock().unwrap();
+                            let _ = scheduler.clear_all_active(&conn);
+                        }
                         sleep(Duration::from_secs(2)).await;
                     }
                     Err(error) => {
