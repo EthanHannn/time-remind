@@ -375,6 +375,10 @@ pub(crate) fn compensate_system_pause(
     started_at: chrono::DateTime<Utc>,
     now: chrono::DateTime<Utc>,
 ) -> Result<(), String> {
+    let transaction = conn
+        .unchecked_transaction()
+        .map_err(|error| error.to_string())?;
+    let conn = &transaction;
     crate::lifecycle::extend_deadlines(conn, (now - started_at).num_seconds())?;
     let manual_start = if all_reminders_paused(conn) {
         setting_timestamp(conn, ALL_REMINDERS_PAUSED_AT_KEY)
@@ -395,7 +399,7 @@ pub(crate) fn compensate_system_pause(
         [SYSTEM_PAUSED_AT_KEY],
     )
     .map_err(|error| error.to_string())?;
-    Ok(())
+    transaction.commit().map_err(|error| error.to_string())
 }
 
 fn resume_all_reminders_at(conn: &Connection, now: chrono::DateTime<Utc>) -> Result<(), String> {
@@ -2309,6 +2313,41 @@ mod tests {
     use super::*;
 
     #[test]
+    fn failed_system_resume_rolls_back_action_and_schedule_compensation_before_retry() {
+        let db = Database::in_memory();
+        let conn = db.conn.lock().unwrap();
+        let start = crate::settings::timestamp("2026-10-10T01:00:00").unwrap();
+        conn.execute("INSERT INTO reminders (id,name,next_trigger,created_at,updated_at) VALUES ('one','One','2026-10-10T02:00:00','','')", []).unwrap();
+        crate::lifecycle::shown(&conn, "one", "instance", start).unwrap();
+        conn.execute("UPDATE active_notifications SET started_at = '2026-10-10T01:00:00', deadline = '2026-10-10T01:00:20'", []).unwrap();
+        conn.execute(
+            "INSERT INTO settings VALUES ('system_paused_at', '2026-10-10T01:00:00')",
+            [],
+        )
+        .unwrap();
+        conn.execute_batch("CREATE TRIGGER fail_schedule BEFORE UPDATE ON reminders BEGIN SELECT RAISE(ABORT, 'disk full'); END;").unwrap();
+        assert!(compensate_system_pause(&conn, start, start + Duration::minutes(1)).is_err());
+        assert_eq!(
+            crate::lifecycle::progress(&conn, "instance", start)
+                .unwrap()
+                .unwrap()
+                .remaining_seconds,
+            20
+        );
+        assert!(setting_timestamp(&conn, SYSTEM_PAUSED_AT_KEY).is_some());
+        conn.execute_batch("DROP TRIGGER fail_schedule").unwrap();
+        compensate_system_pause(&conn, start, start + Duration::minutes(1)).unwrap();
+        assert_eq!(
+            crate::lifecycle::progress(&conn, "instance", start)
+                .unwrap()
+                .unwrap()
+                .remaining_seconds,
+            80
+        );
+        assert!(setting_timestamp(&conn, SYSTEM_PAUSED_AT_KEY).is_none());
+    }
+
+    #[test]
     fn runtime_snapshot_distinguishes_due_queue_action_pause_and_dnd() {
         let db = Database::in_memory();
         let conn = db.conn.lock().unwrap();
@@ -2580,6 +2619,9 @@ mod tests {
     #[test]
     fn large_history_backup_round_trips_through_file_commands() {
         let db = Database::in_memory();
+        db.conn.lock().unwrap().execute(
+            "INSERT INTO reminders (id, name, message, created_at, updated_at) VALUES ('reminder-id', 'Reminder', 'Take a break', '2026-10-10T01:00:00', '2026-10-10T01:00:00')", []
+        ).unwrap();
         let mut data = collect_export_data(&db.conn.lock().unwrap()).unwrap();
         for i in 0..210_000 {
             data.logs.push(ReminderLog {

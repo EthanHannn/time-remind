@@ -83,7 +83,11 @@ impl PowerMonitor {
             PowerTransition::Start(at) => start_pause(&self.app, &self.pause_state, "locked", at),
             PowerTransition::Finish => finish_pause(&self.app, &self.pause_state, "unlocked", now),
             PowerTransition::Wake(at) => {
-                compensate_pause(&self.app, at, now);
+                if !compensate_pause(&self.app, at, now) {
+                    // Keep the original observation so the next refresh retries
+                    // the entire missed interval after a transient database failure.
+                    return;
+                }
                 let payload = PowerStateChanged {
                     state: "resume".into(),
                     reason: "wake".into(),
@@ -180,7 +184,9 @@ fn finish_pause(
     };
 
     let paused_seconds = (now - pause.paused_at).num_seconds().max(0);
-    compensate_pause(app, pause.paused_at, now);
+    if !compensate_pause(app, pause.paused_at, now) {
+        return;
+    }
     pause_state.lock().unwrap().take();
     let payload = PowerStateChanged {
         state: "resume".to_string(),
@@ -191,7 +197,7 @@ fn finish_pause(
     let _ = app.emit("system:resumed", &payload);
 }
 
-fn compensate_pause(app: &AppHandle, started_at: DateTime<Utc>, now: DateTime<Utc>) {
+fn compensate_pause(app: &AppHandle, started_at: DateTime<Utc>, now: DateTime<Utc>) -> bool {
     let db = app.state::<crate::db::Database>();
     let conn = db.conn.lock().unwrap();
     match crate::commands::compensate_system_pause(&conn, started_at, now) {
@@ -212,8 +218,12 @@ fn compensate_pause(app: &AppHandle, started_at: DateTime<Utc>, now: DateTime<Ut
                 },
             );
             let _ = app.emit("reminders:changed", ());
+            true
         }
-        Err(error) => crate::app_log::error(format!("恢复锁屏/休眠暂停失败：{error}")),
+        Err(error) => {
+            crate::app_log::error(format!("恢复锁屏/休眠暂停失败，将重试：{error}"));
+            false
+        }
     }
 }
 
