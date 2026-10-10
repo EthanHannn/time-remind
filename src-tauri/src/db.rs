@@ -153,6 +153,9 @@ impl Database {
             CREATE INDEX IF NOT EXISTS idx_reminder_logs_triggered_at
                 ON reminder_logs(triggered_at);
 
+            CREATE INDEX IF NOT EXISTS idx_reminder_logs_outcome_at
+                ON reminder_logs(COALESCE(responded_at, triggered_at));
+
             CREATE TABLE IF NOT EXISTS settings (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL

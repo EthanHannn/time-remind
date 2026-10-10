@@ -661,25 +661,6 @@ pub(crate) fn refresh_tray_menu_text<R: Runtime>(app: &AppHandle<R>, language: &
     let _ = items.quit.set_text(text.quit);
 }
 
-/// 清理旧日志（保留90天）
-fn cleanup_old_logs(db: &Database) {
-    let conn = db.conn.lock().unwrap();
-    let cutoff_date = (chrono::Utc::now() - chrono::Duration::days(90))
-        .format("%Y-%m-%d")
-        .to_string();
-
-    let deleted = conn
-        .execute(
-            "DELETE FROM reminder_logs WHERE triggered_at < ?1",
-            [&cutoff_date],
-        )
-        .unwrap_or(0);
-
-    if deleted > 0 {
-        println!("Cleaned up {} old log entries", deleted);
-    }
-}
-
 /// 插入默认提醒数据
 fn insert_default_reminders(app: &AppHandle, db: &Database) {
     let (language, from_installer) = default_template_language(app);
@@ -1041,7 +1022,6 @@ pub fn run() {
             let db = Database::init(app.handle()).expect("failed to init database");
             lifecycle::interrupt(&db.conn.lock().unwrap(), None, Utc::now())
                 .expect("failed to reconcile interrupted actions");
-            cleanup_old_logs(&db);
             insert_default_reminders(app.handle(), &db);
             reconcile_schedule_on_startup(&db);
             restore_autostart_preference(app.handle(), &db);
@@ -1233,6 +1213,7 @@ pub fn run() {
             commands::release_notification,
             commands::get_action_progress,
             commands::get_daily_stats,
+            commands::get_statistics,
             commands::get_trend_stats,
             commands::get_streak_stats,
             commands::cleanup_old_logs,

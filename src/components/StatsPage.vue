@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
-import { computed, onMounted, ref } from 'vue'
+import { listen } from '@tauri-apps/api/event'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useI18n } from '../i18n'
 import { emptyReminders, getLocalizedReminderVisual } from '../utils/reminderVisuals'
 import CompletionDoughnut from './charts/CompletionDoughnut.vue'
@@ -38,6 +39,11 @@ const dailyStats = ref<ReminderStat[]>([])
 const trendStats = ref<TrendStat[]>([])
 const streakStats = ref<StreakInfo[]>([])
 const selectedDays = ref(7)
+const loading = ref(true)
+const error = ref('')
+let requestId = 0
+let disposed = false
+let unlisten: (() => void) | undefined
 const { locale, t } = useI18n()
 
 const hasOverviewData = computed(() => {
@@ -47,28 +53,48 @@ const hasOverviewData = computed(() => {
 })
 
 onMounted(async () => {
+  const stop = await listen('reminders:changed', () => {
+    void loadStats()
+  })
+  if (disposed) {
+    stop()
+    return
+  }
+  unlisten = stop
   await loadStats()
 })
 
+onUnmounted(() => {
+  disposed = true
+  requestId++
+  unlisten?.()
+})
+
 async function loadStats() {
+  const request = ++requestId
+  loading.value = true
   try {
-    dailyStats.value = await invoke('get_daily_stats')
-    trendStats.value = await invoke('get_trend_stats', { days: selectedDays.value })
-    streakStats.value = await invoke('get_streak_stats')
+    const snapshot = await invoke<{ daily: ReminderStat[], trend: TrendStat[], streaks: StreakInfo[] }>('get_statistics', { days: selectedDays.value })
+    if (request !== requestId)
+      return
+    dailyStats.value = snapshot.daily
+    trendStats.value = snapshot.trend
+    streakStats.value = snapshot.streaks
+    error.value = ''
   }
   catch (err) {
-    console.error('Failed to load stats:', err)
+    if (request === requestId)
+      error.value = t('feedback.failed', { error: String(err) })
+  }
+  finally {
+    if (request === requestId)
+      loading.value = false
   }
 }
 
 async function changeDays(days: number) {
   selectedDays.value = days
-  try {
-    trendStats.value = await invoke('get_trend_stats', { days })
-  }
-  catch (err) {
-    console.error('Failed to load trend stats:', err)
-  }
+  await loadStats()
 }
 
 function getCompletionRate(completed: number, total: number): number {
@@ -102,7 +128,15 @@ function getVisual(type: string, icon?: string) {
       </div>
 
       <div class="stats-content">
-        <div v-if="!hasOverviewData" class="stats-empty">
+        <p v-if="error" role="alert">
+          {{ error }} <button type="button" @click="loadStats">
+            {{ t('feedback.retry') }}
+          </button>
+        </p>
+        <p v-if="loading" role="status">
+          {{ t('feedback.loading') }}
+        </p>
+        <div v-if="!loading && !error && !hasOverviewData" class="stats-empty">
           <img :src="emptyReminders" :alt="t('stats.emptyAlt')" class="stats-empty-image">
           <h3 class="stats-empty-title">
             {{ t('stats.emptyTitle') }}
@@ -112,7 +146,7 @@ function getVisual(type: string, icon?: string) {
           </p>
         </div>
 
-        <template v-else>
+        <template v-if="hasOverviewData">
           <section class="stats-section">
             <div class="section-heading">
               <h3 class="section-title">

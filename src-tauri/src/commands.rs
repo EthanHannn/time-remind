@@ -1270,17 +1270,20 @@ pub fn get_action_progress(
 #[tauri::command]
 pub fn get_daily_stats(db: State<'_, Database>) -> Result<Vec<ReminderStat>, String> {
     let conn = db.conn.lock().unwrap();
-    let today = Local::now().date_naive();
+    read_daily_stats(&conn, Local::now().date_naive())
+}
+
+fn read_daily_stats(conn: &Connection, today: NaiveDate) -> Result<Vec<ReminderStat>, String> {
     let (start_utc, end_utc) = local_day_bounds_utc(today)?;
 
     let mut stmt = conn
         .prepare(
             "SELECT r.id, r.name, r.icon, r.reminder_type,
                     COUNT(CASE WHEN l.action = 'completed' THEN 1 END) as completed_count,
-                    COUNT(CASE WHEN l.action IS NOT NULL THEN 1 END) as total_count
+                    COUNT(CASE WHEN l.action IN ('completed', 'skipped', 'timeout', 'interrupted') THEN 1 END) as total_count,
+                    COUNT(CASE WHEN l.action = 'postponed' THEN 1 END) as postponed_count
               FROM reminders r
-             LEFT JOIN reminder_logs l ON r.id = l.reminder_id AND l.triggered_at >= ?1 AND l.triggered_at < ?2
-             WHERE r.enabled = 1
+             LEFT JOIN reminder_logs l ON r.id = l.reminder_id AND COALESCE(l.responded_at, l.triggered_at) >= ?1 AND COALESCE(l.responded_at, l.triggered_at) < ?2
               GROUP BY r.id",
         )
         .map_err(|e| e.to_string())?;
@@ -1294,6 +1297,7 @@ pub fn get_daily_stats(db: State<'_, Database>) -> Result<Vec<ReminderStat>, Str
                 reminder_type: row.get(3)?,
                 completed_count: row.get(4)?,
                 total_count: row.get(5)?,
+                postponed_count: row.get(6)?,
             })
         })
         .map_err(|e| e.to_string())?
@@ -1312,6 +1316,7 @@ pub struct ReminderStat {
     pub reminder_type: String,
     pub completed_count: i64,
     pub total_count: i64,
+    pub postponed_count: i64,
 }
 
 /// 延后提醒
@@ -1439,6 +1444,7 @@ pub struct TrendStat {
     pub date: String,
     pub completed_count: i64,
     pub total_count: i64,
+    pub postponed_count: i64,
 }
 
 /// 连续打卡天数
@@ -1452,6 +1458,27 @@ pub struct StreakInfo {
     pub max_streak: i64,
 }
 
+#[derive(Serialize)]
+pub struct StatisticsSnapshot {
+    daily: Vec<ReminderStat>,
+    trend: Vec<TrendStat>,
+    streaks: Vec<StreakInfo>,
+}
+
+#[tauri::command]
+pub fn get_statistics(
+    db: State<'_, Database>,
+    days: Option<i64>,
+) -> Result<StatisticsSnapshot, String> {
+    let conn = db.conn.lock().unwrap();
+    let today = Local::now().date_naive();
+    Ok(StatisticsSnapshot {
+        daily: read_daily_stats(&conn, today)?,
+        trend: read_trend_stats(&conn, days.unwrap_or(7), today)?,
+        streaks: read_streak_stats(&conn, today)?,
+    })
+}
+
 /// 获取趋势统计（过去 N 天）
 #[tauri::command]
 pub fn get_trend_stats(
@@ -1459,8 +1486,15 @@ pub fn get_trend_stats(
     days: Option<i64>,
 ) -> Result<Vec<TrendStat>, String> {
     let conn = db.conn.lock().unwrap();
-    let days = days.unwrap_or(7).clamp(1, 365);
-    let end_date = Local::now().date_naive();
+    read_trend_stats(&conn, days.unwrap_or(7), Local::now().date_naive())
+}
+
+fn read_trend_stats(
+    conn: &Connection,
+    days: i64,
+    end_date: NaiveDate,
+) -> Result<Vec<TrendStat>, String> {
+    let days = days.clamp(1, 365);
     let start_date = end_date
         .checked_sub_signed(Duration::days(days - 1))
         .ok_or_else(|| "无法计算趋势开始日期".to_string())?;
@@ -1469,9 +1503,9 @@ pub fn get_trend_stats(
 
     let mut stmt = conn
         .prepare(
-            "SELECT triggered_at, action
+            "SELECT COALESCE(responded_at, triggered_at), action
               FROM reminder_logs
-              WHERE triggered_at >= ?1 AND triggered_at < ?2
+              WHERE COALESCE(responded_at, triggered_at) >= ?1 AND COALESCE(responded_at, triggered_at) < ?2
               ORDER BY triggered_at",
         )
         .map_err(|e| e.to_string())?;
@@ -1484,25 +1518,35 @@ pub fn get_trend_stats(
         .collect::<Result<Vec<_>, _>>()
         .map_err(|e| e.to_string())?;
 
-    let mut stats_by_date: HashMap<NaiveDate, (i64, i64)> = HashMap::new();
+    let mut stats_by_date: HashMap<NaiveDate, (i64, i64, i64)> = HashMap::new();
     for (triggered_at, action) in logs {
         if let Some(date) = parse_utc_timestamp_to_local_date(&triggered_at) {
-            let entry = stats_by_date.entry(date).or_insert((0, 0));
+            let entry = stats_by_date.entry(date).or_insert((0, 0, 0));
             if action == "completed" {
                 entry.0 += 1;
             }
-            entry.1 += 1;
+            if matches!(
+                action.as_str(),
+                "completed" | "skipped" | "timeout" | "interrupted"
+            ) {
+                entry.1 += 1;
+            }
+            if action == "postponed" {
+                entry.2 += 1;
+            }
         }
     }
 
     let mut stats = Vec::new();
     let mut current = start_date;
     while current <= end_date {
-        let (completed_count, total_count) = stats_by_date.get(&current).copied().unwrap_or((0, 0));
+        let (completed_count, total_count, postponed_count) =
+            stats_by_date.get(&current).copied().unwrap_or((0, 0, 0));
         stats.push(TrendStat {
             date: current.format("%Y-%m-%d").to_string(),
             completed_count,
             total_count,
+            postponed_count,
         });
         current = current
             .checked_add_signed(Duration::days(1))
@@ -1516,14 +1560,15 @@ pub fn get_trend_stats(
 #[tauri::command]
 pub fn get_streak_stats(db: State<'_, Database>) -> Result<Vec<StreakInfo>, String> {
     let conn = db.conn.lock().unwrap();
-    let today = Local::now().date_naive();
+    read_streak_stats(&conn, Local::now().date_naive())
+}
 
-    // 获取所有启用的提醒
+fn read_streak_stats(conn: &Connection, today: NaiveDate) -> Result<Vec<StreakInfo>, String> {
+    // Historical achievements are independent of the current enabled switch.
     let mut stmt = conn
         .prepare(
             "SELECT r.id, r.name, r.icon, r.reminder_type
-             FROM reminders r
-             WHERE r.enabled = 1",
+             FROM reminders r",
         )
         .map_err(|e| e.to_string())?;
 
@@ -1541,7 +1586,7 @@ pub fn get_streak_stats(db: State<'_, Database>) -> Result<Vec<StreakInfo>, Stri
         // 查询每个提醒的完成记录
         let mut log_stmt = conn
             .prepare(
-                "SELECT triggered_at, action
+                "SELECT COALESCE(responded_at, triggered_at), action
                  FROM reminder_logs
                   WHERE reminder_id = ?1
                   ORDER BY triggered_at",
@@ -1561,12 +1606,18 @@ pub fn get_streak_stats(db: State<'_, Database>) -> Result<Vec<StreakInfo>, Stri
             }
 
             if let Some(date) = parse_utc_timestamp_to_local_date(&triggered_at) {
-                completed_dates.insert(date);
+                if date <= today {
+                    completed_dates.insert(date);
+                }
             }
         }
 
         let mut current_streak = 0i64;
-        let mut current_date = today;
+        let mut current_date = if completed_dates.contains(&today) {
+            today
+        } else {
+            today.pred_opt().ok_or("无法计算昨天日期")?
+        };
         while completed_dates.contains(&current_date) {
             current_streak += 1;
             let Some(previous_date) = current_date.checked_sub_signed(Duration::days(1)) else {
@@ -2114,6 +2165,76 @@ pub fn get_last_triggered(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn statistics_keep_disabled_history_and_count_final_outcomes_on_response_day() {
+        let db = Database::in_memory();
+        let conn = db.conn.lock().unwrap();
+        conn.execute("INSERT INTO reminders (id, name, created_at, updated_at) VALUES ('one', 'One', '', '')", []).unwrap();
+        let today = Local::now().date_naive();
+        let (midnight, _) = local_day_bounds_utc(today).unwrap();
+        let before = (crate::settings::timestamp(&midnight).unwrap() - Duration::seconds(10))
+            .format("%Y-%m-%dT%H:%M:%S")
+            .to_string();
+        for (id, action) in [
+            ("one", "postponed"),
+            ("two", "postponed"),
+            ("three", "completed"),
+        ] {
+            conn.execute(
+                "INSERT INTO reminder_logs VALUES (?1, 'one', ?2, ?3, ?4)",
+                (id, action, &before, &midnight),
+            )
+            .unwrap();
+        }
+        for enabled in [true, false] {
+            conn.execute("UPDATE reminders SET enabled = ?1", [enabled])
+                .unwrap();
+            let daily = read_daily_stats(&conn, today).unwrap();
+            let trend = read_trend_stats(&conn, 1, today).unwrap();
+            assert_eq!(
+                (
+                    daily[0].completed_count,
+                    daily[0].total_count,
+                    daily[0].postponed_count
+                ),
+                (1, 1, 2)
+            );
+            assert_eq!(
+                (
+                    trend[0].completed_count,
+                    trend[0].total_count,
+                    trend[0].postponed_count
+                ),
+                (1, 1, 2)
+            );
+            assert_eq!(
+                read_streak_stats(&conn, today).unwrap()[0].current_streak,
+                1
+            );
+        }
+    }
+
+    #[test]
+    fn streak_is_retained_until_today_ends_and_includes_history_older_than_ninety_days() {
+        let db = Database::in_memory();
+        let conn = db.conn.lock().unwrap();
+        conn.execute("INSERT INTO reminders (id, name, created_at, updated_at) VALUES ('one', 'One', '', '')", []).unwrap();
+        let today = Local::now().date_naive();
+        for days in 1..=120 {
+            let date = today - Duration::days(days);
+            let (timestamp, _) = local_day_bounds_utc(date).unwrap();
+            conn.execute(
+                "INSERT INTO reminder_logs VALUES (?1, 'one', 'completed', ?1, ?1)",
+                [timestamp],
+            )
+            .unwrap();
+        }
+        let stats = read_streak_stats(&conn, today).unwrap();
+        assert_eq!((stats[0].current_streak, stats[0].max_streak), (120, 120));
+        let next = read_streak_stats(&conn, today.succ_opt().unwrap()).unwrap();
+        assert_eq!((next[0].current_streak, next[0].max_streak), (0, 120));
+    }
 
     #[test]
     fn import_validates_legacy_frontend_settings_versions_and_log_times() {
