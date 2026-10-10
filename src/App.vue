@@ -375,11 +375,19 @@ async function handleAdd(data: CreateReminderRequest) {
 <style>
 .app-shell {
   position: relative; display: flex; flex-direction: column; height: 100vh; overflow: hidden;
-  background: rgba(255, 255, 255, 0.8);
+  background:
+    radial-gradient(circle at top left, rgba(47, 159, 216, 0.12), transparent 34%),
+    radial-gradient(circle at top right, rgba(246, 179, 91, 0.1), transparent 28%),
+    rgba(255, 255, 255, 0.8);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
 }
-[data-theme='dark'] .app-shell { background: rgba(24, 24, 27, 0.8); }
+[data-theme='dark'] .app-shell {
+  background:
+    radial-gradient(circle at top left, rgba(47, 159, 216, 0.2), transparent 34%),
+    radial-gradient(circle at top right, rgba(246, 179, 91, 0.16), transparent 28%),
+    rgba(24, 24, 27, 0.8);
+}
 .app-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
 .title-block, .title-copy { min-width: 0; }
 .app-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--text-primary); line-height: 1.3; overflow-wrap: anywhere; }

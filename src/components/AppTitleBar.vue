@@ -123,17 +123,13 @@ onUnmounted(() => {
   display: flex;
   align-items: stretch;
   border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.26)),
-    linear-gradient(90deg, rgba(47, 159, 216, 0.08), rgba(246, 179, 91, 0.06));
+  background: rgba(255, 255, 255, 0.18);
   user-select: none;
 }
 
 [data-theme='dark'] .app-titlebar {
   border-bottom-color: rgba(148, 163, 184, 0.12);
-  background:
-    linear-gradient(180deg, rgba(20, 24, 31, 0.82), rgba(16, 20, 28, 0.42)),
-    linear-gradient(90deg, rgba(47, 159, 216, 0.14), rgba(246, 179, 91, 0.08));
+  background: rgba(24, 24, 27, 0.14);
 }
 
 .app-titlebar-drag-region {
