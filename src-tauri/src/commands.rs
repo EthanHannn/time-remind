@@ -485,10 +485,6 @@ fn validate_break_duration_minutes(minutes: i64) -> Result<(), String> {
 }
 
 fn validate_action_duration_seconds(seconds: i64) -> Result<(), String> {
-    if seconds == 0 {
-        return Ok(());
-    }
-
     if !(MIN_ACTION_DURATION_SECONDS..=MAX_ACTION_DURATION_SECONDS).contains(&seconds) {
         return Err(format!(
             "动作时长必须在 {} 到 {} 秒之间",
@@ -502,7 +498,7 @@ fn validate_action_duration_seconds(seconds: i64) -> Result<(), String> {
 fn normalize_break_settings(
     reminder_type: &str,
     break_duration_minutes: i64,
-    break_notification_enabled: bool,
+    _break_notification_enabled: bool,
     action_enabled: bool,
     action_title: String,
     action_message: String,
@@ -519,57 +515,25 @@ fn normalize_break_settings(
         _ => "倒计时结束后再进入下一轮。",
     };
 
-    if reminder_type == "rest" {
-        validate_break_duration_minutes(break_duration_minutes)?;
-        let normalized_seconds = if action_duration_seconds > 0 {
-            action_duration_seconds
-        } else if break_notification_enabled || action_enabled {
-            break_duration_minutes * 60
-        } else {
-            0
-        };
-        let normalized_enabled = action_enabled || break_notification_enabled;
-        if normalized_enabled {
-            validate_action_duration_seconds(normalized_seconds)?;
+    // Resolve legacy defaults at the input boundary; an explicit false always wins.
+    if action_enabled {
+        validate_action_duration_seconds(action_duration_seconds)?;
+        if reminder_type == "rest" {
+            validate_break_duration_minutes(break_duration_minutes)?;
         }
-        return Ok((
-            break_duration_minutes,
-            break_notification_enabled,
-            normalized_enabled,
-            normalize_action_text(action_title, default_title),
-            normalize_action_text(action_message, default_message),
-            normalized_seconds,
-            "auto".to_string(),
-        ));
-    }
-
-    let normalized_seconds = if reminder_type == "eye_care" {
-        if action_duration_seconds > 0 {
-            action_duration_seconds
-        } else {
-            20
-        }
-    } else {
-        action_duration_seconds
-    };
-
-    let normalized_enabled =
-        action_enabled || (reminder_type == "eye_care" && normalized_seconds > 0);
-    if normalized_enabled {
-        validate_action_duration_seconds(normalized_seconds)?;
     }
     Ok((
-        if reminder_type == "rest" {
+        if reminder_type == "rest" && action_enabled {
             break_duration_minutes
         } else {
             0
         },
-        false,
-        normalized_enabled,
+        reminder_type == "rest" && action_enabled,
+        action_enabled,
         normalize_action_text(action_title, default_title),
         normalize_action_text(action_message, default_message),
-        if normalized_enabled {
-            normalized_seconds
+        if action_enabled {
+            action_duration_seconds
         } else {
             0
         },
@@ -1663,10 +1627,64 @@ pub fn cleanup_old_logs(db: State<'_, Database>, keep_days: Option<i64>) -> Resu
 pub struct ExportData {
     pub version: String,
     pub exported_at: String,
+    #[serde(deserialize_with = "deserialize_backup_reminders")]
     pub reminders: Vec<Reminder>,
     #[serde(default)]
     pub logs: Vec<ReminderLog>,
     pub settings: std::collections::HashMap<String, String>,
+}
+
+fn deserialize_backup_reminders<'de, D>(deserializer: D) -> Result<Vec<Reminder>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let values = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    values
+        .into_iter()
+        .map(|mut value| {
+            if let Some(fields) = value.as_object_mut() {
+                let kind = fields
+                    .get("reminder_type")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_owned();
+                if !fields.contains_key("action_enabled") {
+                    let enabled = kind == "eye_care"
+                        || (kind == "rest"
+                            && fields
+                                .get("break_notification_enabled")
+                                .and_then(|v| v.as_bool())
+                                .unwrap_or(false));
+                    fields.insert("action_enabled".into(), enabled.into());
+                    fields.entry("action_duration_seconds").or_insert_with(|| {
+                        (if !enabled {
+                            0
+                        } else if kind == "eye_care" {
+                            20
+                        } else {
+                            0
+                        })
+                        .into()
+                    });
+                    if enabled
+                        && kind == "rest"
+                        && fields
+                            .get("action_duration_seconds")
+                            .and_then(|v| v.as_i64())
+                            == Some(0)
+                    {
+                        let seconds = fields
+                            .get("break_duration_minutes")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(0)
+                            .saturating_mul(60);
+                        fields.insert("action_duration_seconds".into(), seconds.into());
+                    }
+                }
+            }
+            serde_json::from_value(value).map_err(serde::de::Error::custom)
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -1973,6 +1991,51 @@ pub fn get_last_triggered(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_action_switch_is_respected_for_every_reminder_type() {
+        for kind in ["rest", "eye_care", "drink", "custom"] {
+            for enabled in [false, true] {
+                let result = normalize_break_settings(
+                    kind,
+                    if enabled { 5 } else { 0 },
+                    true,
+                    enabled,
+                    String::new(),
+                    String::new(),
+                    if enabled { 300 } else { 0 },
+                )
+                .unwrap();
+                assert_eq!(result.2, enabled, "{kind}");
+                assert_eq!(result.5, if enabled { 300 } else { 0 });
+            }
+            assert!(normalize_break_settings(
+                kind,
+                5,
+                false,
+                true,
+                String::new(),
+                String::new(),
+                0
+            )
+            .is_err());
+        }
+    }
+
+    #[test]
+    fn backup_distinguishes_missing_action_switch_from_explicit_false() {
+        let base = serde_json::json!({"version":"1.2", "exported_at":"", "settings":{},
+            "reminders":[{"id":"eye", "name":"Eye", "reminder_type":"eye_care", "icon":"eye_care",
+                "message":"Look away", "interval_minutes":20, "enabled":true, "created_at":"", "updated_at":""}]});
+        let legacy: ExportData = serde_json::from_value(base.clone()).unwrap();
+        assert!(legacy.reminders[0].action_enabled);
+        assert_eq!(legacy.reminders[0].action_duration_seconds, 20);
+        let mut explicit = base;
+        explicit["reminders"][0]["action_enabled"] = false.into();
+        let imported: ExportData = serde_json::from_value(explicit).unwrap();
+        assert!(!imported.reminders[0].action_enabled);
+        assert_eq!(imported.reminders[0].action_duration_seconds, 0);
+    }
 
     #[test]
     fn accepts_json_backup_file_path() {

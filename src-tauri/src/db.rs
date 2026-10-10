@@ -221,25 +221,28 @@ impl Database {
             )?;
         }
 
-        conn.execute(
-            "UPDATE reminders
+        // Convert legacy action fields only when adding the action switch.
+        // Running this on every launch would overwrite an explicit disabled value.
+        if !columns.iter().any(|column| column == "action_enabled") {
+            conn.execute(
+                "UPDATE reminders
              SET action_duration_seconds = break_duration_minutes * 60
              WHERE reminder_type = 'rest'
                AND break_notification_enabled = 1
                AND break_duration_minutes > 0
                AND action_duration_seconds = 0",
-            [],
-        )?;
+                [],
+            )?;
 
-        conn.execute(
-            "UPDATE reminders
+            conn.execute(
+                "UPDATE reminders
              SET action_duration_seconds = 20
              WHERE reminder_type = 'eye_care'
                AND action_duration_seconds = 0",
-            [],
-        )?;
+                [],
+            )?;
 
-        conn.execute(
+            conn.execute(
             "UPDATE reminders
              SET action_enabled = 1,
                  action_title = CASE WHEN action_title = '' THEN '休息中' ELSE action_title END,
@@ -251,7 +254,7 @@ impl Database {
             [],
         )?;
 
-        conn.execute(
+            conn.execute(
             "UPDATE reminders
              SET action_enabled = 1,
                  action_title = CASE WHEN action_title = '' THEN '护眼中' ELSE action_title END,
@@ -261,6 +264,7 @@ impl Database {
                AND action_duration_seconds > 0",
             [],
         )?;
+        }
 
         Ok(())
     }
@@ -269,6 +273,19 @@ impl Database {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn restarting_does_not_reenable_disabled_actions() {
+        let db = Database::in_memory();
+        for kind in ["rest", "eye_care", "drink", "custom"] {
+            db.conn.lock().unwrap().execute(
+                "INSERT INTO reminders (id, name, reminder_type, break_notification_enabled, break_duration_minutes, created_at, updated_at) VALUES (?1, ?1, ?1, 1, 5, '', '')", [kind]).unwrap();
+        }
+        db.migrate().unwrap();
+        let conn = db.conn.lock().unwrap();
+        let enabled: i64 = conn.query_row("SELECT COUNT(*) FROM reminders WHERE action_enabled != 0 OR action_duration_seconds != 0", [], |row| row.get(0)).unwrap();
+        assert_eq!(enabled, 0);
+    }
 
     fn temp_db_path(name: &str) -> PathBuf {
         let dir =
