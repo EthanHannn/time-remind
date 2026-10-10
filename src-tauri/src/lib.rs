@@ -6,6 +6,7 @@ mod models;
 pub mod power;
 mod preview;
 mod scheduler;
+mod settings;
 
 use chrono::{NaiveDateTime, Utc};
 use tauri::{
@@ -1230,6 +1231,7 @@ pub fn run() {
             commands::get_streak_stats,
             commands::cleanup_old_logs,
             commands::save_setting,
+            commands::save_settings,
             commands::get_setting,
             commands::get_all_settings,
             commands::get_platform_capabilities,

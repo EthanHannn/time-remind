@@ -8,7 +8,7 @@ import type { NotificationSoundPreset } from '../utils/notificationSound'
 import { invoke } from '@tauri-apps/api/core'
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
 import { confirm, open, save } from '@tauri-apps/plugin-dialog'
-import { computed, onMounted, ref, shallowRef, useId, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, shallowRef, useId, watch } from 'vue'
 import { exportData, importData, readTextFile, writeTextFile } from '../api/data'
 import { getPlatformCapabilities } from '../api/platform'
 import { loadLanguage, useI18n } from '../i18n'
@@ -117,9 +117,22 @@ async function loadSettings() {
   settingsLoaded.value = false
   mascotStyle.value = 'classic'
   notificationAppearance.value = 'soft'
+  theme.value = 'system'
+  notificationDuration.value = 30
+  postponeOptions.value = [5, 10, 15]
+  soundEnabled.value = true
+  soundPreset.value = 'soft'
+  soundVolume.value = 60
+  dndEnabled.value = false
+  dndStart.value = '22:00'
+  dndEnd.value = '08:00'
+  autoStart.value = false
+  silentStart.value = false
+  fullscreenDetectionEnabled.value = true
   let hasFrontendSettingsInDb = false
   try {
     const settings = await invoke<Record<string, string>>('get_all_settings')
+    await loadLanguage(settings)
     mascotStyle.value = normalizeMascotStyle(settings.mascot_style)
     notificationAppearance.value = normalizeNotificationAppearance(settings.notification_appearance)
     if (settings.notification_appearance)
@@ -199,6 +212,7 @@ async function loadSettings() {
 
   applyTheme(theme.value)
   language.value = currentLanguage.value
+  await nextTick()
   settingsLoaded.value = wasLoaded
 }
 
@@ -320,6 +334,8 @@ watch(soundPreset, () => {
 })
 
 watch([dndEnabled, dndStart, dndEnd], async () => {
+  if (!settingsLoaded.value)
+    return
   try {
     await invoke('save_setting', { key: 'dnd_enabled', value: String(dndEnabled.value) })
     await invoke('save_setting', { key: 'dnd_start', value: dndStart.value })
@@ -441,7 +457,6 @@ async function handleExport() {
   message.value = ''
   try {
     const data = await exportData()
-    data.frontend_settings = buildFrontendSettings()
     const json = JSON.stringify(data, null, 2)
 
     const filePath = await save({
@@ -495,20 +510,9 @@ async function handleImport() {
       const content = await readTextFile(filePath)
       const data = JSON.parse(content) as ExportData
       const result = await importData(data, importMode.value)
-      if (data.frontend_settings) {
-        localStorage.setItem('app-settings', JSON.stringify(data.frontend_settings))
-        theme.value = data.frontend_settings.theme
-        mascotStyle.value = normalizeMascotStyle(data.frontend_settings.mascotStyle)
-        notificationAppearance.value = normalizeNotificationAppearance(data.frontend_settings.notificationAppearance)
-        language.value = data.frontend_settings.language || language.value
-        notificationDuration.value = data.frontend_settings.notificationDuration
-        postponeOptions.value = data.frontend_settings.postponeOptions
-        soundEnabled.value = data.frontend_settings.soundEnabled ?? true
-        soundPreset.value = normalizeSoundPreset(data.frontend_settings.soundPreset || 'soft')
-        soundVolume.value = normalizeSoundVolume(data.frontend_settings.soundVolume || 60)
-        await setLanguage(language.value)
-        await saveFrontendSettings()
-      }
+      localStorage.removeItem('app-settings')
+      if (importMode.value === 'replace')
+        localStorage.removeItem('app-language')
       await loadSettings()
       message.value = result.message
     }

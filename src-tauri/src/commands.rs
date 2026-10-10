@@ -704,12 +704,16 @@ fn collect_export_data(conn: &Connection) -> Result<ExportData, String> {
         reminders,
         logs,
         settings,
+        frontend_settings: None,
     })
 }
 
 fn validate_import_data(data: &ExportData) -> Result<(), String> {
-    if data.version.trim().is_empty() {
-        return Err("备份文件缺少版本号".to_string());
+    if !matches!(data.version.as_str(), "1.0" | "1.1" | "1.2") {
+        return Err("不支持的备份版本".to_string());
+    }
+    if data.reminders.len() > 10_000 || data.logs.len() > 200_000 || data.settings.len() > 100 {
+        return Err("备份记录数量超过限制".to_string());
     }
 
     let mut reminder_ids = HashSet::new();
@@ -722,6 +726,27 @@ fn validate_import_data(data: &ExportData) -> Result<(), String> {
         }
         if reminder.message.trim().is_empty() {
             return Err(format!("备份文件中存在内容为空的提醒: {}", reminder.id));
+        }
+        if reminder.id.len() > 128
+            || reminder.name.len() > 1024
+            || reminder.message.len() > 16_384
+            || reminder.icon.len() > 128
+            || reminder.action_title.len() > 1024
+            || reminder.action_message.len() > 16_384
+        {
+            return Err("提醒文本超过长度限制".to_string());
+        }
+        if !matches!(
+            reminder.reminder_type.as_str(),
+            "drink" | "rest" | "eye_care" | "custom"
+        ) || reminder.action_completion_mode != "auto"
+        {
+            return Err("无效的提醒类型或完成模式".to_string());
+        }
+        crate::settings::timestamp(&reminder.created_at)?;
+        crate::settings::timestamp(&reminder.updated_at)?;
+        if let Some(next) = &reminder.next_trigger {
+            crate::settings::timestamp(next)?;
         }
         validate_interval_minutes(reminder.interval_minutes, "提醒间隔")?;
         let _ = normalize_break_settings(
@@ -746,6 +771,27 @@ fn validate_import_data(data: &ExportData) -> Result<(), String> {
         if !log_ids.insert(log.id.as_str()) {
             return Err(format!("备份文件中存在重复日志 id: {}", log.id));
         }
+        if log.id.len() > 128
+            || log.reminder_id.trim().is_empty()
+            || log.reminder_id.len() > 128
+            || !matches!(
+                log.action.as_str(),
+                "completed" | "postponed" | "skipped" | "timeout"
+            )
+        {
+            return Err("无效的提醒日志".to_string());
+        }
+        let triggered = crate::settings::timestamp(&log.triggered_at)?;
+        if let Some(responded) = &log.responded_at {
+            if crate::settings::timestamp(responded)? < triggered {
+                return Err("日志响应时间早于触发时间".to_string());
+            }
+        }
+    }
+
+    crate::settings::timestamp(&data.exported_at)?;
+    for (key, value) in &data.settings {
+        crate::settings::validate(key, value)?;
     }
 
     Ok(())
@@ -1377,18 +1423,21 @@ pub fn save_setting(
     key: String,
     value: String,
 ) -> Result<(), String> {
-    let conn = db.conn.lock().unwrap();
-    conn.execute(
-        "INSERT OR REPLACE INTO settings (key, value) VALUES (?1, ?2)",
-        (&key, &value),
-    )
-    .map_err(|e| e.to_string())?;
-    drop(conn);
+    save_settings(app, db, HashMap::from([(key, value)]))
+}
 
-    if key == "language" {
-        crate::refresh_tray_menu_text(&app, &value);
+#[tauri::command]
+pub fn save_settings(
+    app: AppHandle,
+    db: State<'_, Database>,
+    settings: HashMap<String, String>,
+) -> Result<(), String> {
+    crate::settings::save_batch(&mut db.conn.lock().unwrap(), &settings)?;
+    if let Some(language) = settings.get("language") {
+        crate::refresh_tray_menu_text(&app, language);
     }
-
+    let _ = app.emit("settings:changed", ());
+    let _ = app.emit("reminders:changed", ());
     Ok(())
 }
 
@@ -1638,6 +1687,71 @@ pub struct ExportData {
     #[serde(default)]
     pub logs: Vec<ReminderLog>,
     pub settings: std::collections::HashMap<String, String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub frontend_settings: Option<HashMap<String, serde_json::Value>>,
+}
+
+fn prepare_import_data(mut data: ExportData) -> Result<ExportData, String> {
+    if let Some(frontend) = data.frontend_settings.take() {
+        for (field, value) in frontend {
+            let (key, expected) = match field.as_str() {
+                "theme" => ("theme", "string"),
+                "mascotStyle" => ("mascot_style", "string"),
+                "notificationAppearance" => ("notification_appearance", "string"),
+                "language" => ("language", "string"),
+                "notificationDuration" => ("notification_duration", "number"),
+                "postponeOptions" => ("postpone_options", "array"),
+                "soundEnabled" => ("sound_enabled", "boolean"),
+                "soundPreset" => ("sound_preset", "string"),
+                "soundVolume" => ("sound_volume", "number"),
+                _ => return Err(format!("未知的前端设置: {field}")),
+            };
+            let typed = match expected {
+                "string" => value.is_string(),
+                "number" => value.is_i64(),
+                "array" => value.is_array(),
+                "boolean" => value.is_boolean(),
+                _ => false,
+            };
+            if !typed {
+                return Err(format!("前端设置类型不正确: {field}"));
+            }
+            let text = value
+                .as_str()
+                .map(str::to_string)
+                .unwrap_or_else(|| value.to_string());
+            crate::settings::validate(key, &text)?;
+            // Database settings are authoritative; old frontend-only backups still work.
+            data.settings.entry(key.to_string()).or_insert(text);
+        }
+    }
+    validate_import_data(&data)?;
+    let normalize = |value: &str| {
+        crate::settings::timestamp(value).map(|t| t.format("%Y-%m-%dT%H:%M:%S").to_string())
+    };
+    for reminder in &mut data.reminders {
+        reminder.created_at = normalize(&reminder.created_at)?;
+        reminder.updated_at = normalize(&reminder.updated_at)?;
+        reminder.next_trigger = reminder
+            .next_trigger
+            .as_deref()
+            .map(normalize)
+            .transpose()?;
+    }
+    for log in &mut data.logs {
+        log.triggered_at = normalize(&log.triggered_at)?;
+        log.responded_at = log.responded_at.as_deref().map(normalize).transpose()?;
+    }
+    for key in [
+        ALL_REMINDERS_PAUSED_AT_KEY,
+        SYSTEM_PAUSED_AT_KEY,
+        TEMP_DND_UNTIL_KEY,
+    ] {
+        if let Some(value) = data.settings.get_mut(key) {
+            *value = normalize(value)?;
+        }
+    }
+    Ok(data)
 }
 
 fn deserialize_backup_reminders<'de, D>(deserializer: D) -> Result<Vec<Reminder>, D::Error>
@@ -1728,7 +1842,7 @@ pub fn import_data(
     data: ExportData,
     mode: Option<ImportMode>,
 ) -> Result<ImportResult, String> {
-    validate_import_data(&data)?;
+    let data = prepare_import_data(data)?;
 
     let mode = mode.unwrap_or_default();
     let mut conn = db.conn.lock().unwrap();
@@ -1846,7 +1960,7 @@ pub fn import_data(
 
     for (key, value) in &data.settings {
         // A backup cannot describe the lock state of this running process.
-        if key == SYSTEM_PAUSED_AT_KEY {
+        if key == SYSTEM_PAUSED_AT_KEY || key == "last_boot_marker" {
             continue;
         }
         tx.execute(settings_insert_sql, (key, value))
@@ -1875,6 +1989,25 @@ pub fn import_data(
     if all_reminders_paused(&conn) {
         crate::set_tray_visual_state(&app, crate::TrayVisualState::Muted);
     }
+    let language = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'language'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap_or_else(|_| "en-US".into());
+    let auto_start = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'auto_start'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .unwrap_or_default()
+        == "true";
+    drop(conn);
+    let autostart_warning = reconcile_imported_autostart(&app, auto_start).err();
+    crate::refresh_tray_menu_text(&app, &language);
+    let _ = app.emit("settings:changed", ());
     app.emit("reminders:changed", ())
         .map_err(|e| e.to_string())?;
 
@@ -1897,8 +2030,35 @@ pub fn import_data(
             logs_imported,
             data.settings.len(),
             backup_path
-        ),
+        ) + &autostart_warning
+            .map(|error| format!("；数据已导入，但同步开机自启失败：{error}"))
+            .unwrap_or_default(),
     })
+}
+
+fn reconcile_imported_autostart(app: &AppHandle, desired: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    {
+        use tauri_plugin_autostart::ManagerExt;
+        let autostart = app.autolaunch();
+        crate::settings::reconcile_autostart(
+            desired,
+            || autostart.is_enabled().map_err(|e| e.to_string()),
+            |enabled| {
+                (if enabled {
+                    autostart.enable()
+                } else {
+                    autostart.disable()
+                })
+                .map_err(|e| e.to_string())
+            },
+        )
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        let _ = (app, desired);
+        Ok(())
+    }
 }
 
 /// 写入文件
@@ -2002,6 +2162,57 @@ pub fn get_last_triggered(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn import_validates_legacy_frontend_settings_versions_and_log_times() {
+        let db = Database::in_memory();
+        let base = collect_export_data(&db.conn.lock().unwrap()).unwrap();
+        for version in ["1.0", "1.1", "1.2"] {
+            let mut data = base.clone();
+            data.version = version.into();
+            data.frontend_settings = Some(HashMap::from([
+                ("soundVolume".into(), 0.into()),
+                ("theme".into(), "dark".into()),
+            ]));
+            let imported = prepare_import_data(data).unwrap();
+            assert_eq!(imported.settings["sound_volume"], "0");
+            assert_eq!(imported.settings["theme"], "dark");
+        }
+        let mut future = base.clone();
+        future.version = "99".into();
+        assert!(prepare_import_data(future).is_err());
+        let mut bad = base.clone();
+        bad.frontend_settings = Some(HashMap::from([(
+            "notificationDuration".into(),
+            "NaN".into(),
+        )]));
+        assert!(prepare_import_data(bad).is_err());
+        let mut log = ReminderLog {
+            id: "id".into(),
+            reminder_id: "reminder".into(),
+            action: "completed".into(),
+            triggered_at: "2026-10-10T09:00:00+08:00".into(),
+            responded_at: Some("2026-10-10T01:01:00Z".into()),
+        };
+        let mut data = base.clone();
+        data.logs.push(log.clone());
+        assert_eq!(
+            prepare_import_data(data).unwrap().logs[0].triggered_at,
+            "2026-10-10T01:00:00"
+        );
+        for (action, triggered, responded) in [
+            ("invented", "2026-10-10T01:00:00", "2026-10-10T01:01:00"),
+            ("completed", "invalid", "2026-10-10T01:01:00"),
+            ("completed", "2026-10-10T01:01:00", "2026-10-10T01:00:00"),
+        ] {
+            log.action = action.into();
+            log.triggered_at = triggered.into();
+            log.responded_at = Some(responded.into());
+            let mut data = base.clone();
+            data.logs.push(log.clone());
+            assert!(prepare_import_data(data).is_err());
+        }
+    }
 
     #[test]
     fn explicit_action_switch_is_respected_for_every_reminder_type() {
@@ -2124,6 +2335,7 @@ mod tests {
             reminders: vec![reminder],
             logs: Vec::new(),
             settings: HashMap::new(),
+            frontend_settings: None,
         };
 
         let error = validate_import_data(&data).expect_err("empty message should fail");
