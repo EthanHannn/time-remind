@@ -11,8 +11,11 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import ReminderCard from './components/ReminderCard.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import StatsPage from './components/StatsPage.vue'
+import { useTheme } from './composables/useTheme'
 import { loadLanguage, useI18n } from './i18n'
 import { emptyReminders } from './utils/reminderVisuals'
+
+const { applyTheme, themeRevision } = useTheme()
 
 const reminders = ref<Reminder[]>([])
 const countdowns = ref<Record<string, number>>({})
@@ -43,6 +46,7 @@ let unlistenChanged: (() => void) | null = null
 let unlistenNavigate: (() => void) | null = null
 let unlistenRuntime: (() => void) | null = null
 let unlistenQueue: (() => void) | null = null
+let unlistenSettings: (() => void) | null = null
 
 onMounted(async () => {
   unlistenTick = await listen<TimerTick>('timer:tick', (event) => {
@@ -57,6 +61,10 @@ onMounted(async () => {
   unlistenRuntime = await listen<RuntimeSnapshot>('reminders:state', event => applyRuntime(event.payload))
   unlistenQueue = await listen('notification:queue-updated', () => {
     void loadReminders()
+  })
+
+  unlistenSettings = await listen('settings:changed', () => {
+    void Promise.all([loadTheme(), loadLanguage()])
   })
 
   unlistenNavigate = await listen<string>('navigate', (event) => {
@@ -74,6 +82,7 @@ onUnmounted(() => {
   unlistenNavigate?.()
   unlistenRuntime?.()
   unlistenQueue?.()
+  unlistenSettings?.()
 })
 
 function applyRuntime(snapshot: RuntimeSnapshot) {
@@ -86,34 +95,18 @@ function applyRuntime(snapshot: RuntimeSnapshot) {
   suppression.value = snapshot.suppression || null
 }
 
-function applyTheme(theme: string) {
-  const root = document.documentElement
-  if (theme === 'dark') {
-    root.setAttribute('data-theme', 'dark')
-    return
-  }
-
-  if (theme === 'light') {
-    root.removeAttribute('data-theme')
-    return
-  }
-
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  if (prefersDark) {
-    root.setAttribute('data-theme', 'dark')
-  }
-  else {
-    root.removeAttribute('data-theme')
-  }
-}
-
 async function loadTheme() {
+  const revision = themeRevision()
   try {
     const settings = await invoke<Record<string, string>>('get_all_settings')
+    if (revision !== themeRevision())
+      return
     if (settings.theme) {
       applyTheme(settings.theme)
       return
     }
+    applyTheme('system')
+    return
   }
   catch {
     // 忽略设置加载失败

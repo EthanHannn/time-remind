@@ -11,6 +11,7 @@ import { confirm, open, save } from '@tauri-apps/plugin-dialog'
 import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, useId, watch } from 'vue'
 import { exportData, importData, readTextFile, writeTextFile } from '../api/data'
 import { getPlatformCapabilities } from '../api/platform'
+import { useTheme } from '../composables/useTheme'
 import { loadLanguage, useI18n } from '../i18n'
 import { normalizeMascotStyle } from '../utils/mascotStyles'
 import { normalizeNotificationAppearance } from '../utils/notificationAppearance'
@@ -24,6 +25,8 @@ import NotificationAppearanceSettings from './NotificationAppearanceSettings.vue
 const emit = defineEmits<{
   close: []
 }>()
+
+const { applyTheme } = useTheme()
 
 const fieldId = useId()
 
@@ -383,25 +386,6 @@ watch(fullscreenDetectionEnabled, () => {
     return
   settingsWriter.enqueue({ fullscreen_detection_enabled: String(fullscreenDetectionEnabled.value) })
 })
-
-function applyTheme(t: string) {
-  const root = document.documentElement
-  if (t === 'dark') {
-    root.setAttribute('data-theme', 'dark')
-  }
-  else if (t === 'light') {
-    root.removeAttribute('data-theme')
-  }
-  else {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    if (prefersDark) {
-      root.setAttribute('data-theme', 'dark')
-    }
-    else {
-      root.removeAttribute('data-theme')
-    }
-  }
-}
 
 async function handleAutoStartChange() {
   if (!supportsAutostart.value) {

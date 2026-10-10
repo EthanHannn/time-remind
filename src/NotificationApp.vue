@@ -8,6 +8,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
 import ClassicNotificationCard from './components/ClassicNotificationCard.vue'
 import NotificationCard from './components/NotificationCard.vue'
+import { useTheme } from './composables/useTheme'
 import { loadLanguage, useI18n } from './i18n'
 import { normalizeMascotStyle } from './utils/mascotStyles'
 import { normalizeNotificationAppearance } from './utils/notificationAppearance'
@@ -18,7 +19,11 @@ const props = defineProps<{
   preview?: boolean
   previewRequest?: NotificationPreviewRequest
 }>()
+
 const emit = defineEmits<{ closed: [] }>()
+
+const { applyTheme } = useTheme()
+
 const mascotStyle = shallowRef<MascotStyle>('classic')
 const notificationAppearance = shallowRef<NotificationAppearance>('soft')
 const name = ref('')
@@ -128,27 +133,6 @@ function getLegacySettings(): SettingsPayload | null {
   }
 }
 
-function applyTheme(theme: string) {
-  const root = document.documentElement
-  if (theme === 'dark') {
-    root.setAttribute('data-theme', 'dark')
-    return
-  }
-
-  if (theme === 'light') {
-    root.removeAttribute('data-theme')
-    return
-  }
-
-  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-  if (prefersDark) {
-    root.setAttribute('data-theme', 'dark')
-  }
-  else {
-    root.removeAttribute('data-theme')
-  }
-}
-
 async function loadDisplaySettings() {
   try {
     const settings = await invoke<Record<string, string>>('get_all_settings')
@@ -183,6 +167,7 @@ let breakTimer: ReturnType<typeof setInterval> | null = null
 let unlistenShow: (() => void) | null = null
 let unlistenQueueUpdated: (() => void) | null = null
 let unlistenSystemPaused: (() => void) | null = null
+let unlistenSettings: (() => void) | null = null
 let unlistenSystemResumed: (() => void) | null = null
 let systemTimersPaused = false
 let latestQueueRevision = -1
@@ -260,6 +245,9 @@ onMounted(async () => {
   }
   const appWindow = getCurrentWebviewWindow()
   await loadDisplaySettings()
+  unlistenSettings = await appWindow.listen('settings:changed', () => {
+    void loadDisplaySettings()
+  })
 
   unlistenShow = await appWindow.listen<NotificationPayload>('notification:show', (event) => {
     const data = event.payload
@@ -347,6 +335,7 @@ onUnmounted(() => {
   unlistenQueueUpdated?.()
   unlistenSystemPaused?.()
   unlistenSystemResumed?.()
+  unlistenSettings?.()
   clearAutoDismiss()
   stopBreakCountdown()
 })
