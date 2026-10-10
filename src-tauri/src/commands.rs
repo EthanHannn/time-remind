@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeSet, HashMap, HashSet},
+    io::Read,
     path::{Path, PathBuf},
 };
 
@@ -24,7 +25,7 @@ const MIN_BREAK_DURATION_MINUTES: i64 = 1;
 const MAX_BREAK_DURATION_MINUTES: i64 = 120;
 const MIN_ACTION_DURATION_SECONDS: i64 = 1;
 const MAX_ACTION_DURATION_SECONDS: i64 = 7200;
-const MAX_BACKUP_FILE_BYTES: u64 = 2 * 1024 * 1024;
+const MAX_BACKUP_FILE_BYTES: u64 = 64 * 1024 * 1024;
 
 fn now_utc_string() -> String {
     Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string()
@@ -45,7 +46,7 @@ fn validate_backup_file_path(path: &str) -> Result<PathBuf, String> {
 
 fn validate_backup_content_size(content: &str) -> Result<(), String> {
     if content.len() as u64 > MAX_BACKUP_FILE_BYTES {
-        return Err("备份文件大小不能超过 2MB".to_string());
+        return Err("备份文件大小不能超过 64MiB".to_string());
     }
 
     Ok(())
@@ -58,7 +59,7 @@ fn validate_existing_backup_file(path: &Path) -> Result<(), String> {
     }
 
     if metadata.len() > MAX_BACKUP_FILE_BYTES {
-        return Err("备份文件大小不能超过 2MB".to_string());
+        return Err("备份文件大小不能超过 64MiB".to_string());
     }
 
     Ok(())
@@ -832,9 +833,14 @@ fn prune_backup_files(backup_dir: &PathBuf, keep_count: usize) -> Result<(), Str
 fn create_import_backup(app: &AppHandle, conn: &Connection) -> Result<String, String> {
     let backup_dir = get_backup_dir(app)?;
     let timestamp = Utc::now().format("%Y%m%d-%H%M%S").to_string();
-    let backup_path = backup_dir.join(format!("before-import-{}.json", timestamp));
+    let backup_path = backup_dir.join(format!(
+        "before-import-{}-{}.json",
+        timestamp,
+        Uuid::new_v4()
+    ));
     let snapshot = collect_export_data(conn)?;
     let snapshot_json = serde_json::to_string_pretty(&snapshot).map_err(|e| e.to_string())?;
+    validate_backup_content_size(&snapshot_json)?;
 
     std::fs::write(&backup_path, snapshot_json).map_err(|e| e.to_string())?;
     prune_backup_files(&backup_dir, 10)?;
@@ -1908,7 +1914,12 @@ pub fn write_file(path: String, content: String) -> Result<(), String> {
 pub fn read_file(path: String) -> Result<String, String> {
     let path = validate_backup_file_path(&path)?;
     validate_existing_backup_file(&path)?;
-    let content = std::fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let mut content = String::new();
+    std::fs::File::open(&path)
+        .map_err(|e| e.to_string())?
+        .take(MAX_BACKUP_FILE_BYTES + 1)
+        .read_to_string(&mut content)
+        .map_err(|e| e.to_string())?;
     validate_backup_content_size(&content)?;
     Ok(content)
 }
@@ -2058,7 +2069,32 @@ mod tests {
         let error =
             validate_backup_content_size(&content).expect_err("oversized content should fail");
 
-        assert!(error.contains("2MB"));
+        assert!(error.contains("64MiB"));
+    }
+
+    #[test]
+    fn large_history_backup_round_trips_through_file_commands() {
+        let db = Database::in_memory();
+        let mut data = collect_export_data(&db.conn.lock().unwrap()).unwrap();
+        for i in 0..12_000 {
+            data.logs.push(ReminderLog {
+                id: format!("history-log-{i:06}"),
+                reminder_id: "reminder-id".into(),
+                action: "completed".into(),
+                triggered_at: "2026-10-10T01:00:00".into(),
+                responded_at: Some("2026-10-10T01:00:20".into()),
+            });
+        }
+        let content = serde_json::to_string_pretty(&data).unwrap();
+        assert!(content.len() > 2 * 1024 * 1024);
+        let path = std::env::temp_dir()
+            .join(format!("time-remind-{}.json", Uuid::new_v4()))
+            .to_string_lossy()
+            .into_owned();
+        write_file(path.clone(), content).unwrap();
+        let restored: ExportData = serde_json::from_str(&read_file(path.clone()).unwrap()).unwrap();
+        assert_eq!(restored.logs.len(), 12_000);
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]
