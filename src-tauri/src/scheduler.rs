@@ -11,8 +11,8 @@ use crate::db::Database;
 use crate::fullscreen::is_foreground_window_fullscreen;
 use crate::power::PowerMonitor;
 
-const NOTIFICATION_WINDOW_WIDTH: f64 = 360.0;
-const NOTIFICATION_WINDOW_HEIGHT: f64 = 224.0;
+const NOTIFICATION_WINDOW_WIDTH: f64 = 400.0;
+const NOTIFICATION_WINDOW_HEIGHT: f64 = 240.0;
 const NOTIFICATION_WINDOW_RIGHT_MARGIN: f64 = 20.0;
 const NOTIFICATION_WINDOW_BOTTOM_MARGIN: f64 = 96.0;
 const NEXT_NOTIFICATION_DELAY_MS: u64 = 220;
@@ -21,9 +21,10 @@ pub(crate) fn notification_window_position(
     work_area_position: tauri::PhysicalPosition<i32>,
     work_area_size: tauri::PhysicalSize<u32>,
     scale_factor: f64,
+    size: tauri::LogicalSize<f64>,
 ) -> tauri::PhysicalPosition<i32> {
-    let window_width = NOTIFICATION_WINDOW_WIDTH * scale_factor;
-    let window_height = NOTIFICATION_WINDOW_HEIGHT * scale_factor;
+    let window_width = size.width * scale_factor;
+    let window_height = size.height * scale_factor;
     let right_margin = NOTIFICATION_WINDOW_RIGHT_MARGIN * scale_factor;
     let bottom_margin = NOTIFICATION_WINDOW_BOTTOM_MARGIN * scale_factor;
 
@@ -33,6 +34,49 @@ pub(crate) fn notification_window_position(
     let y = (top + f64::from(work_area_size.height) - window_height - bottom_margin).max(top);
 
     tauri::PhysicalPosition::new(x.round() as i32, y.round() as i32)
+}
+
+pub(crate) fn notification_window_size(window: &tauri::WebviewWindow) -> tauri::LogicalSize<f64> {
+    window
+        .inner_size()
+        .ok()
+        .map(|size| size.to_logical(window.scale_factor().unwrap_or(1.0)))
+        .unwrap_or(tauri::LogicalSize::new(
+            NOTIFICATION_WINDOW_WIDTH,
+            NOTIFICATION_WINDOW_HEIGHT,
+        ))
+}
+
+#[tauri::command]
+pub fn resize_notification_window(
+    window: tauri::WebviewWindow,
+    width: f64,
+    height: f64,
+) -> Result<(), String> {
+    if !matches!(window.label(), "notification" | "notification-preview")
+        || !width.is_finite()
+        || !height.is_finite()
+        || !(300.0..=420.0).contains(&width)
+        || !(90.0..=440.0).contains(&height)
+    {
+        return Err("Invalid notification size".into());
+    }
+    let monitor = window
+        .current_monitor()
+        .map_err(|error| error.to_string())?;
+    let size = tauri::LogicalSize::new(width, height);
+    window
+        .set_size(tauri::Size::Logical(size))
+        .map_err(|error| error.to_string())?;
+    if let Some(monitor) = monitor {
+        let area = monitor.work_area();
+        let position =
+            notification_window_position(area.position, area.size, monitor.scale_factor(), size);
+        window
+            .set_position(tauri::Position::Physical(position))
+            .map_err(|error| error.to_string())?;
+    }
+    Ok(())
 }
 
 /// 通知窗口显示数据
@@ -615,10 +659,17 @@ impl Scheduler {
             })
             .or_else(|| self.app.primary_monitor().ok().flatten());
 
-        let target_position = monitor.map(|monitor| {
+        let target_area = monitor.map(|monitor| {
             let work_area = monitor.work_area();
-            let scale_factor = monitor.scale_factor();
-            notification_window_position(work_area.position, work_area.size, scale_factor)
+            (work_area.position, work_area.size, monitor.scale_factor())
+        });
+        let target_position = target_area.map(|(position, size, scale_factor)| {
+            notification_window_position(
+                position,
+                size,
+                scale_factor,
+                notification_window_size(&notification_window),
+            )
         });
 
         #[cfg(not(target_os = "linux"))]
@@ -649,6 +700,16 @@ impl Scheduler {
             let window = notification_window.clone();
             tauri::async_runtime::spawn(async move {
                 sleep(Duration::from_millis(60)).await;
+                let position = target_area
+                    .map(|(origin, area, scale)| {
+                        notification_window_position(
+                            origin,
+                            area,
+                            scale,
+                            notification_window_size(&window),
+                        )
+                    })
+                    .unwrap_or(position);
                 if let Err(error) = window.set_position(tauri::Position::Physical(position)) {
                     crate::app_log::warn(format!("通知窗口二次定位失败：{error}"));
                 }
@@ -1033,8 +1094,23 @@ mod tests {
             tauri::PhysicalPosition::new(1920, 0),
             tauri::PhysicalSize::new(2560, 1400),
             1.5,
+            tauri::LogicalSize::new(360.0, 224.0),
         );
 
         assert_eq!(position, tauri::PhysicalPosition::new(3910, 920));
+    }
+
+    #[test]
+    fn resizing_keeps_the_bottom_right_anchor_on_negative_coordinate_monitors() {
+        for (width, height) in [(400.0, 240.0), (400.0, 336.0), (340.0, 96.0)] {
+            let position = notification_window_position(
+                tauri::PhysicalPosition::new(-1920, -1080),
+                tauri::PhysicalSize::new(1920, 1080),
+                1.5,
+                tauri::LogicalSize::new(width, height),
+            );
+            assert_eq!(position.x + (width * 1.5) as i32, -30);
+            assert_eq!(position.y + (height * 1.5) as i32, -144);
+        }
     }
 }

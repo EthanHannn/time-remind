@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Improved
+
+- Implemented the approved Light companion, System simple, and Illustrated companion reminder layouts with soft blue, green, amber, and violet category colors. Existing Soft settings are retained; legacy Vivid settings open the new Illustrated layout.
+- Replaced all seven reminder icons and unified action buttons, accessible labels, keyboard focus, and modal dismissal.
+- Made the next reminder time prominent while retaining progress bars and individual switches; moved global pause and reminder management into the top toolbar and removed duplicate routine status labels.
+- Added reminder editing with retryable save errors and confirmed deletion, a direct five-minute snooze with all saved durations still available, and a collapsible action timer.
+- Matched native notification sizing to each layout and countdown state, including previews and monitor positioning. Pointer and keyboard interaction pause automatic dismissal.
+- Added custom reminder previews and consistent category colors in statistics; localized the new controls in all 19 languages.
+
 ## 0.1.8 Beta - 2026-09-29
 
 ### Added

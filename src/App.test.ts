@@ -19,6 +19,7 @@ vi.mock('@tauri-apps/api/event', () => ({
 vi.mock('./api/reminder', () => ({
   getReminderOverview: mocks.overview,
   createReminder: vi.fn(),
+  updateReminder: vi.fn(),
   deleteReminder: vi.fn(),
   toggleReminder: vi.fn(),
 }))
@@ -99,7 +100,7 @@ it('freezes ticks during pause and updates on resume', async () => {
   mocks.overview.mockResolvedValue(snapshot(true, 300))
   const wrapper = render()
   await flushPromises()
-  expect(wrapper.find('h1').text()).toBe('reminder.paused')
+  expect(wrapper.find('.global-status').text()).toBe('reminder.paused')
   mocks.listeners['timer:tick']({ payload: { reminder_id: 'one', remaining_seconds: 0 } })
   await flushPromises()
   expect(wrapper.find('.card').text()).toBe('true:300')
@@ -138,6 +139,6 @@ it('replaces a stale countdown with authoritative state and rejects older state 
   expect(wrapper.find('.card').text()).toBe('false:0')
   mocks.listeners['reminders:state']({ payload: { revision: 4, all_paused: false, countdowns: { one: 300 }, states: { one: { state: 'dnd' } }, suppression: { state: 'dnd', reason: 'temporary' } } })
   await flushPromises()
-  expect(wrapper.find('h1').text()).toBe('settings.dnd')
+  expect(wrapper.find('.global-status').text()).toBe('settings.dnd')
   wrapper.unmount()
 })

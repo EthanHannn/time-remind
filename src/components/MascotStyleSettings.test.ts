@@ -72,20 +72,20 @@ describe('cat style settings', () => {
   it('saves and restores popup appearance independently of the cat style and includes it in previews', async () => {
     wrapper = mount(SettingsPage)
     await flushPromises()
-    await wrapper.get('.appearance-settings input[value="classic"]').setValue()
+    await wrapper.get('.appearance-settings input[value="illustrated"]').setValue()
     await vi.advanceTimersByTimeAsync(350)
     await flushPromises()
-    expect(mocks.settings.notification_appearance).toBe('classic')
-    expect(JSON.parse(localStorage.getItem('app-settings')!).notificationAppearance).toBe('classic')
+    expect(mocks.settings.notification_appearance).toBe('illustrated')
+    expect(JSON.parse(localStorage.getItem('app-settings')!).notificationAppearance).toBe('illustrated')
     await wrapper.get('.mascot-preview-button').trigger('click')
     await flushPromises()
     expect(mocks.invoke).toHaveBeenCalledWith('preview_notification', {
-      request: expect.objectContaining({ settings: expect.objectContaining({ notificationAppearance: 'classic' }) }),
+      request: expect.objectContaining({ settings: expect.objectContaining({ notificationAppearance: 'illustrated' }) }),
     })
     wrapper.unmount()
     wrapper = mount(SettingsPage)
     await flushPromises()
-    expect((wrapper.get('.appearance-settings input[value="classic"]').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.get('.appearance-settings input[value="illustrated"]').element as HTMLInputElement).checked).toBe(true)
     expect((wrapper.get('.mascot-options input[value="classic"]').element as HTMLInputElement).checked).toBe(true)
   })
 

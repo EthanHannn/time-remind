@@ -8,9 +8,10 @@ import type { NotificationSoundPreset } from '../utils/notificationSound'
 import { invoke } from '@tauri-apps/api/core'
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
 import { confirm, open, save } from '@tauri-apps/plugin-dialog'
-import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, useId, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, useId, useTemplateRef, watch } from 'vue'
 import { exportData, importData, readTextFile, writeTextFile } from '../api/data'
 import { getPlatformCapabilities } from '../api/platform'
+import { useModalFocus } from '../composables/useModalFocus'
 import { useTheme } from '../composables/useTheme'
 import { loadLanguage, useI18n } from '../i18n'
 import { normalizeMascotStyle } from '../utils/mascotStyles'
@@ -18,6 +19,7 @@ import { normalizeNotificationAppearance } from '../utils/notificationAppearance
 import { playNotificationSound } from '../utils/notificationSound'
 import { appIconMain } from '../utils/reminderVisuals'
 import { createSettingsWriter } from '../utils/settingsWriter'
+import AppIcon from './AppIcon.vue'
 import LanguageSelect from './LanguageSelect.vue'
 import MascotStyleSettings from './MascotStyleSettings.vue'
 import NotificationAppearanceSettings from './NotificationAppearanceSettings.vue'
@@ -29,6 +31,7 @@ const emit = defineEmits<{
 const { applyTheme } = useTheme()
 
 const fieldId = useId()
+useModalFocus(useTemplateRef<HTMLElement>('dialog'), handleClose)
 
 const AUTO_START_SETTING_KEY = 'auto_start'
 
@@ -536,7 +539,7 @@ async function handleImport() {
 
 <template>
   <div class="settings-overlay" @click.self="handleClose">
-    <div class="settings-container" role="dialog" aria-modal="true" :aria-labelledby="`${fieldId}-title`">
+    <div ref="dialog" class="settings-container" role="dialog" aria-modal="true" :aria-labelledby="`${fieldId}-title`" tabindex="-1">
       <div class="settings-header">
         <div class="header-copy">
           <div class="brand-row">
@@ -553,7 +556,7 @@ async function handleImport() {
         </div>
 
         <button class="close-button" :aria-label="t('common.close')" type="button" @click="handleClose">
-          <span class="close-symbol">×</span>
+          <AppIcon name="close" />
         </button>
       </div>
 

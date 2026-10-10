@@ -1210,6 +1210,7 @@ pub fn run() {
             commands::toggle_reminder,
             commands::respond_reminder,
             commands::postpone_reminder,
+            scheduler::resize_notification_window,
             commands::release_notification,
             commands::get_action_progress,
             commands::get_daily_stats,

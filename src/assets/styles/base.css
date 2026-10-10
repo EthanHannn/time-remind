@@ -40,6 +40,13 @@ button {
   background: none;
   font-family: inherit;
   font-size: inherit;
+  touch-action: manipulation;
+}
+
+button:disabled { cursor: not-allowed; opacity: 0.55; }
+:where(button, input, select, textarea, a):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
 }
 
 input,

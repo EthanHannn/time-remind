@@ -3,8 +3,9 @@ import type { CreateReminderRequest, Reminder, ReminderRuntime, RuntimeSnapshot,
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { createReminder, deleteReminder, getReminderOverview, toggleReminder } from './api/reminder'
+import { createReminder, deleteReminder, getReminderOverview, toggleReminder, updateReminder } from './api/reminder'
 import AddReminderForm from './components/AddReminderForm.vue'
+import AppIcon from './components/AppIcon.vue'
 import AppResizeHandles from './components/AppResizeHandles.vue'
 import AppTitleBar from './components/AppTitleBar.vue'
 import ConfirmDialog from './components/ConfirmDialog.vue'
@@ -25,6 +26,8 @@ const suppression = ref<ReminderRuntime | null>(null)
 let runtimeRevision = 0
 let overviewRequest = 0
 const showAddForm = ref(false)
+const editingReminder = ref<Reminder | null>(null)
+const globalTogglePending = ref(false)
 const showSettings = ref(false)
 const showStats = ref(false)
 const pendingDeleteReminder = ref<Reminder | null>(null)
@@ -36,9 +39,42 @@ const actionError = ref('')
 const loadError = ref('')
 const loaded = ref(false)
 const pendingToggles = ref(new Set<string>())
-const { t } = useI18n()
+const { locale, t } = useI18n()
+const globalStatus = computed(() => {
+  if (globallyPaused.value)
+    return t(suppression.value?.reason === 'system' ? 'runtime.systemPaused' : 'reminder.paused')
+  if (!suppression.value)
+    return ''
+  const until = suppression.value.until
+  return until ? t('runtime.until', { time: new Date(`${until}Z`).toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' }) }) : t('settings.dnd')
+})
 
-const enabledCount = computed(() => reminders.value.filter(reminder => reminder.enabled).length)
+function openCreate() {
+  editingReminder.value = null
+  addError.value = ''
+  showAddForm.value = true
+}
+function openEdit(id: string) {
+  editingReminder.value = reminders.value.find(reminder => reminder.id === id) || null
+  addError.value = ''
+  showAddForm.value = Boolean(editingReminder.value)
+}
+async function toggleAll() {
+  if (globalTogglePending.value)
+    return
+  globalTogglePending.value = true
+  actionError.value = ''
+  try {
+    await invoke('toggle_all_reminders', { enabled: globallyPaused.value })
+    await loadReminders()
+  }
+  catch (error) {
+    actionError.value = t('feedback.failed', { error: String(error) })
+  }
+  finally {
+    globalTogglePending.value = false
+  }
+}
 
 // 监听定时器 tick 事件
 let unlistenTick: (() => void) | null = null
@@ -177,6 +213,8 @@ async function handleDeleteConfirm() {
     deleteLoading.value = true
     deleteError.value = ''
     await deleteReminder(target.id)
+    if (editingReminder.value?.id === target.id)
+      showAddForm.value = false
     pendingDeleteReminder.value = null
     await loadReminders()
   }
@@ -201,7 +239,10 @@ async function handleAdd(data: CreateReminderRequest) {
   addLoading.value = true
   addError.value = ''
   try {
-    await createReminder(data)
+    if (editingReminder.value)
+      await updateReminder(editingReminder.value.id, data)
+    else
+      await createReminder(data)
     showAddForm.value = false
     await loadReminders()
   }
@@ -215,37 +256,39 @@ async function handleAdd(data: CreateReminderRequest) {
 </script>
 
 <template>
-  <div class="app-shell card-base border-none rounded-none h-screen flex flex-col overflow-hidden">
+  <div class="app-shell">
     <AppTitleBar />
     <AppResizeHandles />
 
     <header class="app-header">
       <div class="title-block">
-        <div class="status-indicator" :style="globallyPaused || suppression ? { opacity: 0.3 } : undefined" />
         <div class="title-copy">
           <h1 class="app-title">
-            {{ globallyPaused ? t(suppression?.reason === 'system' ? 'runtime.systemPaused' : 'reminder.paused') : suppression ? t('settings.dnd') : t('app.runningCount', { count: enabledCount }) }}
+            {{ t('ui.reminders') }}
           </h1>
-          <p class="app-subtitle">
-            {{ t('app.keepRhythm') }}
-          </p>
         </div>
       </div>
 
       <div class="header-actions">
-        <button class="header-button header-button-text" type="button" @click="showStats = true">
-          {{ t('app.stats') }}
+        <button class="header-button" :disabled="globalTogglePending || !loaded" type="button" :aria-label="t(globallyPaused ? 'ui.resumeAll' : 'ui.pauseAll')" :title="t(globallyPaused ? 'ui.resumeAll' : 'ui.pauseAll')" @click="toggleAll">
+          <AppIcon :name="globallyPaused ? 'play' : 'pause'" />
         </button>
-        <button class="header-button header-button-text" type="button" @click="showSettings = true">
-          {{ t('app.settings') }}
+        <button class="header-button" type="button" :aria-label="t('app.stats')" :title="t('app.stats')" @click="showStats = true">
+          <AppIcon name="stats" />
         </button>
-        <button class="header-button header-button-primary" type="button" @click="showAddForm = true">
-          <span class="header-button-plus">+</span>
+        <button class="header-button" type="button" :aria-label="t('app.settings')" :title="t('app.settings')" @click="showSettings = true">
+          <AppIcon name="settings" />
+        </button>
+        <button class="header-button header-button-primary" type="button" :aria-label="t('form.title')" :title="t('form.title')" @click="openCreate">
+          <AppIcon name="plus" />
         </button>
       </div>
     </header>
 
     <main class="reminder-list">
+      <p v-if="globalStatus" class="global-status" role="status">
+        {{ globalStatus }}
+      </p>
       <p v-if="loadError" role="alert">
         {{ loadError }} <button type="button" @click="loadReminders">
           {{ t('feedback.retry') }}
@@ -265,7 +308,7 @@ async function handleAdd(data: CreateReminderRequest) {
         <p class="empty-description">
           {{ t('app.emptyDescription') }}
         </p>
-        <button class="empty-action" type="button" @click="showAddForm = true">
+        <button class="empty-action" type="button" @click="openCreate">
           {{ t('app.addFirst') }}
         </button>
       </div>
@@ -277,10 +320,11 @@ async function handleAdd(data: CreateReminderRequest) {
           :reminder="reminder"
           :remaining-seconds="countdowns[reminder.id]"
           :globally-paused="globallyPaused"
+          :globally-suppressed="Boolean(suppression)"
           :runtime="runtimeStates[reminder.id]"
           :pending="pendingToggles.has(reminder.id)"
           @toggle="handleToggle"
-          @delete="handleDelete"
+          @edit="openEdit"
         />
       </TransitionGroup>
     </main>
@@ -290,8 +334,10 @@ async function handleAdd(data: CreateReminderRequest) {
         v-if="showAddForm"
         :pending="addLoading"
         :error="addError"
+        :reminder="editingReminder"
         @submit="handleAdd"
         @cancel="!addLoading && (showAddForm = false)"
+        @delete="editingReminder && handleDelete(editingReminder.id)"
       />
     </Transition>
 
@@ -327,159 +373,16 @@ async function handleAdd(data: CreateReminderRequest) {
 </template>
 
 <style>
-.app-shell {
-  position: relative;
-  background:
-    radial-gradient(circle at top left, rgba(47, 159, 216, 0.12), transparent 34%),
-    radial-gradient(circle at top right, rgba(246, 179, 91, 0.1), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.96));
-}
-
-[data-theme='dark'] .app-shell {
-  background:
-    radial-gradient(circle at top left, rgba(47, 159, 216, 0.2), transparent 34%),
-    radial-gradient(circle at top right, rgba(246, 179, 91, 0.16), transparent 28%),
-    linear-gradient(180deg, rgba(20, 24, 31, 0.99), rgba(16, 20, 28, 0.97));
-}
-
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 14px;
-  padding: 14px 20px 16px;
-}
-
-.title-block {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-}
-
-.status-indicator {
-  position: relative;
-  width: 12px;
-  height: 32px;
-  flex-shrink: 0;
-  border-radius: 999px;
-  background:
-    linear-gradient(180deg, rgba(47, 159, 216, 0.96), rgba(246, 179, 91, 0.82));
-  box-shadow:
-    0 10px 20px rgba(47, 159, 216, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.52);
-}
-
-.status-indicator::after {
-  position: absolute;
-  top: 5px;
-  left: 3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  content: '';
-}
-
-[data-theme='dark'] .status-indicator {
-  background: linear-gradient(180deg, rgba(47, 159, 216, 0.86), rgba(246, 179, 91, 0.62));
-  box-shadow:
-    0 10px 20px rgba(2, 6, 23, 0.26),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.title-copy {
-  min-width: 0;
-}
-
-.app-title {
-  margin: 0;
-  min-width: 0;
-  overflow: hidden;
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--text-primary);
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.app-subtitle {
-  margin: 3px 0 0;
-  overflow: hidden;
-  color: var(--text-secondary);
-  font-size: 12px;
-  line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.header-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.header-button {
-  width: 38px;
-  height: 38px;
-  border-radius: 14px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255, 255, 255, 0.72);
-  color: var(--text-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    transform 0.2s ease,
-    background-color 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
-}
-
-.header-button:hover {
-  transform: translateY(-1px);
-  border-color: rgba(79, 140, 255, 0.26);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
-}
-
-.header-button:active {
-  transform: scale(0.95);
-}
-
-[data-theme='dark'] .header-button {
-  background: rgba(24, 28, 38, 0.88);
-  border-color: rgba(148, 163, 184, 0.16);
-}
-
-.header-button-primary {
-  background: linear-gradient(135deg, rgba(47, 159, 216, 0.92), rgba(79, 140, 255, 0.94));
-  color: white;
-  border-color: transparent;
-}
-
-.header-button-text {
-  width: auto;
-  min-width: 44px;
-  padding: 0 12px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.header-button-plus {
-  font-size: 22px;
-  line-height: 1;
-}
-
-.reminder-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 0 20px 18px;
-}
-
-.reminder-list::-webkit-scrollbar {
-  width: 4px;
-}
+.app-shell { position: relative; display: flex; flex-direction: column; height: 100vh; overflow: hidden; background: var(--bg-primary); }
+.app-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+.title-block, .title-copy { min-width: 0; }
+.app-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--text-primary); line-height: 1.3; overflow-wrap: anywhere; }
+.header-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
+.header-button { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; color: var(--text-secondary); transition: background-color 150ms ease; }
+.header-button:hover { background: var(--bg-secondary); color: var(--color-primary); }
+.header-button-primary { color: var(--color-primary); background: var(--color-primary-light); }
+.reminder-list { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
+.global-status { margin: 0 0 10px; padding: 9px 12px; border-radius: 9px; font-size: 12px; color: var(--text-secondary); background: var(--bg-secondary); }
 
 .empty-state {
   min-height: calc(100vh - 120px);
@@ -534,7 +437,7 @@ async function handleAdd(data: CreateReminderRequest) {
 
 .list-enter-active,
 .list-leave-active {
-  transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: opacity 0.25s, transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .list-enter-from {

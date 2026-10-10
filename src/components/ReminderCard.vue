@@ -3,457 +3,120 @@ import type { Reminder, ReminderRuntime } from '../types/reminder'
 import { computed } from 'vue'
 import { useI18n } from '../i18n'
 import { getLocalizedReminderVisual } from '../utils/reminderVisuals'
+import AppIcon from './AppIcon.vue'
 
 const props = defineProps<{
   reminder: Reminder
   remainingSeconds?: number
   globallyPaused?: boolean
+  globallySuppressed?: boolean
   pending?: boolean
   runtime?: ReminderRuntime
 }>()
-
-const emit = defineEmits<{
-  toggle: [id: string]
-  delete: [id: string]
-}>()
-
+const emit = defineEmits<{ toggle: [id: string], edit: [id: string] }>()
 const { locale, t } = useI18n()
-const visual = computed(() => getLocalizedReminderVisual(
-  props.reminder.reminder_type,
-  locale.value,
-  props.reminder.icon,
-))
-
+const visual = computed(() => getLocalizedReminderVisual(props.reminder.reminder_type, locale.value, props.reminder.icon))
 const totalSeconds = computed(() => props.runtime?.state === 'acting' ? props.reminder.action_duration_seconds : props.reminder.interval_minutes * 60)
-const progress = computed(() => {
-  if (props.remainingSeconds === undefined || !props.reminder.enabled || totalSeconds.value <= 0) {
-    return 0
-  }
-
-  return Math.max(0, Math.min(100, (1 - props.remainingSeconds / totalSeconds.value) * 100))
-})
-
-const cardStyle = computed(() => ({
-  '--visual-accent': visual.value.accent,
-  '--visual-soft': visual.value.accentSoft,
-  '--visual-border': visual.value.borderSoft,
-  '--visual-badge': visual.value.badgeBackground,
-}))
-
-const statusLabel = computed(() => {
+const progress = computed(() => props.remainingSeconds === undefined || !props.reminder.enabled || totalSeconds.value <= 0 ? 0 : Math.max(0, Math.min(100, (1 - props.remainingSeconds / totalSeconds.value) * 100)))
+const cardStyle = computed(() => ({ '--visual-accent': visual.value.accent, '--visual-soft': visual.value.accentSoft, '--visual-border': visual.value.borderSoft }))
+const specialStatus = computed(() => {
+  if (!props.reminder.enabled || props.globallyPaused || props.globallySuppressed)
+    return ''
   const state = props.runtime?.state
   if (state === 'paused')
     return t(props.runtime?.reason === 'system' ? 'runtime.systemPaused' : 'reminder.paused')
   if (state === 'dnd')
     return t(props.runtime?.reason === 'fullscreen' ? 'settings.fullscreenDelay' : 'settings.dnd')
-  if (state && state !== 'scheduled')
-    return t(`runtime.${state}`)
-  return props.reminder.enabled && !props.globallyPaused ? t('reminder.enabled') : t('reminder.paused')
+  return state && !['scheduled', 'disabled'].includes(state) ? t(`runtime.${state}`) : ''
 })
-const suppressionEnd = computed(() => props.runtime?.until
-  ? t('runtime.until', { time: new Date(`${props.runtime.until}Z`).toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' }) })
-  : '')
-const restBreakLabel = computed(() => {
-  if (props.reminder.reminder_type !== 'rest' || props.reminder.break_duration_minutes <= 0) {
-    return ''
-  }
-
-  return t('reminder.restDuration', { minutes: props.reminder.break_duration_minutes })
-})
-
-const restBreakNotificationLabel = computed(() => {
-  if (props.reminder.reminder_type !== 'rest') {
-    return ''
-  }
-
-  return props.reminder.break_notification_enabled ? t('reminder.restTipOn') : t('reminder.restTipOff')
-})
-
+const showNextTrigger = computed(() => props.reminder.enabled && !props.globallyPaused && !props.globallySuppressed && (!props.runtime || props.runtime.state === 'scheduled'))
 const nextTriggerLabel = computed(() => {
-  if (!props.reminder.next_trigger) {
+  if (!props.reminder.next_trigger)
     return t('common.noSchedule')
-  }
-
-  const nextTrigger = new Date(`${props.reminder.next_trigger}Z`)
-  if (Number.isNaN(nextTrigger.getTime())) {
+  const raw = props.reminder.next_trigger
+  const date = new Date(/Z$|[+-]\d{2}:\d{2}$/.test(raw) ? raw : `${raw}Z`)
+  if (Number.isNaN(date.getTime()))
     return t('common.noSchedule')
-  }
-
-  return nextTrigger.toLocaleTimeString(locale.value, {
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const sameDay = date.toDateString() === new Date().toDateString()
+  return new Intl.DateTimeFormat(locale.value, { ...(sameDay ? {} : { month: 'numeric' as const, day: 'numeric' as const }), hour: '2-digit', minute: '2-digit' }).format(date)
 })
-
-function formatTime(seconds: number): string {
-  const safeSeconds = Math.max(0, seconds)
-  const h = Math.floor(safeSeconds / 3600)
-  const m = Math.floor((safeSeconds % 3600) / 60)
-  const s = safeSeconds % 60
-
-  if (h > 0) {
-    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
-  }
-
-  return `${m}:${String(s).padStart(2, '0')}`
+const durationLabel = computed(() => {
+  if (!props.reminder.action_enabled || props.reminder.action_duration_seconds <= 0)
+    return ''
+  const seconds = props.reminder.action_duration_seconds
+  if (props.reminder.reminder_type === 'rest' && seconds % 60 === 0)
+    return t('reminder.restDuration', { minutes: seconds / 60 })
+  return `${seconds % 60 === 0 ? seconds / 60 : seconds} ${t(seconds % 60 === 0 ? 'common.minutes' : 'common.seconds')}`
+})
+function formatTime(seconds: number) {
+  const safe = Math.max(0, seconds)
+  const h = Math.floor(safe / 3600)
+  const m = Math.floor(safe % 3600 / 60)
+  const s = String(safe % 60).padStart(2, '0')
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`
 }
 </script>
 
 <template>
-  <article
-    class="reminder-card"
-    :class="{ 'reminder-card-disabled': !reminder.enabled }"
-    :style="cardStyle"
-  >
+  <article class="reminder-card" :class="{ 'reminder-card-disabled': !reminder.enabled }" :style="cardStyle" :aria-label="reminder.name">
     <div class="card-top">
-      <div class="card-main">
-        <div class="icon-badge">
-          <img
-            v-if="visual.iconAsset"
-            :src="visual.iconAsset"
-            :alt="visual.label"
-            class="icon-image"
-          >
-          <span v-else class="fallback-icon-text">{{ visual.iconText }}</span>
-        </div>
-
-        <div class="card-copy">
-          <div class="title-row">
-            <h3 class="card-title">
-              {{ reminder.name }}
-            </h3>
-            <span class="status-chip">
-              {{ statusLabel }}
-            </span>
-          </div>
-
-          <p class="card-message">
-            {{ reminder.message }}
-          </p>
-
-          <div class="meta-row">
-            <span class="meta-item">
-              {{ reminder.interval_minutes }} {{ t('common.minutes') }}
-            </span>
-            <span v-if="restBreakLabel" class="meta-item">
-              {{ restBreakLabel }}
-            </span>
-            <span v-if="restBreakNotificationLabel" class="meta-item">
-              {{ restBreakNotificationLabel }}
-            </span>
-            <span v-if="suppressionEnd" class="meta-item">{{ suppressionEnd }}</span>
-            <span v-else-if="!globallyPaused && (!runtime || runtime.state === 'scheduled')" class="meta-item">
-              {{ t('reminder.next', { time: nextTriggerLabel }) }}
-            </span>
-          </div>
-        </div>
+      <img v-if="visual.iconAsset" :src="visual.iconAsset" alt="" class="icon-image" width="32" height="32">
+      <span v-else aria-hidden="true">{{ visual.iconText }}</span>
+      <div class="card-copy">
+        <h2 class="card-title" :title="reminder.name">
+          {{ reminder.name }}
+        </h2>
+        <p class="card-meta">
+          {{ reminder.interval_minutes }} {{ t('common.minutes') }}<span v-if="durationLabel"> · {{ durationLabel }}</span>
+        </p>
       </div>
-
-      <div class="countdown-panel">
-        <span class="countdown-label">{{ t('reminder.countdown') }}</span>
-        <span class="countdown-value">
-          {{ reminder.enabled && remainingSeconds !== undefined ? formatTime(remainingSeconds) : '--:--' }}
-        </span>
+      <div class="card-actions">
+        <button class="edit-button" :disabled="pending" type="button" :aria-label="`${t('ui.edit')}: ${reminder.name}`" :title="t('ui.edit')" @click="emit('edit', reminder.id)">
+          <AppIcon name="edit" />
+        </button>
+        <button class="toggle-button" :disabled="pending" :class="{ 'toggle-button-active': reminder.enabled }" role="switch" :aria-checked="reminder.enabled" :aria-label="reminder.name" :title="t(reminder.enabled ? 'reminder.enabled' : 'runtime.disabled')" type="button" @click="emit('toggle', reminder.id)">
+          <span class="toggle-pill"><span class="toggle-thumb" /></span>
+        </button>
       </div>
     </div>
-
-    <div class="progress-track">
-      <div class="progress-bar" :style="{ width: `${progress}%` }" />
+    <div class="schedule-row">
+      <span v-if="showNextTrigger" class="next-trigger">{{ t('reminder.next', { time: nextTriggerLabel }) }}</span>
+      <span v-else-if="specialStatus" class="special-status">{{ specialStatus }}</span>
+      <span v-else class="schedule-placeholder" aria-hidden="true">—</span>
+      <span class="countdown-panel">
+        {{ t('notification.remaining') }} <span class="countdown-value">{{ reminder.enabled && remainingSeconds !== undefined ? formatTime(remainingSeconds) : '--:--' }}</span>
+      </span>
     </div>
-
-    <div class="card-actions">
-      <button class="action-link danger" :disabled="pending" type="button" @click="emit('delete', reminder.id)">
-        {{ t('common.delete') }}
-      </button>
-
-      <button
-        class="toggle-button"
-        :disabled="pending"
-        :class="{ 'toggle-button-active': reminder.enabled }"
-        type="button"
-        @click="emit('toggle', reminder.id)"
-      >
-        <span class="toggle-label">
-          {{ reminder.enabled ? t('reminder.enabled') : t('runtime.disabled') }}
-        </span>
-        <span class="toggle-pill">
-          <span class="toggle-thumb" />
-        </span>
-      </button>
+    <div class="progress-track" aria-hidden="true">
+      <div class="progress-bar" :style="{ transform: `scaleX(${progress / 100})` }" />
     </div>
   </article>
 </template>
 
 <style scoped>
-.reminder-card {
-  position: relative;
-  margin-bottom: 14px;
-  padding: 16px;
-  border-radius: 24px;
-  border: 1px solid var(--visual-border);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.76)),
-    var(--visual-soft);
-  box-shadow:
-    0 18px 30px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.66);
-  transition:
-    transform 0.22s ease,
-    box-shadow 0.22s ease,
-    border-color 0.22s ease,
-    opacity 0.22s ease;
-}
-
-.reminder-card:hover {
-  transform: translateY(-2px);
-  box-shadow:
-    0 24px 40px rgba(15, 23, 42, 0.1),
-    inset 0 1px 0 rgba(255, 255, 255, 0.7);
-}
-
-[data-theme='dark'] .reminder-card {
-  background:
-    linear-gradient(180deg, rgba(23, 28, 37, 0.92), rgba(18, 22, 31, 0.9)),
-    var(--visual-soft);
-  box-shadow:
-    0 18px 30px rgba(2, 6, 23, 0.3),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
-}
-
-.reminder-card-disabled {
-  opacity: 0.72;
-}
-
-.reminder-card-disabled:hover {
-  transform: none;
-}
-
-.card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.card-main {
-  flex: 1;
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-  min-width: 0;
-}
-
-.icon-badge {
-  width: 56px;
-  height: 56px;
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 18px;
-  background: var(--visual-badge);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
-}
-
-.icon-image {
-  width: 36px;
-  height: 36px;
-  object-fit: contain;
-}
-
-.fallback-icon-text {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--visual-accent);
-}
-
-.card-copy {
-  min-width: 0;
-  flex: 1;
-}
-
-.title-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  justify-content: space-between;
-}
-
-.card-title {
-  margin: 0;
-  min-width: 0;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text-primary);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.status-chip {
-  flex-shrink: 0;
-  padding: 4px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--visual-accent);
-  background: var(--visual-soft);
-}
-
-.card-message {
-  margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.55;
-  color: var(--text-secondary);
-}
-
-.meta-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-top: 10px;
-}
-
-.meta-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: var(--text-secondary);
-}
-
-.countdown-panel {
-  min-width: 84px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 4px;
-}
-
-.countdown-label {
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
-
-.countdown-value {
-  font-size: 18px;
-  font-weight: 700;
-  color: var(--visual-accent);
-  letter-spacing: -0.03em;
-  font-variant-numeric: tabular-nums;
-}
-
-.progress-track {
-  height: 6px;
-  margin-top: 14px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.18);
-}
-
-.progress-bar {
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--visual-accent), rgba(255, 255, 255, 0.92));
-  transition: width 0.35s ease;
-}
-
-.card-actions {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 14px;
-}
-
-.action-link {
-  padding: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  transition: color 0.2s ease;
-}
-
-.action-link:hover {
-  color: var(--text-primary);
-}
-
-.action-link.danger:hover {
-  color: #e35d6a;
-}
-
-.toggle-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background: rgba(255, 255, 255, 0.7);
-  transition:
-    transform 0.2s ease,
-    border-color 0.2s ease,
-    background-color 0.2s ease;
-}
-
-[data-theme='dark'] .toggle-button {
-  background: rgba(28, 33, 44, 0.78);
-}
-
-.toggle-button:active {
-  transform: scale(0.97);
-}
-
-.toggle-button-active {
-  border-color: var(--visual-border);
-}
-
-.toggle-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-primary);
-}
-
-.toggle-pill {
-  width: 34px;
-  height: 20px;
-  position: relative;
-  border-radius: 999px;
-  background: rgba(148, 163, 184, 0.26);
-  transition: background-color 0.2s ease;
-}
-
-.toggle-button-active .toggle-pill {
-  background: var(--visual-accent);
-}
-
-.toggle-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: white;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
-  transition: transform 0.22s ease;
-}
-
-.toggle-button-active .toggle-thumb {
-  transform: translateX(14px);
-}
-
-@media (max-width: 420px) {
-  .card-top {
-    flex-direction: column;
-  }
-
-  .countdown-panel {
-    width: 100%;
-    flex-direction: row;
-    align-items: center;
-    justify-content: space-between;
-  }
-}
+.reminder-card { margin-bottom: 10px; padding: 13px 14px; border-radius: 13px; border: 1px solid var(--visual-border); background: linear-gradient(115deg, var(--bg-primary) 45%, var(--visual-soft)); }
+.reminder-card-disabled { opacity: 0.65; }
+.card-top { display: flex; align-items: center; gap: 10px; }
+.icon-image { flex: 0 0 32px; object-fit: contain; }
+.card-copy { min-width: 0; flex: 1; }
+.card-title { margin: 0; overflow: hidden; font-size: 14px; font-weight: 650; line-height: 1.5; color: var(--text-primary); white-space: nowrap; text-overflow: ellipsis; }
+.card-meta { margin-top: 2px; font-size: 11px; color: var(--text-secondary); }
+.card-actions { display: flex; align-items: center; gap: 4px; }
+.edit-button { display: grid; place-items: center; width: 30px; height: 32px; border-radius: 8px; color: var(--text-secondary); }
+.edit-button .app-icon { width: 16px; height: 16px; }
+.edit-button:hover { color: var(--color-primary); background: var(--bg-secondary); }
+.toggle-button { min-width: 44px; min-height: 36px; display: grid; place-items: center; border-radius: 8px; }
+.toggle-pill { width: 34px; height: 20px; position: relative; border-radius: 999px; background: #8a97a8; transition: background-color 150ms ease; }
+.toggle-button-active .toggle-pill { background: var(--color-primary); }
+.toggle-thumb { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: white; transition: transform 150ms ease; }
+.toggle-button-active .toggle-thumb { transform: translateX(14px); }
+.schedule-row { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-top: 12px; }
+.next-trigger { font-size: 16px; line-height: 1.5; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.special-status { font-size: 12px; color: var(--text-secondary); }
+.schedule-placeholder { color: var(--text-tertiary); }
+.countdown-panel { margin-inline-start: auto; font-size: 11px; color: var(--text-secondary); }
+.countdown-value { font-variant-numeric: tabular-nums; }
+.progress-track { margin-top: 7px; height: 4px; border-radius: 4px; background: var(--border-color); overflow: hidden; }
+.progress-bar { height: 100%; transform-origin: left; background: linear-gradient(90deg, var(--visual-accent), #6f9fdf); border-radius: inherit; transition: transform 250ms linear; }
+[dir='rtl'] .progress-bar { transform-origin: right; }
 </style>

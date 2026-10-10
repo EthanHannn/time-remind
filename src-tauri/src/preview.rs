@@ -6,6 +6,8 @@ use tauri::{AppHandle, Emitter, Manager, State};
 pub struct PreviewRequest {
     mascot_style: String,
     reminder_type: String,
+    #[serde(default)]
+    icon: Option<String>,
     settings: serde_json::Value,
 }
 
@@ -30,7 +32,7 @@ pub fn preview_notification(
         "classic" | "editorial" | "watercolor"
     ) || !matches!(
         request.reminder_type.as_str(),
-        "drink" | "rest" | "eye_care"
+        "drink" | "rest" | "eye_care" | "custom"
     ) {
         return Err("Unknown preview style or reminder type".into());
     }
@@ -57,6 +59,7 @@ pub fn preview_notification(
             area.position,
             area.size,
             monitor.scale_factor(),
+            crate::scheduler::notification_window_size(&window),
         )
     });
     if let Some(position) = position {

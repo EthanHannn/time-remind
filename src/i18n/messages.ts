@@ -1,4 +1,5 @@
 import { feedbackMessages } from './feedback'
+import { interfaceMessages } from './interface'
 import ar from './locales/ar.json'
 import esES from './locales/es-ES.json'
 import hiIN from './locales/hi-IN.json'
@@ -699,7 +700,7 @@ const baseMessages = {
 } as const
 
 export const messages = Object.fromEntries(
-  Object.entries(baseMessages).map(([key, value]) => [key, { ...value, feedback: feedbackMessages[key as Language], runtime: runtimeMessages[key as Language] }]),
-) as { [K in Language]: (typeof baseMessages)[K] & { feedback: (typeof feedbackMessages)[K], runtime: (typeof runtimeMessages)[K] } }
+  Object.entries(baseMessages).map(([key, value]) => [key, { ...value, feedback: feedbackMessages[key as Language], runtime: runtimeMessages[key as Language], ui: interfaceMessages[key as Language] }]),
+) as { [K in Language]: (typeof baseMessages)[K] & { feedback: (typeof feedbackMessages)[K], runtime: (typeof runtimeMessages)[K], ui: (typeof interfaceMessages)[K] } }
 
 export type MessageSchema = (typeof messages)[Language]

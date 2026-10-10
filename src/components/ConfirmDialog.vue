@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue'
+import { useTemplateRef } from 'vue'
+import { useModalFocus } from '../composables/useModalFocus'
 
 const props = withDefaults(defineProps<{
   title: string
@@ -35,26 +36,12 @@ function handleConfirm() {
   emit('confirm')
 }
 
-function handleKeydown(event: KeyboardEvent) {
-  if (event.key !== 'Escape')
-    return
-
-  event.preventDefault()
-  handleCancel()
-}
-
-onMounted(() => {
-  window.addEventListener('keydown', handleKeydown)
-})
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown)
-})
+useModalFocus(useTemplateRef<HTMLElement>('dialog'), handleCancel)
 </script>
 
 <template>
   <div class="confirm-overlay" @click.self="handleCancel">
-    <div class="confirm-container">
+    <div ref="dialog" class="confirm-container" role="dialog" aria-modal="true" :aria-label="title" tabindex="-1">
       <div class="confirm-header">
         <h2 class="confirm-title">
           {{ title }}

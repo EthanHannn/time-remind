@@ -6,7 +6,6 @@ import type { NotificationSoundPreset } from './utils/notificationSound'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { computed, onMounted, onUnmounted, ref, shallowRef, watch } from 'vue'
-import ClassicNotificationCard from './components/ClassicNotificationCard.vue'
 import NotificationCard from './components/NotificationCard.vue'
 import { useTheme } from './composables/useTheme'
 import { loadLanguage, useI18n } from './i18n'
@@ -42,6 +41,8 @@ const soundEnabled = ref(true)
 const soundPreset = ref<NotificationSoundPreset>('soft')
 const soundVolume = ref(60)
 const breakMode = ref(false)
+const collapsed = shallowRef(false)
+const interacting = shallowRef(false)
 const breakRemainingSeconds = ref(0)
 const pendingCount = ref(0)
 const { locale, t } = useI18n()
@@ -174,8 +175,28 @@ let latestQueueRevision = -1
 let notificationRevision = 0
 const actionPending = ref(false)
 const actionError = ref('')
-let breakDeadline = 0
 let disposed = false
+const windowSize = computed(() => ({
+  width: collapsed.value && breakMode.value ? 340 : 400,
+  height: (collapsed.value && breakMode.value ? 96 : (notificationAppearance.value === 'illustrated' ? 304 : notificationAppearance.value === 'minimal' ? 232 : 240) + (breakMode.value ? 32 : 0)) + (actionError.value ? 44 : 0),
+}))
+let resizeQueue = Promise.resolve()
+watch([visible, windowSize], () => {
+  if (!visible.value || props.previewRequest)
+    return
+  resizeQueue = resizeQueue.then(async () => {
+    if (!disposed && visible.value)
+      await invoke('resize_notification_window', windowSize.value)
+  }).catch(error => console.error('Failed to resize notification:', error))
+})
+function setInteracting(active: boolean) {
+  interacting.value = active
+  if (active)
+    pauseAutoDismiss()
+  else if (!systemTimersPaused)
+    resumeAutoDismiss()
+}
+let breakDeadline = 0
 
 async function showPreview(request: NotificationPreviewRequest) {
   const revision = ++notificationRevision
@@ -189,18 +210,19 @@ async function showPreview(request: NotificationPreviewRequest) {
   mascotStyle.value = normalizeMascotStyle(request.mascotStyle)
   notificationAppearance.value = normalizeNotificationAppearance(request.settings.notificationAppearance)
   reminderType.value = request.reminderType
-  reminderIcon.value = request.reminderType
+  reminderIcon.value = request.icon || request.reminderType
   applyTheme(request.settings.theme)
   notificationDuration.value = Math.min(Math.max(request.settings.notificationDuration || 30, 5), 120) * 1000
   postponeOptions.value = buildPostponeOptions(request.settings.postponeOptions)
   name.value = visual.value.defaultName
   message.value = visual.value.shortMessage
-  actionEnabled.value = request.reminderType !== 'drink'
+  actionEnabled.value = request.reminderType === 'rest' || request.reminderType === 'eye_care'
   actionDurationSeconds.value = visual.value.defaultActionDurationSeconds || 0
   actionTitle.value = t(request.reminderType === 'eye_care' ? 'notification.startEyeCare' : 'notification.startBreak')
   actionMessage.value = ''
   actionPending.value = false
   breakMode.value = false
+  collapsed.value = false
   pendingCount.value = 0
   visible.value = true
   if (request.settings.soundEnabled !== false) {
@@ -265,6 +287,7 @@ onMounted(async () => {
     clearAutoDismiss()
     stopBreakCountdown()
     breakMode.value = false
+    collapsed.value = false
     name.value = data.name
     message.value = data.message || ''
     reminderId.value = data.reminder_id
@@ -354,7 +377,7 @@ function startAutoDismiss(durationMs = notificationDuration.value) {
   if (!visible.value || breakMode.value)
     return
 
-  if (systemTimersPaused) {
+  if (systemTimersPaused || interacting.value) {
     autoDismissRemainingMs = durationMs
     return
   }
@@ -379,7 +402,7 @@ function pauseAutoDismiss() {
 }
 
 function resumeAutoDismiss() {
-  if (autoDismissRemainingMs === null || !visible.value || breakMode.value)
+  if (autoDismissRemainingMs === null || !visible.value || breakMode.value || systemTimersPaused || interacting.value)
     return
 
   const remainingMs = autoDismissRemainingMs
@@ -486,6 +509,8 @@ function resetNotificationState() {
 function closeNotificationWindow() {
   visible.value = false
   breakMode.value = false
+  collapsed.value = false
+  interacting.value = false
   clearAutoDismiss()
   stopBreakCountdown()
   resetNotificationState()
@@ -607,8 +632,10 @@ async function handlePostpone(minutes: number) {
 </script>
 
 <template>
-  <component
-    :is="notificationAppearance === 'classic' ? ClassicNotificationCard : NotificationCard"
+  <NotificationCard
+    :style="previewRequest ? { height: `${windowSize.height}px` } : undefined"
+    :appearance="notificationAppearance"
+    :collapsed="collapsed"
     :visible="visible"
     :pending="actionPending"
     :error="actionError"
@@ -628,5 +655,7 @@ async function handlePostpone(minutes: number) {
     @skip="handleAction('skipped')"
     @postpone="handlePostpone"
     @finish="closeBreakPrompt(true)"
+    @collapse="collapsed = $event"
+    @interaction="setInteracting"
   />
 </template>

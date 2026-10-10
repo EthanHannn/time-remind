@@ -16,9 +16,9 @@ Keep track of drinking water, breaks, and eye care in light or dark mode.
 
 ### Reminder popups
 
-Choose between **Soft colors** and **Vivid gradients**, with three cat illustration styles. The middle column shows a rest countdown.
+Choose **Light companion**, **System simple**, or **Illustrated companion**, with soft category colors and three cat illustration styles. Snooze for five minutes directly, choose another saved duration, or collapse an active countdown.
 
-<img src="assets/screenshots/popups-en.png" alt="Two popup styles with soft flat, gentle line, and paper cut cats, including a rest countdown" width="1120">
+<img src="assets/screenshots/popups-en.png" alt="Light companion, System simple, and Illustrated companion reminder popups in light and dark themes" width="1120">
 
 ### Settings
 

@@ -27,7 +27,9 @@ pub fn validate(key: &str, value: &str) -> Result<(), String> {
     let valid = match key {
         "theme" => matches!(value, "light" | "dark" | "system"),
         "mascot_style" => matches!(value, "classic" | "editorial" | "watercolor"),
-        "notification_appearance" => matches!(value, "soft" | "classic"),
+        "notification_appearance" => {
+            matches!(value, "soft" | "classic" | "minimal" | "illustrated")
+        }
         "language" => matches!(
             value,
             "zh-CN"
@@ -149,6 +151,14 @@ mod tests {
             assert_eq!(actual.get(), desired);
         }
         assert!(reconcile_autostart(false, || Ok(true), |_| Err("denied".into())).is_err());
+    }
+
+    #[test]
+    fn accepts_current_and_legacy_notification_layouts_for_settings_and_backups() {
+        for appearance in ["soft", "classic", "minimal", "illustrated"] {
+            assert!(validate("notification_appearance", appearance).is_ok());
+        }
+        assert!(validate("notification_appearance", "unknown").is_err());
     }
 
     #[test]

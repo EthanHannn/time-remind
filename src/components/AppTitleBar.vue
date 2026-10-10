@@ -71,14 +71,14 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="app-titlebar">
+  <div class="app-titlebar" role="region" :aria-label="t('common.appName')">
     <div
       class="app-titlebar-drag-region"
       @mousedown="startDragging"
       @dblclick="toggleMaximizeWindow"
     >
       <div class="app-titlebar-brand">
-        <img :src="appIconMain" :alt="t('common.appName')" class="app-titlebar-logo" draggable="false">
+        <img :src="appIconMain" alt="" width="22" height="22" class="app-titlebar-logo" draggable="false">
         <span class="app-titlebar-name">{{ t('common.appName') }}</span>
       </div>
     </div>

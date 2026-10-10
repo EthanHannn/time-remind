@@ -27,8 +27,8 @@
       {
         "label": "notification",
         "title": "",
-        "width": 360,
-        "height": 224,
+        "width": 400,
+        "height": 240,
         "decorations": false,
         "resizable": false,
         "alwaysOnTop": true,
@@ -43,8 +43,8 @@
       {
         "label": "notification-preview",
         "title": "Time Remind Preview",
-        "width": 360,
-        "height": 224,
+        "width": 400,
+        "height": 240,
         "decorations": false,
         "resizable": false,
         "alwaysOnTop": true,

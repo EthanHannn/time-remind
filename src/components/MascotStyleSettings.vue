@@ -7,6 +7,7 @@ import { nextTick, shallowRef, useId, useTemplateRef } from 'vue'
 import { useI18n } from '../i18n'
 import NotificationApp from '../NotificationApp.vue'
 import { getMascotAsset, mascotStyleOptions } from '../utils/mascotStyles'
+import { customReminderIconOptions } from '../utils/reminderVisuals'
 
 const props = defineProps<{
   settings: FrontendSettings
@@ -16,6 +17,7 @@ const model = defineModel<MascotStyle>({ required: true })
 const { t } = useI18n()
 const groupId = useId()
 const previewType = shallowRef<PreviewReminderType>('drink')
+const previewIcon = shallowRef('custom_star')
 const previewBusy = shallowRef(false)
 const previewError = shallowRef('')
 const browserPreview = shallowRef<NotificationPreviewRequest | null>(null)
@@ -29,6 +31,7 @@ async function previewReminder() {
   const request: NotificationPreviewRequest = {
     mascotStyle: model.value,
     reminderType: previewType.value,
+    icon: previewType.value === 'custom' ? previewIcon.value : undefined,
     settings: { ...props.settings, postponeOptions: [...props.settings.postponeOptions] },
   }
   try {
@@ -68,7 +71,7 @@ function closePreview() {
       <label v-for="option in mascotStyleOptions" :key="option.id" class="mascot-option" :class="{ 'mascot-option-selected': model === option.id }">
         <input v-model="model" :name="groupId" :value="option.id" :disabled="disabled" class="mascot-radio" type="radio">
         <span class="mascot-thumbnail">
-          <img :src="getMascotAsset(option.id, previewType)" alt="" class="mascot-image" width="112" height="112">
+          <img :src="getMascotAsset(option.id, previewType === 'custom' ? 'drink' : previewType)" alt="" class="mascot-image" width="112" height="112">
         </span>
         <span class="mascot-name">{{ t(option.nameKey) }}</span>
         <span class="mascot-caption">{{ t(option.descriptionKey) }}</span>
@@ -86,9 +89,17 @@ function closePreview() {
         <option value="eye_care">
           {{ t('reminderTypes.eyeCare.defaultName') }}
         </option>
+        <option value="custom">
+          {{ t('reminderTypes.custom.defaultName') }}
+        </option>
       </select>
       <button class="mascot-preview-button" type="button" :disabled="disabled || previewBusy" @click="previewReminder">
         {{ t('settings.previewReminder') }}
+      </button>
+    </div>
+    <div v-if="previewType === 'custom'" class="preview-custom-icons" :aria-label="t('form.customIcon')">
+      <button v-for="option in customReminderIconOptions" :key="option.key" type="button" :disabled="disabled" :aria-pressed="previewIcon === option.key" :aria-label="t(option.labelKey)" :title="t(option.labelKey)" @click="previewIcon = option.key">
+        <img :src="option.asset" alt="" width="28" height="28">
       </button>
     </div>
     <p class="mascot-hint">
@@ -257,7 +268,7 @@ function closePreview() {
   inset: 0;
   margin: auto;
   padding: 0;
-  width: 360px;
+  width: 400px;
   max-width: 100vw;
   border: 0;
   background: transparent;
@@ -270,8 +281,10 @@ function closePreview() {
 
 .mascot-preview-frame {
   width: 100%;
-  height: 224px;
 }
+.preview-custom-icons { display: flex; gap: 8px; margin-top: 10px; }
+.preview-custom-icons button { display: grid; place-items: center; width: 42px; height: 42px; border-radius: 10px; border: 1px solid var(--border-color); }
+.preview-custom-icons button[aria-pressed='true'] { border-color: var(--color-primary); background: var(--bg-secondary); }
 
 @media (prefers-reduced-motion: reduce) {
   .mascot-option {

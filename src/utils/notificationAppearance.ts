@@ -1,5 +1,7 @@
-export type NotificationAppearance = 'soft' | 'classic'
+export type NotificationAppearance = 'soft' | 'minimal' | 'illustrated'
 
 export function normalizeNotificationAppearance(value: unknown): NotificationAppearance {
-  return value === 'classic' ? 'classic' : 'soft'
+  if (value === 'classic' || value === 'illustrated')
+    return 'illustrated'
+  return value === 'minimal' ? 'minimal' : 'soft'
 }

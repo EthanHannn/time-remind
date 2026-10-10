@@ -1,15 +1,18 @@
 <script setup lang="ts">
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue'
+import { useModalFocus } from '../composables/useModalFocus'
 import { useI18n } from '../i18n'
 import { emptyReminders, getLocalizedReminderVisual } from '../utils/reminderVisuals'
+import AppIcon from './AppIcon.vue'
 import CompletionDoughnut from './charts/CompletionDoughnut.vue'
 import TrendChart from './charts/TrendChart.vue'
 
 const emit = defineEmits<{
   close: []
 }>()
+useModalFocus(useTemplateRef<HTMLElement>('dialog'), () => emit('close'))
 
 interface ReminderStat {
   reminder_id: string
@@ -111,7 +114,7 @@ function getVisual(type: string, icon?: string) {
 
 <template>
   <div class="stats-overlay" @click.self="emit('close')">
-    <div class="stats-container">
+    <div ref="dialog" class="stats-container" role="dialog" aria-modal="true" :aria-label="t('stats.title')" tabindex="-1">
       <div class="stats-header">
         <div>
           <h2 class="stats-title">
@@ -122,8 +125,8 @@ function getVisual(type: string, icon?: string) {
           </p>
         </div>
 
-        <button class="close-button" type="button" @click="emit('close')">
-          <span class="close-symbol">×</span>
+        <button class="close-button" type="button" :aria-label="t('common.close')" @click="emit('close')">
+          <AppIcon name="close" />
         </button>
       </div>
 

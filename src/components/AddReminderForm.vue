@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import type { CreateReminderRequest } from '../types/reminder'
-import { computed, ref, watch } from 'vue'
+import type { CreateReminderRequest, Reminder } from '../types/reminder'
+import { computed, ref, useId, useTemplateRef, watch } from 'vue'
+import { useModalFocus } from '../composables/useModalFocus'
 import { useI18n } from '../i18n'
 import { customReminderIconOptions, getLocalizedReminderTypeOptions, getLocalizedReminderVisual } from '../utils/reminderVisuals'
+import AppIcon from './AppIcon.vue'
 
-const props = defineProps<{ pending?: boolean, error?: string }>()
+const props = defineProps<{ pending?: boolean, error?: string, reminder?: Reminder | null }>()
 
 const emit = defineEmits<{
   submit: [data: CreateReminderRequest]
   cancel: []
+  delete: []
 }>()
 
 const name = ref('')
@@ -19,10 +22,12 @@ const actionTitle = ref('')
 const actionMessage = ref('')
 const actionDurationValue = ref(0)
 const actionDurationUnit = ref<'seconds' | 'minutes'>('seconds')
-const selectedType = ref('drink')
+const selectedType = ref(props.reminder?.reminder_type || 'drink')
 const selectedCustomIcon = ref('custom_star')
 const errorMessage = ref('')
 const { locale, t } = useI18n()
+const fieldId = useId()
+useModalFocus(useTemplateRef<HTMLElement>('dialog'), () => !props.pending && emit('cancel'))
 
 const reminderTypeOptions = computed(() => getLocalizedReminderTypeOptions(locale.value))
 const selectedVisual = computed(() => getLocalizedReminderVisual(
@@ -55,7 +60,22 @@ function applyTypeDefaults(type: string) {
   actionMessage.value = visual.shortMessage
 }
 
-watch([selectedType, locale], () => applyTypeDefaults(selectedType.value), { immediate: true })
+if (props.reminder) {
+  const reminder = props.reminder
+  name.value = reminder.name
+  message.value = reminder.message
+  intervalMinutes.value = reminder.interval_minutes
+  selectedCustomIcon.value = reminder.icon
+  actionEnabled.value = reminder.action_enabled
+  actionTitle.value = reminder.action_title
+  actionMessage.value = reminder.action_message
+  actionDurationUnit.value = reminder.action_duration_seconds > 0 && reminder.action_duration_seconds % 60 === 0 ? 'minutes' : 'seconds'
+  actionDurationValue.value = actionDurationUnit.value === 'minutes' ? reminder.action_duration_seconds / 60 : reminder.action_duration_seconds
+}
+else {
+  applyTypeDefaults(selectedType.value)
+}
+watch(selectedType, () => applyTypeDefaults(selectedType.value))
 
 function getIcon(): string {
   return selectedType.value === 'custom' ? selectedCustomIcon.value : selectedType.value
@@ -102,188 +122,199 @@ function handleSubmit() {
     action_title: actionEnabled.value ? actionTitle.value.trim() : '',
     action_message: actionEnabled.value ? actionMessage.value.trim() : '',
     action_duration_seconds: actionEnabled.value ? actionDurationSeconds.value : 0,
-    action_completion_mode: 'auto',
+    action_completion_mode: props.reminder?.action_completion_mode || 'auto',
   })
 }
 </script>
 
 <template>
-  <div class="form-overlay" @click.self="!pending && emit('cancel')">
-    <div class="form-container">
+  <div class="form-overlay" role="dialog" aria-modal="true" :aria-labelledby="`${fieldId}-title`" @click.self="!pending && emit('cancel')">
+    <form ref="dialog" class="form-container" tabindex="-1" @submit.prevent="handleSubmit">
       <div class="form-header">
         <div>
-          <h3 class="form-title">
-            {{ t('form.title') }}
-          </h3>
-          <p class="form-subtitle">
+          <h2 :id="`${fieldId}-title`" class="form-title">
+            {{ t(reminder ? 'ui.edit' : 'form.title') }}
+          </h2>
+          <p v-if="!reminder" class="form-subtitle">
             {{ t('form.subtitle') }}
           </p>
         </div>
 
-        <button class="close-button" :disabled="pending" type="button" @click="emit('cancel')">
-          <span class="close-symbol">×</span>
+        <button class="close-button" :disabled="pending" type="button" :aria-label="t('common.close')" @click="emit('cancel')">
+          <AppIcon name="close" />
         </button>
       </div>
 
-      <div class="form-group">
-        <label class="group-label">{{ t('form.type') }}</label>
-        <div class="type-grid">
-          <button
-            v-for="type in reminderTypeOptions"
-            :key="type.type"
-            class="type-card"
-            :class="{ 'type-card-active': selectedType === type.type }"
-            :style="{
-              '--type-accent': type.accent,
-              '--type-soft': type.accentSoft,
-              '--type-border': type.borderSoft,
-            }"
-            type="button"
-            @click="selectedType = type.type"
-          >
-            <div class="type-visual">
-              <img
-                v-if="type.iconAsset"
-                :src="type.iconAsset"
-                :alt="type.label"
-                class="type-image"
-              >
-              <span v-else class="type-fallback-icon">{{ type.iconText }}</span>
-            </div>
-
-            <div class="type-copy">
-              <span class="type-label">{{ type.label }}</span>
-              <span class="type-description">{{ type.description }}</span>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <div v-if="selectedType === 'custom'" class="form-group">
-        <label class="group-label">{{ t('form.customIcon') }}</label>
-        <div class="custom-icon-grid">
-          <button
-            v-for="option in customReminderIconOptions"
-            :key="option.key"
-            class="custom-icon-button"
-            :class="{ 'custom-icon-button-active': selectedCustomIcon === option.key }"
-            type="button"
-            :title="t(option.labelKey)"
-            :aria-label="t(option.labelKey)"
-            @click="selectedCustomIcon = option.key"
-          >
-            <img :src="option.asset" :alt="t(option.labelKey)" class="custom-icon-image">
-          </button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label class="group-label">{{ t('form.name') }}</label>
-        <input
-          v-model="name"
-          class="text-input"
-          type="text"
-          :placeholder="`${t('common.example')}：${selectedVisual.defaultName}`"
-        >
-      </div>
-
-      <div class="form-group">
-        <label class="group-label">{{ t('form.content') }}</label>
-        <input
-          v-model="message"
-          class="text-input"
-          type="text"
-          :placeholder="selectedVisual.shortMessage"
-        >
-      </div>
-
-      <div class="inline-grid">
+      <fieldset class="form-fields" :disabled="pending">
         <div class="form-group">
-          <label class="group-label">{{ t('form.interval') }}</label>
+          <label class="group-label">{{ t('form.type') }}</label>
+          <div class="type-grid">
+            <button
+              v-for="type in reminderTypeOptions"
+              :key="type.type"
+              class="type-card"
+              :class="{ 'type-card-active': selectedType === type.type }" :aria-pressed="selectedType === type.type"
+              :style="{
+                '--type-accent': type.accent,
+                '--type-soft': type.accentSoft,
+                '--type-border': type.borderSoft,
+              }"
+              type="button"
+              @click="selectedType = type.type"
+            >
+              <div class="type-visual">
+                <img
+                  v-if="type.iconAsset"
+                  :src="type.iconAsset"
+                  alt=""
+                  width="32" height="32"
+                  class="type-image"
+                >
+                <span v-else class="type-fallback-icon">{{ type.iconText }}</span>
+              </div>
+
+              <div class="type-copy">
+                <span class="type-label">{{ type.label }}</span>
+                <span class="type-description">{{ type.description }}</span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <div v-if="selectedType === 'custom'" class="form-group">
+          <label class="group-label">{{ t('form.customIcon') }}</label>
+          <div class="custom-icon-grid">
+            <button
+              v-for="option in customReminderIconOptions"
+              :key="option.key"
+              class="custom-icon-button"
+              :class="{ 'custom-icon-button-active': selectedCustomIcon === option.key }" :aria-pressed="selectedCustomIcon === option.key"
+              type="button"
+              :title="t(option.labelKey)"
+              :aria-label="t(option.labelKey)"
+              @click="selectedCustomIcon = option.key"
+            >
+              <img :src="option.asset" :alt="t(option.labelKey)" class="custom-icon-image">
+            </button>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label :for="`${fieldId}-name`" class="group-label">{{ t('form.name') }}</label>
           <input
-            v-model.number="intervalMinutes"
+            :id="`${fieldId}-name`" v-model="name" name="name"
             class="text-input"
-            type="number"
-            min="1"
-            max="1440"
+            type="text" autocomplete="off"
+            :placeholder="`${t('common.example')}：${selectedVisual.defaultName}`"
           >
         </div>
-      </div>
 
-      <div class="rest-options">
-        <div class="rest-tip-card">
-          <div>
-            <div class="rest-tip-title">
-              {{ t('form.restCountdown') }}
-            </div>
-            <div class="rest-tip-copy">
-              {{ t('form.restCountdownDescription') }}
-            </div>
-          </div>
-
-          <label class="switch">
-            <input v-model="actionEnabled" type="checkbox">
-            <span class="slider" />
-          </label>
+        <div class="form-group">
+          <label :for="`${fieldId}-message`" class="group-label">{{ t('form.content') }}</label>
+          <input
+            :id="`${fieldId}-message`" v-model="message" name="message"
+            class="text-input"
+            type="text" autocomplete="off"
+            :placeholder="selectedVisual.shortMessage"
+          >
         </div>
-      </div>
 
-      <div v-if="actionEnabled" class="action-options">
         <div class="inline-grid">
           <div class="form-group">
-            <label class="group-label">{{ t('form.actionDuration') }}</label>
+            <label :for="`${fieldId}-intervalMinutes`" class="group-label">{{ t('form.interval') }}</label>
             <input
-              v-model.number="actionDurationValue"
+              :id="`${fieldId}-intervalMinutes`" v-model.number="intervalMinutes" name="intervalMinutes"
               class="text-input"
               type="number"
               min="1"
-              max="7200"
+              max="1440"
             >
           </div>
+        </div>
 
-          <div class="form-group">
-            <label class="group-label">{{ actionDurationUnitLabel }}</label>
-            <select v-model="actionDurationUnit" class="text-input">
-              <option value="seconds">
-                {{ secondsLabel }}
-              </option>
-              <option value="minutes">
-                {{ t('common.minutes') }}
-              </option>
-            </select>
+        <div class="rest-options">
+          <div class="rest-tip-card">
+            <div>
+              <div class="rest-tip-title">
+                {{ t('form.restCountdown') }}
+              </div>
+              <div class="rest-tip-copy">
+                {{ t('form.restCountdownDescription') }}
+              </div>
+            </div>
+
+            <label class="switch">
+              <input v-model="actionEnabled" :aria-label="t('form.restCountdown')" type="checkbox">
+              <span class="slider" />
+            </label>
           </div>
         </div>
 
-        <div class="inline-grid">
-          <div class="form-group">
-            <label class="group-label">{{ t('form.name') }}</label>
-            <input v-model="actionTitle" class="text-input" type="text">
+        <div v-if="actionEnabled" class="action-options">
+          <div class="inline-grid">
+            <div class="form-group">
+              <label :for="`${fieldId}-actionDurationValue`" class="group-label">{{ t('form.actionDuration') }}</label>
+              <input
+                :id="`${fieldId}-actionDurationValue`" v-model.number="actionDurationValue" name="actionDurationValue"
+                class="text-input"
+                type="number"
+                min="1"
+                max="7200"
+              >
+            </div>
+
+            <div class="form-group">
+              <label :for="`${fieldId}-actionDurationUnit`" class="group-label">{{ actionDurationUnitLabel }}</label>
+              <select :id="`${fieldId}-actionDurationUnit`" v-model="actionDurationUnit" name="actionDurationUnit" class="text-input">
+                <option value="seconds">
+                  {{ secondsLabel }}
+                </option>
+                <option value="minutes">
+                  {{ t('common.minutes') }}
+                </option>
+              </select>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label class="group-label">{{ t('form.content') }}</label>
-            <input v-model="actionMessage" class="text-input" type="text">
+          <div class="inline-grid">
+            <div class="form-group">
+              <label :for="`${fieldId}-actionTitle`" class="group-label">{{ t('form.name') }}</label>
+              <input :id="`${fieldId}-actionTitle`" v-model="actionTitle" name="actionTitle" class="text-input" type="text" autocomplete="off">
+            </div>
+
+            <div class="form-group">
+              <label :for="`${fieldId}-actionMessage`" class="group-label">{{ t('form.content') }}</label>
+              <input :id="`${fieldId}-actionMessage`" v-model="actionMessage" name="actionMessage" class="text-input" type="text" autocomplete="off">
+            </div>
           </div>
         </div>
-      </div>
-
+      </fieldset>
       <p v-if="errorMessage || error" class="error-message" role="alert">
         {{ errorMessage || error }}
       </p>
 
       <div class="form-actions">
+        <button v-if="reminder" class="delete-reminder" :disabled="pending" type="button" @click="emit('delete')">
+          <AppIcon name="trash" />{{ t('common.delete') }}
+        </button>
         <button class="btn-secondary" :disabled="pending" type="button" @click="emit('cancel')">
           {{ t('common.cancel') }}
         </button>
-        <button class="btn-primary" :disabled="pending" :aria-busy="pending" type="button" @click="handleSubmit">
-          {{ t('form.submit') }}
+        <button class="btn-primary" :disabled="pending" :aria-busy="pending" type="submit">
+          {{ t(reminder ? 'ui.save' : 'form.submit') }}
         </button>
       </div>
-    </div>
+    </form>
   </div>
 </template>
 
 <style scoped>
+.form-fields { min-width: 0; border: 0; margin: 0; padding: 0; }
+.delete-reminder { display: flex; align-items: center; justify-content: center; gap: 6px; color: #bb4353; font-size: 13px; min-height: 36px; padding: 6px 8px; border-radius: 8px; }
+.delete-reminder:hover { background: rgb(187 67 83 / 8%); }
+.form-actions { flex-wrap: wrap; }
+.form-container { overscroll-behavior: contain; }
+
 .form-overlay {
   position: fixed;
   inset: 0;
@@ -300,13 +331,13 @@ function handleSubmit() {
   width: min(100%, 560px);
   max-height: min(88vh, 760px);
   overflow-y: auto;
-  border-radius: 28px;
+  border-radius: 20px;
   border: 1px solid rgba(148, 163, 184, 0.18);
   background:
     radial-gradient(circle at top right, rgba(47, 159, 216, 0.12), transparent 28%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.9));
   box-shadow: 0 30px 60px rgba(15, 23, 42, 0.22);
-  padding: 24px;
+  padding: 20px;
 }
 
 [data-theme='dark'] .form-container {
@@ -446,6 +477,7 @@ function handleSubmit() {
 }
 
 .type-label {
+  overflow-wrap: anywhere;
   font-size: 14px;
   font-weight: 700;
   color: var(--text-primary);
@@ -570,7 +602,7 @@ function handleSubmit() {
 .slider {
   position: absolute;
   inset: 0;
-  border-radius: 999px;
+  border-radius: 10px;
   background-color: rgba(148, 163, 184, 0.36);
   transition: background-color 0.2s ease;
 }
@@ -606,7 +638,7 @@ input:checked + .slider::before {
 .btn-secondary,
 .btn-primary {
   padding: 11px 18px;
-  border-radius: 999px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
   transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
@@ -638,18 +670,21 @@ input:checked + .slider::before {
 }
 
 @media (max-width: 520px) {
-  .type-grid,
-  .inline-grid {
-    grid-template-columns: 1fr;
-  }
+  .type-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .type-card { gap: 8px; padding: 10px; border-radius: 12px; box-shadow: none; }
+  .type-visual { width: 32px; height: 36px; background: none; }
+  .type-image { width: 30px; height: 30px; }
+  .type-description { display: none; }
+  .inline-grid { grid-template-columns: 1fr; }
 
   .form-actions {
-    flex-direction: column-reverse;
+    flex-direction: row;
   }
 
   .btn-secondary,
   .btn-primary {
-    width: 100%;
+    flex: 1;
+    padding: 10px 12px;
   }
 }
 </style>

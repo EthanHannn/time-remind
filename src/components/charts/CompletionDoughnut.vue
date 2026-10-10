@@ -3,6 +3,7 @@ import type { ChartData, ChartOptions, Plugin } from 'chart.js'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Doughnut } from 'vue-chartjs'
 import { useI18n } from '../../i18n'
+import { getReminderVisual } from '../../utils/reminderVisuals'
 
 interface ReminderStat {
   reminder_id: string
@@ -18,12 +19,6 @@ const props = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-
-const TYPE_COLORS: Record<string, string> = {
-  drink: '#0ea5e9',
-  rest: '#10b981',
-  eye_care: '#f59e0b',
-}
 
 const isDark = ref(false)
 const themeObserver = ref<MutationObserver | null>(null)
@@ -60,7 +55,7 @@ const overallRate = computed(() =>
 const chartData = computed<ChartData<'doughnut'>>(() => {
   const labels = props.dailyStats.map(s => s.name)
   const data = props.dailyStats.map(s => s.completed_count)
-  const colors = props.dailyStats.map(s => TYPE_COLORS[s.reminder_type] || '#a1a1aa')
+  const colors = props.dailyStats.map(s => getReminderVisual(s.reminder_type).accent)
 
   return {
     labels,

@@ -15,7 +15,7 @@ import watercolorSnooze from '../assets/illustrations/mascot/watercolor/snooze.w
 // Their current artwork is flat, line drawing, and paper cut respectively.
 export type MascotStyle = 'classic' | 'editorial' | 'watercolor'
 export type MascotState = 'drink' | 'rest' | 'eye_care' | 'snooze'
-export type PreviewReminderType = Exclude<MascotState, 'snooze'>
+export type PreviewReminderType = Exclude<MascotState, 'snooze'> | 'custom'
 
 export const mascotStyleOptions = [
   { id: 'classic', image: classicDrink, nameKey: 'settings.mascotClassic', descriptionKey: 'settings.mascotClassicDescription' },
