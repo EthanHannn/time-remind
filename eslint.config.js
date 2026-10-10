@@ -7,6 +7,7 @@ export default antfu({
     'dist/**',
     'logs/**',
     'docs/**',
+    'outputs/**',
     'src-tauri/gen/**',
     'src-tauri/target/**',
     'src-tauri/**/*.toml',

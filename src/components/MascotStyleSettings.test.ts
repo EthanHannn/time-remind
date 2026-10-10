@@ -12,26 +12,34 @@ vi.mock('../utils/notificationSound', () => ({ playNotificationSound: vi.fn() })
 describe('cat style settings', () => {
   let wrapper: ReturnType<typeof mount>
   beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
     mocks.native = true
     localStorage.clear()
     mocks.settings = { theme: 'light', language: 'zh-CN', sound_enabled: 'false' }
-    mocks.invoke.mockReset().mockImplementation(async (command: string, payload?: { key?: string, value?: string }) => {
+    mocks.invoke.mockReset().mockImplementation(async (command: string, payload?: { key?: string, value?: string, settings?: Record<string, string> }) => {
       if (command === 'get_all_settings')
         return { ...mocks.settings }
       if (command === 'save_setting')
         mocks.settings[payload!.key!] = payload!.value!
+      if (command === 'save_settings')
+        Object.assign(mocks.settings, payload!.settings)
       if (command === 'get_platform_capabilities') {
         return { platform: 'windows', supportsAutostart: true, supportsSilentStart: true, supportsFullscreenDetection: true, supportsLockDetection: true, supportsTray: true, isVerifiedReleasePlatform: true }
       }
     })
   })
-  afterEach(() => wrapper?.unmount())
+  afterEach(async () => {
+    wrapper?.unmount()
+    await flushPromises()
+    vi.useRealTimers()
+  })
 
   it('keeps classic for existing installs, persists a new selection, and restores it on reopening', async () => {
     wrapper = mount(SettingsPage)
     await flushPromises()
     expect((wrapper.get('.mascot-options input[value="classic"]').element as HTMLInputElement).checked).toBe(true)
     await wrapper.get('input[value="editorial"]').setValue()
+    await vi.advanceTimersByTimeAsync(350)
     await flushPromises()
     expect(mocks.settings.mascot_style).toBe('editorial')
     expect(JSON.parse(localStorage.getItem('app-settings')!).mascotStyle).toBe('editorial')
@@ -65,6 +73,7 @@ describe('cat style settings', () => {
     wrapper = mount(SettingsPage)
     await flushPromises()
     await wrapper.get('.appearance-settings input[value="classic"]').setValue()
+    await vi.advanceTimersByTimeAsync(350)
     await flushPromises()
     expect(mocks.settings.notification_appearance).toBe('classic')
     expect(JSON.parse(localStorage.getItem('app-settings')!).notificationAppearance).toBe('classic')
