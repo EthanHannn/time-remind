@@ -126,3 +126,18 @@ it('ignores an older overview that resolves after a pause update', async () => {
   expect(wrapper.find('.card').text()).toBe('true:300')
   wrapper.unmount()
 })
+
+it('replaces a stale countdown with authoritative state and rejects older state and ticks', async () => {
+  mocks.overview.mockResolvedValue(snapshot(false, 1))
+  const wrapper = render()
+  await flushPromises()
+  mocks.listeners['reminders:state']({ payload: { revision: 3, all_paused: false, countdowns: { one: 0 }, states: { one: { state: 'notifying' } } } })
+  mocks.listeners['timer:tick']({ payload: { reminder_id: 'one', remaining_seconds: 1 } })
+  mocks.listeners['reminders:state']({ payload: { revision: 2, all_paused: false, countdowns: { one: 1 } } })
+  await flushPromises()
+  expect(wrapper.find('.card').text()).toBe('false:0')
+  mocks.listeners['reminders:state']({ payload: { revision: 4, all_paused: false, countdowns: { one: 300 }, states: { one: { state: 'dnd' } }, suppression: { state: 'dnd', reason: 'temporary' } } })
+  await flushPromises()
+  expect(wrapper.find('h1').text()).toBe('settings.dnd')
+  wrapper.unmount()
+})

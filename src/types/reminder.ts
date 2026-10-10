@@ -59,6 +59,24 @@ export interface TimerTick {
   remaining_seconds: number
 }
 
+export interface ReminderRuntime {
+  state: 'disabled' | 'scheduled' | 'due' | 'queued' | 'notifying' | 'acting' | 'paused' | 'dnd'
+  reason?: 'manual' | 'system' | 'temporary' | 'scheduled' | 'fullscreen' | null
+  until?: string | null
+}
+
+export interface RuntimeSnapshot {
+  revision: number
+  all_paused: boolean
+  suppression?: ReminderRuntime | null
+  countdowns: Record<string, number>
+  states: Record<string, ReminderRuntime>
+}
+
+export interface ReminderOverview extends RuntimeSnapshot {
+  reminders: Reminder[]
+}
+
 /// 提醒触发事件
 export interface ReminderTriggered {
   reminder_id: string

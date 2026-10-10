@@ -133,6 +133,7 @@ struct DndConfig {
 #[derive(Debug, Clone)]
 struct DndDecision {
     next_trigger: DateTime<Utc>,
+    reason: &'static str,
 }
 
 /// 从数据库读取免打扰配置
@@ -178,12 +179,12 @@ fn get_dnd_config_from_db(conn: &Connection) -> DndConfig {
 }
 
 /// 检查当前是否在免打扰时间段内
-fn is_in_dnd_period(config: &DndConfig) -> bool {
+fn is_in_dnd_period(config: &DndConfig, now: DateTime<Utc>) -> bool {
     if !config.enabled {
         return false;
     }
 
-    let now = Local::now().time();
+    let now = now.with_timezone(&Local).time();
 
     if config.start <= config.end {
         now >= config.start && now < config.end
@@ -250,9 +251,10 @@ fn resolve_dnd_decision(
     fullscreen: bool,
 ) -> Option<DndDecision> {
     let dnd_config = get_dnd_config_from_db(conn);
-    if is_in_dnd_period(&dnd_config) {
+    if is_in_dnd_period(&dnd_config, now) {
         return Some(DndDecision {
             next_trigger: next_dnd_end_utc(&dnd_config, now),
+            reason: "scheduled",
         });
     }
 
@@ -260,6 +262,7 @@ fn resolve_dnd_decision(
         if temp_until > now {
             return Some(DndDecision {
                 next_trigger: temp_until,
+                reason: "temporary",
             });
         }
     }
@@ -267,10 +270,35 @@ fn resolve_dnd_decision(
     if is_fullscreen_detection_enabled(conn) && fullscreen {
         return Some(DndDecision {
             next_trigger: now + ChronoDuration::minutes(5),
+            reason: "fullscreen",
         });
     }
 
     None
+}
+
+pub(crate) fn dnd_status(
+    conn: &Connection,
+    now: DateTime<Utc>,
+    fullscreen: bool,
+) -> Option<(&'static str, Option<String>)> {
+    resolve_dnd_decision(conn, now, fullscreen).map(|decision| {
+        (
+            decision.reason,
+            (decision.reason != "fullscreen").then(|| {
+                decision
+                    .next_trigger
+                    .format("%Y-%m-%dT%H:%M:%S")
+                    .to_string()
+            }),
+        )
+    })
+}
+
+#[derive(Default)]
+pub(crate) struct QueueOverview {
+    pub current: Option<String>,
+    pub pending: HashSet<String>,
 }
 
 fn notifications_suppressed(
@@ -304,6 +332,18 @@ pub struct Scheduler {
 }
 
 impl Scheduler {
+    pub(crate) fn overview_queue(&self) -> QueueOverview {
+        let queue = self.queue.lock().unwrap();
+        QueueOverview {
+            current: queue.current.as_ref().map(|item| item.reminder_id.clone()),
+            pending: queue
+                .pending
+                .iter()
+                .map(|item| item.reminder_id.clone())
+                .collect(),
+        }
+    }
+
     pub fn new(app: AppHandle) -> Self {
         Self {
             app,
@@ -339,7 +379,7 @@ impl Scheduler {
             self.hide_notification_window();
         }
         self.emit_queue_state();
-        crate::set_tray_visual_state(&self.app, crate::TrayVisualState::Idle);
+        self.update_tray_state(conn);
         Ok(())
     }
 
@@ -451,7 +491,7 @@ impl Scheduler {
         let db = self.app.state::<Database>();
         let conn = db.conn.lock().unwrap();
         if self.queue.lock().unwrap().current.is_some() {
-            self.update_tray_state();
+            self.update_tray_state(&conn);
             return;
         }
 
@@ -484,7 +524,7 @@ impl Scheduler {
 
             let Some(data) = next else {
                 self.emit_queue_state();
-                self.update_tray_state();
+                self.update_tray_state(&conn);
                 break;
             };
 
@@ -521,12 +561,18 @@ impl Scheduler {
         }
     }
 
-    fn update_tray_state(&self) {
+    fn update_tray_state(&self, conn: &Connection) {
         let state = self.queue.lock().unwrap().snapshot();
         let has_current = state.current_reminder_id.is_some();
         let has_pending = state.pending_count > 0;
 
-        if has_current || has_pending {
+        if crate::commands::all_reminders_paused(conn)
+            || crate::commands::setting_timestamp(conn, crate::commands::SYSTEM_PAUSED_AT_KEY)
+                .is_some()
+            || resolve_dnd_decision(conn, Utc::now(), is_foreground_window_fullscreen()).is_some()
+        {
+            crate::set_tray_visual_state(&self.app, crate::TrayVisualState::Muted);
+        } else if has_current || has_pending {
             crate::set_tray_visual_state(&self.app, crate::TrayVisualState::Alert);
         } else {
             crate::set_tray_visual_state(&self.app, crate::TrayVisualState::Idle);
@@ -674,6 +720,13 @@ impl Scheduler {
                 power.refresh();
             }
             let db = app.state::<Database>();
+            {
+                let conn = db.conn.lock().unwrap();
+                if let Ok(overview) = crate::commands::read_reminder_overview(&conn, &scheduler) {
+                    let _ = app.emit("reminders:state", &overview.runtime);
+                }
+                scheduler.update_tray_state(&conn);
+            }
             if are_all_reminders_paused(&db) {
                 continue;
             }
@@ -746,6 +799,13 @@ impl Scheduler {
                     let remaining = (next_trigger_utc - now).num_seconds();
 
                     if remaining <= 0 {
+                        let _ = app.emit(
+                            "timer:tick",
+                            TimerTick {
+                                reminder_id: id.clone(),
+                                remaining_seconds: 0,
+                            },
+                        );
                         {
                             let mut active = scheduler.active_reminders.lock().unwrap();
                             if active.contains(id) {
@@ -790,7 +850,7 @@ impl Scheduler {
 
                         if scheduler.enqueue_notification(notification).is_err() {
                             scheduler.clear_active(id);
-                            scheduler.update_tray_state();
+                            scheduler.update_tray_state(&db.conn.lock().unwrap());
                         }
                     } else {
                         let tick = TimerTick {

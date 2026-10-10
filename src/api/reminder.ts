@@ -1,4 +1,4 @@
-import type { CreateReminderRequest, Reminder, UpdateReminderRequest } from '../types/reminder'
+import type { CreateReminderRequest, Reminder, ReminderOverview, UpdateReminderRequest } from '../types/reminder'
 import { invoke } from '@tauri-apps/api/core'
 
 /// 获取所有提醒
@@ -31,6 +31,6 @@ export async function respondReminder(reminderId: string, notificationId: string
   return await invoke('respond_reminder', { reminderId, notificationId, action, holdNotification })
 }
 
-export async function getReminderOverview(): Promise<{ reminders: Reminder[], all_paused: boolean, countdowns: Record<string, number> }> {
+export async function getReminderOverview(): Promise<ReminderOverview> {
   return await invoke('get_reminder_overview')
 }

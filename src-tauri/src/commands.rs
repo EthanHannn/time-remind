@@ -921,36 +921,140 @@ fn read_reminders(conn: &Connection) -> Result<Vec<Reminder>, String> {
 #[derive(Serialize)]
 pub struct ReminderOverview {
     reminders: Vec<Reminder>,
-    all_paused: bool,
-    countdowns: HashMap<String, i64>,
+    #[serde(flatten)]
+    pub runtime: RuntimeSnapshot,
 }
 
+#[derive(Debug, Serialize)]
+pub struct ReminderRuntime {
+    state: &'static str,
+    reason: Option<&'static str>,
+    until: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct RuntimeSnapshot {
+    revision: u64,
+    all_paused: bool,
+    suppression: Option<ReminderRuntime>,
+    countdowns: HashMap<String, i64>,
+    states: HashMap<String, ReminderRuntime>,
+}
+
+static RUNTIME_REVISION: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 #[tauri::command]
-pub fn get_reminder_overview(db: State<'_, Database>) -> Result<ReminderOverview, String> {
-    let conn = db.conn.lock().unwrap();
-    let reminders = read_reminders(&conn)?;
-    let reference = schedule_base(&conn, Utc::now());
-    let countdowns = reminders
-        .iter()
-        .filter(|reminder| reminder.enabled)
-        .filter_map(|reminder| {
-            let trigger = NaiveDateTime::parse_from_str(
-                reminder.next_trigger.as_deref()?,
-                "%Y-%m-%dT%H:%M:%S",
-            )
-            .ok()?
-            .and_utc();
-            Some((
-                reminder.id.clone(),
-                (trigger - reference).num_seconds().max(0),
-            ))
+pub fn get_reminder_overview(
+    db: State<'_, Database>,
+    scheduler: State<'_, Scheduler>,
+) -> Result<ReminderOverview, String> {
+    read_reminder_overview(&db.conn.lock().unwrap(), &scheduler)
+}
+
+pub(crate) fn read_reminder_overview(
+    conn: &Connection,
+    scheduler: &Scheduler,
+) -> Result<ReminderOverview, String> {
+    let reminders = read_reminders(conn)?;
+    let runtime = read_runtime(
+        conn,
+        &reminders,
+        scheduler.overview_queue(),
+        Utc::now(),
+        crate::fullscreen::is_foreground_window_fullscreen(),
+    )?;
+    Ok(ReminderOverview { reminders, runtime })
+}
+
+fn read_runtime(
+    conn: &Connection,
+    reminders: &[Reminder],
+    queue: crate::scheduler::QueueOverview,
+    now: chrono::DateTime<Utc>,
+    fullscreen: bool,
+) -> Result<RuntimeSnapshot, String> {
+    let manual = all_reminders_paused(conn);
+    let system = setting_timestamp(conn, SYSTEM_PAUSED_AT_KEY).is_some();
+    let paused = manual || system;
+    let suppression = if paused {
+        Some(ReminderRuntime {
+            state: "paused",
+            reason: Some(if manual { "manual" } else { "system" }),
+            until: None,
         })
-        .collect();
-    Ok(ReminderOverview {
-        reminders,
-        all_paused: all_reminders_paused(&conn)
-            || setting_timestamp(&conn, SYSTEM_PAUSED_AT_KEY).is_some(),
+    } else {
+        crate::scheduler::dnd_status(conn, now, fullscreen).map(|(reason, until)| ReminderRuntime {
+            state: "dnd",
+            reason: Some(reason),
+            until,
+        })
+    };
+    let reference = schedule_base(conn, now);
+    let mut deadlines = conn
+        .prepare(
+            "SELECT reminder_id, deadline FROM active_notifications WHERE started_at IS NOT NULL",
+        )
+        .map_err(|e| e.to_string())?;
+    let deadlines: HashMap<String, String> = deadlines
+        .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
+        .map_err(|e| e.to_string())?
+        .collect::<Result<_, _>>()
+        .map_err(|e| e.to_string())?;
+    let mut countdowns = HashMap::new();
+    let mut states = HashMap::new();
+    for reminder in reminders {
+        let deadline = deadlines
+            .get(&reminder.id)
+            .or(reminder.next_trigger.as_ref());
+        let remaining = deadline
+            .and_then(|value| crate::settings::timestamp(value).ok())
+            .map(|time| (((time - reference).num_milliseconds() + 999) / 1000).max(0));
+        if reminder.enabled {
+            if let Some(seconds) = remaining {
+                countdowns.insert(reminder.id.clone(), seconds);
+            }
+        }
+        let state = if !reminder.enabled {
+            "disabled"
+        } else if paused {
+            "paused"
+        } else if deadlines.contains_key(&reminder.id) {
+            "acting"
+        } else if queue.current.as_deref() == Some(reminder.id.as_str()) {
+            "notifying"
+        } else if suppression.is_some() {
+            "dnd"
+        } else if queue.pending.contains(&reminder.id) {
+            "queued"
+        } else if remaining == Some(0) {
+            "due"
+        } else {
+            "scheduled"
+        };
+        let suppressed = matches!(state, "paused" | "dnd");
+        states.insert(
+            reminder.id.clone(),
+            ReminderRuntime {
+                state,
+                reason: if suppressed {
+                    suppression.as_ref().and_then(|s| s.reason)
+                } else {
+                    None
+                },
+                until: if suppressed {
+                    suppression.as_ref().and_then(|s| s.until.clone())
+                } else {
+                    None
+                },
+            },
+        );
+    }
+    Ok(RuntimeSnapshot {
+        revision: RUNTIME_REVISION.fetch_add(1, std::sync::atomic::Ordering::Relaxed) + 1,
+        all_paused: paused,
+        suppression,
         countdowns,
+        states,
     })
 }
 
@@ -2165,6 +2269,59 @@ pub fn get_last_triggered(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn runtime_snapshot_distinguishes_due_queue_action_pause_and_dnd() {
+        let db = Database::in_memory();
+        let conn = db.conn.lock().unwrap();
+        let now = crate::settings::timestamp("2026-10-10T01:00:00").unwrap();
+        conn.execute("INSERT INTO reminders (id,name,next_trigger,created_at,updated_at) VALUES ('one','One','2026-10-10T01:00:00','','')", []).unwrap();
+        let reminders = read_reminders(&conn).unwrap();
+        let read = |queue| read_runtime(&conn, &reminders, queue, now, false).unwrap();
+        let due = read(crate::scheduler::QueueOverview::default());
+        assert_eq!(due.countdowns["one"], 0);
+        assert_eq!(due.states["one"].state, "due");
+        let queued = read(crate::scheduler::QueueOverview {
+            current: None,
+            pending: HashSet::from(["one".into()]),
+        });
+        assert_eq!(queued.states["one"].state, "queued");
+        let shown = read(crate::scheduler::QueueOverview {
+            current: Some("one".into()),
+            pending: HashSet::new(),
+        });
+        assert_eq!(shown.states["one"].state, "notifying");
+        crate::lifecycle::shown(&conn, "one", "instance", now).unwrap();
+        conn.execute("UPDATE active_notifications SET started_at = '2026-10-10T01:00:00', deadline = '2026-10-10T01:00:20'", []).unwrap();
+        let acting = read(crate::scheduler::QueueOverview::default());
+        assert_eq!(
+            (acting.states["one"].state, acting.countdowns["one"]),
+            ("acting", 20)
+        );
+        assert!(acting.revision > shown.revision);
+        conn.execute(
+            "INSERT INTO settings VALUES ('system_paused_at','2026-10-10T01:00:00')",
+            [],
+        )
+        .unwrap();
+        let paused = read(crate::scheduler::QueueOverview::default());
+        assert_eq!(paused.states["one"].state, "paused");
+        assert!(paused.all_paused);
+        conn.execute("DELETE FROM settings", []).unwrap();
+        conn.execute("DELETE FROM active_notifications", [])
+            .unwrap();
+        conn.execute(
+            "INSERT INTO settings VALUES ('temp_dnd_until','2026-10-10T01:30:00')",
+            [],
+        )
+        .unwrap();
+        let dnd = read(crate::scheduler::QueueOverview::default());
+        assert_eq!(dnd.states["one"].state, "dnd");
+        assert_eq!(
+            dnd.states["one"].until.as_deref(),
+            Some("2026-10-10T01:30:00")
+        );
+    }
 
     #[test]
     fn statistics_keep_disabled_history_and_count_final_outcomes_on_response_day() {

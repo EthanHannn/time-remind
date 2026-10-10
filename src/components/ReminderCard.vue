@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { Reminder } from '../types/reminder'
+import type { Reminder, ReminderRuntime } from '../types/reminder'
 import { computed } from 'vue'
 import { useI18n } from '../i18n'
 import { getLocalizedReminderVisual } from '../utils/reminderVisuals'
@@ -9,6 +9,7 @@ const props = defineProps<{
   remainingSeconds?: number
   globallyPaused?: boolean
   pending?: boolean
+  runtime?: ReminderRuntime
 }>()
 
 const emit = defineEmits<{
@@ -23,9 +24,9 @@ const visual = computed(() => getLocalizedReminderVisual(
   props.reminder.icon,
 ))
 
-const totalSeconds = computed(() => props.reminder.interval_minutes * 60)
+const totalSeconds = computed(() => props.runtime?.state === 'acting' ? props.reminder.action_duration_seconds : props.reminder.interval_minutes * 60)
 const progress = computed(() => {
-  if (!props.remainingSeconds || !props.reminder.enabled) {
+  if (props.remainingSeconds === undefined || !props.reminder.enabled || totalSeconds.value <= 0) {
     return 0
   }
 
@@ -39,7 +40,19 @@ const cardStyle = computed(() => ({
   '--visual-badge': visual.value.badgeBackground,
 }))
 
-const statusLabel = computed(() => props.reminder.enabled && !props.globallyPaused ? t('reminder.enabled') : t('reminder.paused'))
+const statusLabel = computed(() => {
+  const state = props.runtime?.state
+  if (state === 'paused')
+    return t(props.runtime?.reason === 'system' ? 'runtime.systemPaused' : 'reminder.paused')
+  if (state === 'dnd')
+    return t(props.runtime?.reason === 'fullscreen' ? 'settings.fullscreenDelay' : 'settings.dnd')
+  if (state && state !== 'scheduled')
+    return t(`runtime.${state}`)
+  return props.reminder.enabled && !props.globallyPaused ? t('reminder.enabled') : t('reminder.paused')
+})
+const suppressionEnd = computed(() => props.runtime?.until
+  ? t('runtime.until', { time: new Date(`${props.runtime.until}Z`).toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' }) })
+  : '')
 const restBreakLabel = computed(() => {
   if (props.reminder.reminder_type !== 'rest' || props.reminder.break_duration_minutes <= 0) {
     return ''
@@ -128,7 +141,8 @@ function formatTime(seconds: number): string {
             <span v-if="restBreakNotificationLabel" class="meta-item">
               {{ restBreakNotificationLabel }}
             </span>
-            <span v-if="!globallyPaused" class="meta-item">
+            <span v-if="suppressionEnd" class="meta-item">{{ suppressionEnd }}</span>
+            <span v-else-if="!globallyPaused && (!runtime || runtime.state === 'scheduled')" class="meta-item">
               {{ t('reminder.next', { time: nextTriggerLabel }) }}
             </span>
           </div>
@@ -160,7 +174,7 @@ function formatTime(seconds: number): string {
         @click="emit('toggle', reminder.id)"
       >
         <span class="toggle-label">
-          {{ reminder.enabled ? t(globallyPaused ? 'reminder.enabled' : 'reminder.running') : t('reminder.paused') }}
+          {{ reminder.enabled ? t('reminder.enabled') : t('runtime.disabled') }}
         </span>
         <span class="toggle-pill">
           <span class="toggle-thumb" />

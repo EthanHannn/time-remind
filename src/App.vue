@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { CreateReminderRequest, Reminder, TimerTick } from './types/reminder'
+import type { CreateReminderRequest, Reminder, ReminderRuntime, RuntimeSnapshot, TimerTick } from './types/reminder'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
@@ -17,6 +17,9 @@ import { emptyReminders } from './utils/reminderVisuals'
 const reminders = ref<Reminder[]>([])
 const countdowns = ref<Record<string, number>>({})
 const globallyPaused = ref(false)
+const runtimeStates = ref<Record<string, ReminderRuntime>>({})
+const suppression = ref<ReminderRuntime | null>(null)
+let runtimeRevision = 0
 let overviewRequest = 0
 const showAddForm = ref(false)
 const showSettings = ref(false)
@@ -38,16 +41,22 @@ const enabledCount = computed(() => reminders.value.filter(reminder => reminder.
 let unlistenTick: (() => void) | null = null
 let unlistenChanged: (() => void) | null = null
 let unlistenNavigate: (() => void) | null = null
+let unlistenRuntime: (() => void) | null = null
+let unlistenQueue: (() => void) | null = null
 
 onMounted(async () => {
   unlistenTick = await listen<TimerTick>('timer:tick', (event) => {
-    if (globallyPaused.value)
+    if (globallyPaused.value || runtimeRevision > 0)
       return
     countdowns.value[event.payload.reminder_id] = Math.max(0, event.payload.remaining_seconds)
   })
 
   unlistenChanged = await listen('reminders:changed', () => {
     loadReminders()
+  })
+  unlistenRuntime = await listen<RuntimeSnapshot>('reminders:state', event => applyRuntime(event.payload))
+  unlistenQueue = await listen('notification:queue-updated', () => {
+    void loadReminders()
   })
 
   unlistenNavigate = await listen<string>('navigate', (event) => {
@@ -63,7 +72,19 @@ onUnmounted(() => {
   unlistenTick?.()
   unlistenChanged?.()
   unlistenNavigate?.()
+  unlistenRuntime?.()
+  unlistenQueue?.()
 })
+
+function applyRuntime(snapshot: RuntimeSnapshot) {
+  if (snapshot.revision && snapshot.revision < runtimeRevision)
+    return
+  runtimeRevision = snapshot.revision || runtimeRevision
+  globallyPaused.value = snapshot.all_paused
+  countdowns.value = snapshot.countdowns
+  runtimeStates.value = snapshot.states || {}
+  suppression.value = snapshot.suppression || null
+}
 
 function applyTheme(theme: string) {
   const root = document.documentElement
@@ -118,8 +139,7 @@ async function loadReminders() {
     if (request !== overviewRequest)
       return
     reminders.value = overview.reminders
-    globallyPaused.value = overview.all_paused
-    countdowns.value = overview.countdowns
+    applyRuntime(overview)
     loadError.value = ''
     loaded.value = true
   }
@@ -208,10 +228,10 @@ async function handleAdd(data: CreateReminderRequest) {
 
     <header class="app-header">
       <div class="title-block">
-        <div class="status-indicator" :style="globallyPaused ? { opacity: 0.3 } : undefined" />
+        <div class="status-indicator" :style="globallyPaused || suppression ? { opacity: 0.3 } : undefined" />
         <div class="title-copy">
           <h1 class="app-title">
-            {{ globallyPaused ? t('reminder.paused') : t('app.runningCount', { count: enabledCount }) }}
+            {{ globallyPaused ? t(suppression?.reason === 'system' ? 'runtime.systemPaused' : 'reminder.paused') : suppression ? t('settings.dnd') : t('app.runningCount', { count: enabledCount }) }}
           </h1>
           <p class="app-subtitle">
             {{ t('app.keepRhythm') }}
@@ -264,6 +284,7 @@ async function handleAdd(data: CreateReminderRequest) {
           :reminder="reminder"
           :remaining-seconds="countdowns[reminder.id]"
           :globally-paused="globallyPaused"
+          :runtime="runtimeStates[reminder.id]"
           :pending="pendingToggles.has(reminder.id)"
           @toggle="handleToggle"
           @delete="handleDelete"

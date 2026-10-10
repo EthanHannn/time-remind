@@ -7,6 +7,7 @@ import itIT from './locales/it-IT.json'
 import ptBR from './locales/pt-BR.json'
 import ruRU from './locales/ru-RU.json'
 import trTR from './locales/tr-TR.json'
+import { runtimeMessages } from './runtime'
 
 export type Language
   = | 'zh-CN'
@@ -698,7 +699,7 @@ const baseMessages = {
 } as const
 
 export const messages = Object.fromEntries(
-  Object.entries(baseMessages).map(([key, value]) => [key, { ...value, feedback: feedbackMessages[key as Language] }]),
-) as { [K in Language]: (typeof baseMessages)[K] & { feedback: (typeof feedbackMessages)[K] } }
+  Object.entries(baseMessages).map(([key, value]) => [key, { ...value, feedback: feedbackMessages[key as Language], runtime: runtimeMessages[key as Language] }]),
+) as { [K in Language]: (typeof baseMessages)[K] & { feedback: (typeof feedbackMessages)[K], runtime: (typeof runtimeMessages)[K] } }
 
 export type MessageSchema = (typeof messages)[Language]
