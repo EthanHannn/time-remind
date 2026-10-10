@@ -65,6 +65,7 @@ fn validate_existing_backup_file(path: &Path) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(test)]
 fn build_next_trigger_from(base: chrono::DateTime<Utc>, minutes: i64) -> String {
     (base + Duration::minutes(minutes))
         .format("%Y-%m-%dT%H:%M:%S")
@@ -465,7 +466,22 @@ fn validate_required_text(value: &str, field_name: &str) -> Result<(), String> {
     if value.trim().is_empty() {
         return Err(format!("{field_name}不能为空"));
     }
+    let limit = if field_name == "提醒名称" {
+        1024
+    } else {
+        16_384
+    };
+    if value.len() > limit {
+        return Err(format!("{field_name}超过长度限制"));
+    }
 
+    Ok(())
+}
+
+fn validate_reminder_metadata(icon: &str, completion_mode: Option<&str>) -> Result<(), String> {
+    if icon.len() > 128 || completion_mode.is_some_and(|mode| mode != "auto") {
+        return Err("无效的图标或完成模式".into());
+    }
     Ok(())
 }
 
@@ -500,6 +516,12 @@ fn normalize_break_settings(
     action_message: String,
     action_duration_seconds: i64,
 ) -> Result<(i64, bool, bool, String, String, i64, String), String> {
+    if !matches!(reminder_type, "rest" | "eye_care" | "drink" | "custom")
+        || action_title.len() > 1024
+        || action_message.len() > 16_384
+    {
+        return Err("无效的提醒类型或动作文本过长".into());
+    }
     let default_title = match reminder_type {
         "rest" => "休息中",
         "eye_care" => "护眼中",
@@ -695,9 +717,9 @@ fn validate_import_data(data: &ExportData) -> Result<(), String> {
     if !matches!(data.version.as_str(), "1.0" | "1.1" | "1.2") {
         return Err("不支持的备份版本".to_string());
     }
-    if data.reminders.len() > 10_000 || data.logs.len() > 200_000 || data.settings.len() > 100 {
-        return Err("备份记录数量超过限制".to_string());
-    }
+    // Use the same byte budget as export and automatic snapshots, rather than
+    // rejecting a valid exported history with a separate record-count ceiling.
+    validate_backup_content_size(&serde_json::to_string(data).map_err(|e| e.to_string())?)?;
 
     let mut reminder_ids = HashSet::new();
     for reminder in &data.reminders {
@@ -1067,6 +1089,7 @@ pub fn create_reminder(
     validate_interval_minutes(request.interval_minutes, "提醒间隔")?;
     validate_required_text(&request.name, "提醒名称")?;
     validate_required_text(&request.message, "提醒内容")?;
+    validate_reminder_metadata(&request.icon, request.action_completion_mode.as_deref())?;
     let requested_break_duration = request.break_duration_minutes.unwrap_or_else(|| {
         if request.reminder_type == "rest" {
             5
@@ -1081,7 +1104,7 @@ pub fn create_reminder(
         request
             .action_duration_seconds
             .unwrap_or_else(|| match request.reminder_type.as_str() {
-                "rest" => requested_break_duration * 60,
+                "rest" => requested_break_duration.saturating_mul(60),
                 "eye_care" => 20,
                 _ => 0,
             });
@@ -1167,6 +1190,7 @@ pub fn update_reminder(
     let reminder_type = request.reminder_type.unwrap_or(current.reminder_type);
     let icon = request.icon.unwrap_or(current.icon);
     let message = request.message.unwrap_or(current.message);
+    validate_reminder_metadata(&icon, request.action_completion_mode.as_deref())?;
     validate_required_text(&name, "提醒名称")?;
     validate_required_text(&message, "提醒内容")?;
     let interval_minutes = request.interval_minutes.unwrap_or(current.interval_minutes);
@@ -1954,6 +1978,13 @@ pub fn import_data(
     let mut conn = db.conn.lock().unwrap();
     let backup_path = create_import_backup(&app, &conn)?;
     let live_system_pause = setting_timestamp(&conn, SYSTEM_PAUSED_AT_KEY);
+    let live_boot_marker = conn
+        .query_row(
+            "SELECT value FROM settings WHERE key = 'last_boot_marker'",
+            [],
+            |r| r.get::<_, String>(0),
+        )
+        .ok();
     let tx = conn.transaction().map_err(|e| e.to_string())?;
 
     crate::lifecycle::interrupt_in_transaction(&tx, None, Utc::now())?;
@@ -2086,6 +2117,13 @@ pub fn import_data(
                 SYSTEM_PAUSED_AT_KEY,
                 start.format("%Y-%m-%dT%H:%M:%S").to_string(),
             ),
+        )
+        .map_err(|e| e.to_string())?;
+    }
+    if let Some(marker) = live_boot_marker {
+        tx.execute(
+            "INSERT OR REPLACE INTO settings VALUES ('last_boot_marker', ?1)",
+            [marker],
         )
         .map_err(|e| e.to_string())?;
     }
@@ -2490,6 +2528,32 @@ mod tests {
     }
 
     #[test]
+    fn reminder_writes_reject_values_that_cannot_round_trip_through_backups() {
+        assert!(validate_required_text(&"n".repeat(1025), "提醒名称").is_err());
+        assert!(validate_reminder_metadata("custom", Some("manual")).is_err());
+        assert!(normalize_break_settings(
+            "unknown",
+            0,
+            false,
+            false,
+            String::new(),
+            String::new(),
+            0
+        )
+        .is_err());
+        assert!(normalize_break_settings(
+            "rest",
+            i64::MAX,
+            true,
+            true,
+            String::new(),
+            String::new(),
+            i64::MAX.saturating_mul(60)
+        )
+        .is_err());
+    }
+
+    #[test]
     fn accepts_json_backup_file_path() {
         let path = validate_backup_file_path("backup.JSON").expect("json path should be accepted");
 
@@ -2517,7 +2581,7 @@ mod tests {
     fn large_history_backup_round_trips_through_file_commands() {
         let db = Database::in_memory();
         let mut data = collect_export_data(&db.conn.lock().unwrap()).unwrap();
-        for i in 0..12_000 {
+        for i in 0..210_000 {
             data.logs.push(ReminderLog {
                 id: format!("history-log-{i:06}"),
                 reminder_id: "reminder-id".into(),
@@ -2534,7 +2598,8 @@ mod tests {
             .into_owned();
         write_file(path.clone(), content).unwrap();
         let restored: ExportData = serde_json::from_str(&read_file(path.clone()).unwrap()).unwrap();
-        assert_eq!(restored.logs.len(), 12_000);
+        assert_eq!(restored.logs.len(), 210_000);
+        validate_import_data(&restored).unwrap();
         std::fs::remove_file(path).unwrap();
     }
 
