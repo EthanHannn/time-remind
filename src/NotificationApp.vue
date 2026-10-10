@@ -178,7 +178,7 @@ const actionError = ref('')
 let disposed = false
 const windowSize = computed(() => ({
   width: collapsed.value && breakMode.value ? 340 : 400,
-  height: (collapsed.value && breakMode.value ? 96 : (notificationAppearance.value === 'illustrated' ? 304 : notificationAppearance.value === 'minimal' ? 232 : 240) + (breakMode.value ? 32 : 0)) + (actionError.value ? 44 : 0),
+  height: (collapsed.value && breakMode.value ? 96 : (notificationAppearance.value === 'illustrated' ? 264 : notificationAppearance.value === 'minimal' ? 232 : 240) + (breakMode.value ? 32 : 0)) + (actionError.value ? 44 : 0),
 }))
 let resizeQueue = Promise.resolve()
 watch([visible, windowSize], () => {

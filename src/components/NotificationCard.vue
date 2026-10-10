@@ -183,10 +183,10 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
 .appearance-minimal { border-inline-start: 3px solid var(--notification-accent); border-radius: 12px; }
 .appearance-minimal .notification-tag::before { display: none; }
 .appearance-minimal .notification-body { display: block; align-content: center; }
-.appearance-illustrated { padding: 16px 18px; background: linear-gradient(145deg, var(--bg-primary), var(--notification-soft)); }
-.appearance-illustrated .notification-body { grid-template-columns: 112px minmax(0, 1fr); gap: 16px; }
-.appearance-illustrated .notification-visual { width: 112px; height: 122px; background: none; border-radius: 0; }
-.appearance-illustrated .notification-image { width: 112px; height: 122px; }
+.appearance-illustrated { padding: 14px 16px; gap: 8px; background: linear-gradient(145deg, var(--bg-primary), var(--notification-soft)); }
+.appearance-illustrated .notification-body { grid-template-columns: 104px minmax(0, 1fr); gap: 12px; }
+.appearance-illustrated .notification-visual { width: 104px; height: 108px; background: none; border-radius: 0; }
+.appearance-illustrated .notification-image { width: 104px; height: 108px; }
 .appearance-illustrated .notification-title { font-size: 20px; }
 .notification-collapsed { flex-direction: row; align-items: center; flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
 .compact-icon { object-fit: contain; }

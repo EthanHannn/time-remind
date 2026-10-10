@@ -5,6 +5,7 @@
 ### Improved
 
 - Implemented the approved Light companion, System simple, and Illustrated companion reminder layouts with soft blue, green, amber, and violet category colors. Existing Soft settings are retained; legacy Vivid settings open the new Illustrated layout.
+- Restored the main window's translucent glass background and tightened the Illustrated companion layout with a 40-pixel reduction in window height.
 - Replaced all seven reminder icons and unified action buttons, accessible labels, keyboard focus, and modal dismissal.
 - Made the next reminder time prominent while retaining progress bars and individual switches; moved global pause and reminder management into the top toolbar and removed duplicate routine status labels.
 - Added reminder editing with retryable save errors and confirmed deletion, a direct five-minute snooze with all saved durations still available, and a collapsible action timer.

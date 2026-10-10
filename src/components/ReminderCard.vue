@@ -94,7 +94,17 @@ function formatTime(seconds: number) {
 </template>
 
 <style scoped>
-.reminder-card { margin-bottom: 10px; padding: 13px 14px; border-radius: 13px; border: 1px solid var(--visual-border); background: linear-gradient(115deg, var(--bg-primary) 45%, var(--visual-soft)); }
+.reminder-card {
+  margin-bottom: 10px; padding: 13px 14px; border-radius: 13px; border: 1px solid var(--visual-border);
+  background: rgba(255, 255, 255, 0.72);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.66);
+}
+[data-theme='dark'] .reminder-card {
+  background: rgba(24, 29, 38, 0.72);
+  box-shadow: 0 3px 12px rgba(2, 6, 23, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
 .reminder-card-disabled { opacity: 0.65; }
 .card-top { display: flex; align-items: center; gap: 10px; }
 .icon-image { flex: 0 0 32px; object-fit: contain; }
