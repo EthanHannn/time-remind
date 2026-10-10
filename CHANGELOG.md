@@ -1,6 +1,18 @@
 # Changelog
 
-## Unreleased
+## 0.1.9 Beta - 2026-10-10
+
+### Fixed
+
+- Honored disabled action countdowns and migrated legacy reminder fields only once.
+- Initialized defaults only for new databases, preserving deleted reminders and saved preferences across restarts.
+- Recorded completion when an action actually finishes, persisted active action progress, and kept interrupted actions out of completed counts.
+- Unified completion rates, daily totals, trends, and streaks around final outcomes; preserved disabled reminders' history and stopped automatic deletion of older logs. Previously deleted or incorrectly completed historical records are not reconstructed.
+- Validated imported settings, reminders, and logs before applying changes; aligned backup reads, writes, and automatic snapshots to the same size limit.
+- Preserved form input on save failures, prevented duplicate submissions, and serialized settings saves with retryable errors.
+- Kept due, queued, paused, and do-not-disturb states consistent with the scheduler; made pause compensation atomic and followed system theme changes immediately.
+- Cleared stale hover and focus state when a notification closes so the next reminder can dismiss automatically.
+- Fixed concurrent release creation and added recovery for missing macOS ARM64 DMG uploads.
 
 ### Improved
 
@@ -11,6 +23,12 @@
 - Added reminder editing with retryable save errors and confirmed deletion, a direct five-minute snooze with all saved durations still available, and a collapsible action timer.
 - Matched native notification sizing to each layout and countdown state, including previews and monitor positioning. Pointer and keyboard interaction pause automatic dismissal.
 - Added custom reminder previews and consistent category colors in statistics; localized the new controls in all 19 languages.
+
+### Verified
+
+- 69 frontend tests and 58 Rust tests passed for the implemented changes.
+- TypeScript checking, production build, ESLint, and Rust formatting passed; layouts were checked across all 19 languages, light and dark themes, and narrow windows.
+- Native Windows multi-monitor DPI, fullscreen, lock, sleep, and wake acceptance remains pending for these changes. macOS and Linux remain community previews without real-device verification.
 
 ## 0.1.8 Beta - 2026-09-29
 
