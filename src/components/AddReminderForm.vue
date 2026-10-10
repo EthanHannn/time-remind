@@ -4,6 +4,8 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from '../i18n'
 import { customReminderIconOptions, getLocalizedReminderTypeOptions, getLocalizedReminderVisual } from '../utils/reminderVisuals'
 
+const props = defineProps<{ pending?: boolean, error?: string }>()
+
 const emit = defineEmits<{
   submit: [data: CreateReminderRequest]
   cancel: []
@@ -60,6 +62,8 @@ function getIcon(): string {
 }
 
 function handleSubmit() {
+  if (props.pending)
+    return
   errorMessage.value = ''
 
   if (!name.value.trim() || !message.value.trim()) {
@@ -104,7 +108,7 @@ function handleSubmit() {
 </script>
 
 <template>
-  <div class="form-overlay" @click.self="emit('cancel')">
+  <div class="form-overlay" @click.self="!pending && emit('cancel')">
     <div class="form-container">
       <div class="form-header">
         <div>
@@ -116,7 +120,7 @@ function handleSubmit() {
           </p>
         </div>
 
-        <button class="close-button" type="button" @click="emit('cancel')">
+        <button class="close-button" :disabled="pending" type="button" @click="emit('cancel')">
           <span class="close-symbol">×</span>
         </button>
       </div>
@@ -263,15 +267,15 @@ function handleSubmit() {
         </div>
       </div>
 
-      <p v-if="errorMessage" class="error-message">
-        {{ errorMessage }}
+      <p v-if="errorMessage || error" class="error-message" role="alert">
+        {{ errorMessage || error }}
       </p>
 
       <div class="form-actions">
-        <button class="btn-secondary" type="button" @click="emit('cancel')">
+        <button class="btn-secondary" :disabled="pending" type="button" @click="emit('cancel')">
           {{ t('common.cancel') }}
         </button>
-        <button class="btn-primary" type="button" @click="handleSubmit">
+        <button class="btn-primary" :disabled="pending" :aria-busy="pending" type="button" @click="handleSubmit">
           {{ t('form.submit') }}
         </button>
       </div>

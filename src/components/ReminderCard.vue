@@ -8,6 +8,7 @@ const props = defineProps<{
   reminder: Reminder
   remainingSeconds?: number
   globallyPaused?: boolean
+  pending?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -147,12 +148,13 @@ function formatTime(seconds: number): string {
     </div>
 
     <div class="card-actions">
-      <button class="action-link danger" type="button" @click="emit('delete', reminder.id)">
+      <button class="action-link danger" :disabled="pending" type="button" @click="emit('delete', reminder.id)">
         {{ t('common.delete') }}
       </button>
 
       <button
         class="toggle-button"
+        :disabled="pending"
         :class="{ 'toggle-button-active': reminder.enabled }"
         type="button"
         @click="emit('toggle', reminder.id)"

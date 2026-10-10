@@ -8,6 +8,7 @@ const props = withDefaults(defineProps<{
   cancelText?: string
   danger?: boolean
   loading?: boolean
+  error?: string
 }>(), {
   confirmText: 'Confirm',
   cancelText: 'Cancel',
@@ -62,6 +63,10 @@ onUnmounted(() => {
 
       <p class="confirm-message">
         {{ message }}
+      </p>
+
+      <p v-if="error" role="alert">
+        {{ error }}
       </p>
 
       <div class="confirm-actions">

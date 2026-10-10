@@ -8,7 +8,7 @@ import type { NotificationSoundPreset } from '../utils/notificationSound'
 import { invoke } from '@tauri-apps/api/core'
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
 import { confirm, open, save } from '@tauri-apps/plugin-dialog'
-import { computed, nextTick, onMounted, ref, shallowRef, useId, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, shallowRef, useId, watch } from 'vue'
 import { exportData, importData, readTextFile, writeTextFile } from '../api/data'
 import { getPlatformCapabilities } from '../api/platform'
 import { loadLanguage, useI18n } from '../i18n'
@@ -16,6 +16,7 @@ import { normalizeMascotStyle } from '../utils/mascotStyles'
 import { normalizeNotificationAppearance } from '../utils/notificationAppearance'
 import { playNotificationSound } from '../utils/notificationSound'
 import { appIconMain } from '../utils/reminderVisuals'
+import { createSettingsWriter } from '../utils/settingsWriter'
 import LanguageSelect from './LanguageSelect.vue'
 import MascotStyleSettings from './MascotStyleSettings.vue'
 import NotificationAppearanceSettings from './NotificationAppearanceSettings.vue'
@@ -28,7 +29,7 @@ const fieldId = useId()
 
 const AUTO_START_SETTING_KEY = 'auto_start'
 
-const { language: currentLanguage, setLanguage, t } = useI18n()
+const { language: currentLanguage, t } = useI18n()
 const theme = ref<'light' | 'dark' | 'system'>('system')
 const mascotStyle = shallowRef<MascotStyle>('classic')
 const notificationAppearance = shallowRef<NotificationAppearance>('soft')
@@ -50,6 +51,8 @@ const fullscreenDetectionEnabled = ref(true)
 const exporting = ref(false)
 const importing = ref(false)
 const message = ref('')
+const saveError = ref('')
+const loadFailed = ref(false)
 const importMode = ref<ImportMode>('replace')
 const platformCapabilities = shallowRef<PlatformCapabilities | null>(null)
 
@@ -100,21 +103,46 @@ function buildFrontendSettings(): FrontendSettings {
   }
 }
 
-async function saveFrontendSettings() {
-  await invoke('save_setting', { key: 'notification_appearance', value: notificationAppearance.value })
-  await invoke('save_setting', { key: 'mascot_style', value: mascotStyle.value })
-  await invoke('save_setting', { key: 'theme', value: theme.value })
-  await invoke('save_setting', { key: 'language', value: language.value })
-  await invoke('save_setting', { key: 'notification_duration', value: String(notificationDuration.value) })
-  await invoke('save_setting', { key: 'postpone_options', value: JSON.stringify(postponeOptions.value) })
-  await invoke('save_setting', { key: 'sound_enabled', value: String(soundEnabled.value) })
-  await invoke('save_setting', { key: 'sound_preset', value: soundPreset.value })
-  await invoke('save_setting', { key: 'sound_volume', value: String(soundVolume.value) })
+const settingsWriter = createSettingsWriter(
+  values => invoke('save_settings', { settings: values }),
+  (error) => { saveError.value = t('feedback.failed', { error: String(error) }) },
+  (values) => {
+    saveError.value = ''
+    localStorage.setItem('app-settings', JSON.stringify(buildFrontendSettings()))
+    if (values.language)
+      void loadLanguage({ language: values.language })
+  },
+)
+
+async function retrySave() {
+  if (loadFailed.value) {
+    await initializeSettings()
+    return
+  }
+  try {
+    await settingsWriter.flush()
+  }
+  catch { /* The writer keeps the failed values and reports the error. */ }
 }
+
+async function handleClose() {
+  if (importing.value || exporting.value)
+    return
+  try {
+    await settingsWriter.flush()
+    emit('close')
+  }
+  catch { /* Keep the settings open so the user can retry. */ }
+}
+
+onUnmounted(() => {
+  void settingsWriter.flush().catch(() => {})
+})
 
 async function loadSettings() {
   const wasLoaded = settingsLoaded.value
   settingsLoaded.value = false
+  loadFailed.value = false
   mascotStyle.value = 'classic'
   notificationAppearance.value = 'soft'
   theme.value = 'system'
@@ -187,8 +215,10 @@ async function loadSettings() {
       silentStart.value = settings.silent_start === 'true'
     }
   }
-  catch {
-    // 忽略数据库读取失败
+  catch (error) {
+    saveError.value = t('feedback.failed', { error: String(error) })
+    loadFailed.value = true
+    return false
   }
 
   const saved = localStorage.getItem('app-settings')
@@ -214,6 +244,8 @@ async function loadSettings() {
   language.value = currentLanguage.value
   await nextTick()
   settingsLoaded.value = wasLoaded
+  saveError.value = ''
+  return true
 }
 
 async function loadPlatformCapabilities() {
@@ -290,23 +322,30 @@ async function loadAutoStart() {
   }
 }
 
-onMounted(async () => {
-  await loadSettings()
+async function initializeSettings() {
+  if (!await loadSettings())
+    return
   await loadPlatformCapabilities()
   await loadAutoStart()
   settingsLoaded.value = true
-})
+}
+
+onMounted(initializeSettings)
 
 watch([theme, mascotStyle, notificationAppearance, language, notificationDuration, postponeOptions, soundEnabled, soundPreset, soundVolume], () => {
   if (!settingsLoaded.value)
     return
-  localStorage.setItem('app-settings', JSON.stringify(buildFrontendSettings()))
   applyTheme(theme.value)
-  void setLanguage(language.value).catch((err) => {
-    console.error('Failed to save language setting:', err)
-  })
-  void saveFrontendSettings().catch((err) => {
-    console.error('Failed to save frontend settings:', err)
+  settingsWriter.enqueue({
+    notification_appearance: notificationAppearance.value,
+    mascot_style: mascotStyle.value,
+    theme: theme.value,
+    language: language.value,
+    notification_duration: String(notificationDuration.value),
+    postpone_options: JSON.stringify(postponeOptions.value),
+    sound_enabled: String(soundEnabled.value),
+    sound_preset: soundPreset.value,
+    sound_volume: String(soundVolume.value),
   })
 }, { deep: true })
 
@@ -333,40 +372,16 @@ watch(soundPreset, () => {
   testNotificationSound()
 })
 
-watch([dndEnabled, dndStart, dndEnd], async () => {
+watch([dndEnabled, dndStart, dndEnd], () => {
   if (!settingsLoaded.value)
     return
-  try {
-    await invoke('save_setting', { key: 'dnd_enabled', value: String(dndEnabled.value) })
-    await invoke('save_setting', { key: 'dnd_start', value: dndStart.value })
-    await invoke('save_setting', { key: 'dnd_end', value: dndEnd.value })
-  }
-  catch (err) {
-    console.error('Failed to save DND settings:', err)
-  }
-}, { deep: true })
+  settingsWriter.enqueue({ dnd_enabled: String(dndEnabled.value), dnd_start: dndStart.value, dnd_end: dndEnd.value })
+})
 
-watch(fullscreenDetectionEnabled, async () => {
-  if (!settingsLoaded.value) {
+watch(fullscreenDetectionEnabled, () => {
+  if (!settingsLoaded.value || !supportsFullscreenDetection.value)
     return
-  }
-
-  if (!supportsFullscreenDetection.value) {
-    if (fullscreenDetectionEnabled.value) {
-      fullscreenDetectionEnabled.value = false
-    }
-    return
-  }
-
-  try {
-    await invoke('save_setting', {
-      key: 'fullscreen_detection_enabled',
-      value: String(fullscreenDetectionEnabled.value),
-    })
-  }
-  catch (err) {
-    console.error('Failed to save fullscreen detection setting:', err)
-  }
+  settingsWriter.enqueue({ fullscreen_detection_enabled: String(fullscreenDetectionEnabled.value) })
 })
 
 function applyTheme(t: string) {
@@ -453,9 +468,12 @@ async function handleSilentStartChange() {
 }
 
 async function handleExport() {
+  if (exporting.value || importing.value)
+    return
   exporting.value = true
   message.value = ''
   try {
+    await settingsWriter.flush()
     const data = await exportData()
     const json = JSON.stringify(data, null, 2)
 
@@ -481,24 +499,27 @@ async function handleExport() {
 }
 
 async function handleImport() {
-  const confirmed = await confirm(
-    importMode.value === 'replace'
-      ? t('settings.importConfirmReplace')
-      : t('settings.importConfirmMerge'),
-    {
-      title: t('settings.importConfirmTitle'),
-      okLabel: t('settings.importConfirmOk'),
-      cancelLabel: t('common.cancel'),
-    },
-  )
-
-  if (!confirmed) {
+  if (importing.value || exporting.value)
     return
-  }
-
   importing.value = true
   message.value = ''
   try {
+    await settingsWriter.flush()
+    const confirmed = await confirm(
+      importMode.value === 'replace'
+        ? t('settings.importConfirmReplace')
+        : t('settings.importConfirmMerge'),
+      {
+        title: t('settings.importConfirmTitle'),
+        okLabel: t('settings.importConfirmOk'),
+        cancelLabel: t('common.cancel'),
+      },
+    )
+
+    if (!confirmed) {
+      return
+    }
+
     const filePath = await open({
       multiple: false,
       filters: [
@@ -509,6 +530,7 @@ async function handleImport() {
     if (filePath) {
       const content = await readTextFile(filePath)
       const data = JSON.parse(content) as ExportData
+      settingsLoaded.value = false
       const result = await importData(data, importMode.value)
       localStorage.removeItem('app-settings')
       if (importMode.value === 'replace')
@@ -522,13 +544,14 @@ async function handleImport() {
     console.error('Import failed:', err)
   }
   finally {
+    settingsLoaded.value = !loadFailed.value
     importing.value = false
   }
 }
 </script>
 
 <template>
-  <div class="settings-overlay" @click.self="emit('close')">
+  <div class="settings-overlay" @click.self="handleClose">
     <div class="settings-container" role="dialog" aria-modal="true" :aria-labelledby="`${fieldId}-title`">
       <div class="settings-header">
         <div class="header-copy">
@@ -545,12 +568,17 @@ async function handleImport() {
           </div>
         </div>
 
-        <button class="close-button" :aria-label="t('common.close')" type="button" @click="emit('close')">
+        <button class="close-button" :aria-label="t('common.close')" type="button" @click="handleClose">
           <span class="close-symbol">×</span>
         </button>
       </div>
 
-      <div class="settings-content">
+      <p v-if="saveError" role="alert" class="message message-error">
+        {{ saveError }} <button type="button" @click="retrySave">
+          {{ t('feedback.retry') }}
+        </button>
+      </p>
+      <div class="settings-content" :inert="importing || exporting || !settingsLoaded">
         <section class="setting-section appearance-section">
           <div class="appearance-row">
             <h3 class="section-title">

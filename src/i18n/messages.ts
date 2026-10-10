@@ -1,3 +1,4 @@
+import { feedbackMessages } from './feedback'
 import ar from './locales/ar.json'
 import esES from './locales/es-ES.json'
 import hiIN from './locales/hi-IN.json'
@@ -257,7 +258,7 @@ const enUS = {
   },
 } as const
 
-export const messages = {
+const baseMessages = {
   'es-ES': esES,
   'pt-BR': ptBR,
   'id-ID': idID,
@@ -695,5 +696,9 @@ export const messages = {
     windowControls: { minimize: 'បង្រួម', maximize: 'ពង្រីក', restore: 'ស្ដារ', hideToTray: 'លាក់ទៅថាសប្រព័ន្ធ' },
   },
 } as const
+
+export const messages = Object.fromEntries(
+  Object.entries(baseMessages).map(([key, value]) => [key, { ...value, feedback: feedbackMessages[key as Language] }]),
+) as { [K in Language]: (typeof baseMessages)[K] & { feedback: (typeof feedbackMessages)[K] } }
 
 export type MessageSchema = (typeof messages)[Language]

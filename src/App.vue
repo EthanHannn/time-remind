@@ -23,6 +23,13 @@ const showSettings = ref(false)
 const showStats = ref(false)
 const pendingDeleteReminder = ref<Reminder | null>(null)
 const deleteLoading = ref(false)
+const addLoading = ref(false)
+const addError = ref('')
+const deleteError = ref('')
+const actionError = ref('')
+const loadError = ref('')
+const loaded = ref(false)
+const pendingToggles = ref(new Set<string>())
 const { t } = useI18n()
 
 const enabledCount = computed(() => reminders.value.filter(reminder => reminder.enabled).length)
@@ -113,19 +120,29 @@ async function loadReminders() {
     reminders.value = overview.reminders
     globallyPaused.value = overview.all_paused
     countdowns.value = overview.countdowns
+    loadError.value = ''
+    loaded.value = true
   }
   catch (err) {
-    console.error('Failed to load reminders:', err)
+    if (request === overviewRequest)
+      loadError.value = t('feedback.failed', { error: String(err) })
   }
 }
 
 async function handleToggle(id: string) {
+  if (pendingToggles.value.has(id))
+    return
+  pendingToggles.value.add(id)
+  actionError.value = ''
   try {
     await toggleReminder(id)
     await loadReminders()
   }
   catch (err) {
-    console.error('Failed to toggle reminder:', err)
+    actionError.value = t('feedback.failed', { error: String(err) })
+  }
+  finally {
+    pendingToggles.value.delete(id)
   }
 }
 
@@ -135,21 +152,23 @@ async function handleDelete(id: string) {
     return
 
   pendingDeleteReminder.value = target
+  deleteError.value = ''
 }
 
 async function handleDeleteConfirm() {
   const target = pendingDeleteReminder.value
-  if (!target)
+  if (!target || deleteLoading.value)
     return
 
   try {
     deleteLoading.value = true
+    deleteError.value = ''
     await deleteReminder(target.id)
     pendingDeleteReminder.value = null
     await loadReminders()
   }
   catch (err) {
-    console.error('Failed to delete reminder:', err)
+    deleteError.value = t('feedback.failed', { error: String(err) })
   }
   finally {
     deleteLoading.value = false
@@ -164,13 +183,20 @@ function handleDeleteCancel() {
 }
 
 async function handleAdd(data: CreateReminderRequest) {
+  if (addLoading.value)
+    return
+  addLoading.value = true
+  addError.value = ''
   try {
     await createReminder(data)
     showAddForm.value = false
     await loadReminders()
   }
   catch (err) {
-    console.error('Failed to create reminder:', err)
+    addError.value = t('feedback.failed', { error: String(err) })
+  }
+  finally {
+    addLoading.value = false
   }
 }
 </script>
@@ -207,7 +233,18 @@ async function handleAdd(data: CreateReminderRequest) {
     </header>
 
     <main class="reminder-list">
-      <div v-if="reminders.length === 0" class="empty-state">
+      <p v-if="loadError" role="alert">
+        {{ loadError }} <button type="button" @click="loadReminders">
+          {{ t('feedback.retry') }}
+        </button>
+      </p>
+      <p v-if="actionError" role="alert">
+        {{ actionError }}
+      </p>
+      <p v-if="!loaded && !loadError" role="status">
+        {{ t('feedback.loading') }}
+      </p>
+      <div v-if="loaded && !loadError && reminders.length === 0" class="empty-state">
         <img :src="emptyReminders" :alt="t('app.emptyAlt')" class="empty-image">
         <h2 class="empty-title">
           {{ t('app.emptyTitle') }}
@@ -227,6 +264,7 @@ async function handleAdd(data: CreateReminderRequest) {
           :reminder="reminder"
           :remaining-seconds="countdowns[reminder.id]"
           :globally-paused="globallyPaused"
+          :pending="pendingToggles.has(reminder.id)"
           @toggle="handleToggle"
           @delete="handleDelete"
         />
@@ -236,8 +274,10 @@ async function handleAdd(data: CreateReminderRequest) {
     <Transition name="modal">
       <AddReminderForm
         v-if="showAddForm"
+        :pending="addLoading"
+        :error="addError"
         @submit="handleAdd"
-        @cancel="showAddForm = false"
+        @cancel="!addLoading && (showAddForm = false)"
       />
     </Transition>
 
@@ -263,6 +303,7 @@ async function handleAdd(data: CreateReminderRequest) {
         :confirm-text="t('common.delete')"
         :cancel-text="t('common.cancel')"
         :loading="deleteLoading"
+        :error="deleteError"
         danger
         @confirm="handleDeleteConfirm"
         @cancel="handleDeleteCancel"
