@@ -680,19 +680,28 @@ fn cleanup_old_logs(db: &Database) {
 
 /// 插入默认提醒数据
 fn insert_default_reminders(app: &AppHandle, db: &Database) {
-    let conn = db.conn.lock().unwrap();
-
-    // 检查是否已有数据
-    let count: i64 = conn
-        .query_row("SELECT COUNT(*) FROM reminders", [], |row| row.get(0))
-        .unwrap_or(0);
-
-    if count > 0 {
-        return;
-    }
-
-    let now = chrono::Utc::now();
     let (language, from_installer) = default_template_language(app);
+    let mut conn = db.conn.lock().unwrap();
+    if let Err(error) = initialize_default_reminders(&mut conn, language, from_installer) {
+        app_log::error(format!("初始化默认提醒失败：{error}"));
+    }
+}
+
+fn initialize_default_reminders(
+    conn: &mut rusqlite::Connection,
+    language: &str,
+    from_installer: bool,
+) -> rusqlite::Result<()> {
+    let tx = conn.transaction()?;
+    let initialized: String = tx.query_row(
+        "SELECT value FROM app_metadata WHERE key = 'defaults_initialized'",
+        [],
+        |row| row.get(0),
+    )?;
+    if initialized == "true" {
+        return Ok(());
+    }
+    let now = chrono::Utc::now();
     let text = reminder_template_text(language);
     let defaults = vec![
         (
@@ -763,70 +772,23 @@ fn insert_default_reminders(app: &AppHandle, db: &Database) {
             .to_string();
         let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
 
-        let _ = conn.execute(
+        tx.execute(
             "INSERT INTO reminders (id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, 1, ?14, ?15, ?16)",
             (id, name, rtype, icon, message, interval, break_duration, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, next_trigger, now_str.clone(), now_str),
-        );
+        )?;
     }
 
     if from_installer {
-        let _ = conn.execute(
+        tx.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('language', ?1)",
             [language],
-        );
+        )?;
     }
-}
-
-/// 安全升级仍保持旧默认值的预设提醒，不覆盖用户已调整过的设置
-fn repair_default_reminder_templates(db: &Database) {
-    let conn = db.conn.lock().unwrap();
-    let now = Utc::now();
-    let now_str = now.format("%Y-%m-%dT%H:%M:%S").to_string();
-
-    let _ = conn.execute(
-        "UPDATE reminders
-         SET interval_minutes = 90,
-             next_trigger = CASE WHEN enabled = 1 THEN ?1 ELSE next_trigger END,
-             updated_at = ?2
-         WHERE id = 'default-drink' AND interval_minutes = 45",
-        (
-            (now + chrono::Duration::minutes(90))
-                .format("%Y-%m-%dT%H:%M:%S")
-                .to_string(),
-            &now_str,
-        ),
-    );
-
-    let _ = conn.execute(
-        "UPDATE reminders
-         SET break_duration_minutes = CASE WHEN break_duration_minutes IN (0, 10) THEN 5 ELSE break_duration_minutes END,
-             break_notification_enabled = CASE WHEN break_duration_minutes IN (0, 10) THEN 1 ELSE break_notification_enabled END,
-             action_enabled = 1,
-             action_title = CASE WHEN action_title = '' THEN '休息中' ELSE action_title END,
-             action_message = CASE WHEN action_message = '' THEN '倒计时结束后再进入下一轮。' ELSE action_message END,
-             action_duration_seconds = CASE WHEN action_duration_seconds IN (0, 600) THEN 300 ELSE action_duration_seconds END,
-             action_completion_mode = CASE WHEN action_completion_mode = '' THEN 'auto' ELSE action_completion_mode END,
-             updated_at = ?1
-         WHERE id = 'default-rest'
-           AND (
-             break_duration_minutes IN (0, 10)
-             OR action_duration_seconds IN (0, 600)
-           )",
-        [&now_str],
-    );
-
-    let _ = conn.execute(
-        "UPDATE reminders
-         SET action_duration_seconds = 20,
-             action_enabled = 1,
-             action_title = CASE WHEN action_title = '' THEN '护眼中' ELSE action_title END,
-             action_message = CASE WHEN action_message = '' THEN '看向远处，让眼睛放松一下。' ELSE action_message END,
-             action_completion_mode = CASE WHEN action_completion_mode = '' THEN 'auto' ELSE action_completion_mode END,
-             message = CASE WHEN message = '让眼睛看远一点。' THEN '看向远处 20 秒，让眼睛放松一下。' ELSE message END,
-             updated_at = ?1
-         WHERE id = 'default-eye-care' AND action_duration_seconds = 0",
-        [&now_str],
-    );
+    tx.execute(
+        "UPDATE app_metadata SET value = 'true' WHERE key = 'defaults_initialized'",
+        [],
+    )?;
+    tx.commit()
 }
 
 /// 修复已过期或缺失的下次提醒时间，避免应用启动时连续触发旧提醒
@@ -1077,7 +1039,6 @@ pub fn run() {
             let db = Database::init(app.handle()).expect("failed to init database");
             cleanup_old_logs(&db);
             insert_default_reminders(app.handle(), &db);
-            repair_default_reminder_templates(&db);
             reconcile_schedule_on_startup(&db);
             restore_autostart_preference(app.handle(), &db);
             let tray_language = current_ui_language(&db);
@@ -1289,6 +1250,29 @@ mod tests {
     use super::should_use_xwayland_fallback;
     use super::{reconcile_schedule_for_boot, Database, LAST_BOOT_MARKER_KEY};
     use chrono::{Duration, NaiveDateTime, Utc};
+
+    #[test]
+    fn defaults_are_initialized_once_and_never_rewrite_user_choices() {
+        let db = Database::in_memory();
+        let mut conn = db.conn.lock().unwrap();
+        super::initialize_default_reminders(&mut conn, "zh-CN", false).unwrap();
+        conn.execute("UPDATE reminders SET interval_minutes = 45, action_enabled = 0, action_duration_seconds = 0", []).unwrap();
+        super::initialize_default_reminders(&mut conn, "zh-CN", false).unwrap();
+        let unchanged: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM reminders WHERE interval_minutes = 45 AND action_enabled = 0",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(unchanged, 3);
+        conn.execute("DELETE FROM reminders", []).unwrap();
+        super::initialize_default_reminders(&mut conn, "zh-CN", false).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT COUNT(*) FROM reminders", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
 
     #[test]
     fn new_locales_cover_native_menus_and_default_reminders() {

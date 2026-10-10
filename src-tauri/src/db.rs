@@ -110,6 +110,10 @@ impl Database {
     /// 执行数据库迁移
     fn migrate(&self) -> Result<()> {
         let conn = self.conn.lock().unwrap();
+        let existing_database: bool = conn.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'reminders')",
+            [], |row| row.get(0),
+        )?;
 
         conn.execute_batch(
             "
@@ -152,7 +156,18 @@ impl Database {
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+
+            CREATE TABLE IF NOT EXISTS app_metadata (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
             ",
+        )?;
+        // An empty existing database can be an intentional user choice.
+        // Keep this marker outside settings so replace-import cannot reset it.
+        conn.execute(
+            "INSERT OR IGNORE INTO app_metadata (key, value) VALUES ('defaults_initialized', ?1)",
+            [if existing_database { "true" } else { "false" }],
         )?;
 
         let mut stmt = conn.prepare("PRAGMA table_info(reminders)")?;
@@ -285,6 +300,28 @@ mod tests {
         let conn = db.conn.lock().unwrap();
         let enabled: i64 = conn.query_row("SELECT COUNT(*) FROM reminders WHERE action_enabled != 0 OR action_duration_seconds != 0", [], |row| row.get(0)).unwrap();
         assert_eq!(enabled, 0);
+    }
+
+    #[test]
+    fn upgrading_an_empty_existing_database_marks_defaults_initialized() {
+        let db = Database::in_memory();
+        db.conn
+            .lock()
+            .unwrap()
+            .execute("DROP TABLE app_metadata", [])
+            .unwrap();
+        db.migrate().unwrap();
+        let marker: String = db
+            .conn
+            .lock()
+            .unwrap()
+            .query_row(
+                "SELECT value FROM app_metadata WHERE key = 'defaults_initialized'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(marker, "true");
     }
 
     fn temp_db_path(name: &str) -> PathBuf {
