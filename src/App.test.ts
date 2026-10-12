@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
+import { listen } from '@tauri-apps/api/event'
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { createReminder, toggleReminder } from './api/reminder'
 import App from './App.vue'
 import AddReminderForm from './components/AddReminderForm.vue'
@@ -44,6 +45,90 @@ beforeEach(() => {
   vi.clearAllMocks()
   mocks.overview.mockReset()
   mocks.listeners = {}
+})
+
+afterEach(() => {
+  vi.useRealTimers()
+})
+
+it('ends a stalled initial load with a retry and ignores the late response', async () => {
+  vi.useFakeTimers()
+  let resolveOld!: (value: ReturnType<typeof snapshot>) => void
+  mocks.overview.mockReturnValueOnce(new Promise((resolve) => {
+    resolveOld = resolve
+  }))
+  const wrapper = render()
+  await flushPromises()
+  expect(wrapper.text()).toContain('feedback.loading')
+  await vi.advanceTimersByTimeAsync(15_000)
+  expect(wrapper.find('[role="alert"]').text()).toContain('feedback.failed')
+  expect(wrapper.text()).not.toContain('feedback.loading')
+  mocks.overview.mockResolvedValueOnce(snapshot(true, 300))
+  await wrapper.find('[role="alert"] button').trigger('click')
+  await flushPromises()
+  expect(wrapper.find('.card').text()).toBe('true:300')
+  resolveOld(snapshot(false, 0))
+  await flushPromises()
+  expect(wrapper.find('.card').text()).toBe('true:300')
+  wrapper.unmount()
+})
+
+it('reports failed event registration and reconnects on retry', async () => {
+  vi.mocked(listen).mockRejectedValueOnce('event connection failed')
+  mocks.overview.mockResolvedValue(snapshot(false, 60))
+  const wrapper = render()
+  await flushPromises()
+  expect(wrapper.find('[role="alert"]').text()).toContain('feedback.failed')
+  await wrapper.find('[role="alert"] button').trigger('click')
+  await flushPromises()
+  expect(wrapper.find('.card').text()).toBe('false:60')
+  expect(mocks.listeners['reminders:state']).toBeTypeOf('function')
+  wrapper.unmount()
+})
+
+it('times out pending event registration and disposes late listeners after retry', async () => {
+  vi.useFakeTimers()
+  const stopOldListener = vi.fn()
+  let resolveOld!: (stop: () => void) => void
+  vi.mocked(listen).mockImplementationOnce(() => new Promise((resolve) => {
+    resolveOld = resolve
+  }))
+  mocks.overview.mockResolvedValue(snapshot(false, 60))
+  const wrapper = render()
+  await flushPromises()
+  await vi.advanceTimersByTimeAsync(15_000)
+  expect(wrapper.find('[role="alert"]').exists()).toBe(true)
+  await wrapper.find('[role="alert"] button').trigger('click')
+  await flushPromises()
+  expect(wrapper.find('.card').text()).toBe('false:60')
+  resolveOld(stopOldListener)
+  await flushPromises()
+  expect(stopOldListener).toHaveBeenCalledOnce()
+  expect(wrapper.find('.card').text()).toBe('false:60')
+  expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  wrapper.unmount()
+})
+
+it('cleans up listeners and loading timers when unmounted during startup', async () => {
+  vi.useFakeTimers()
+  const stopLateListener = vi.fn()
+  const stopListener = vi.fn()
+  let resolveLate!: (stop: () => void) => void
+  vi.mocked(listen).mockImplementationOnce(() => new Promise((resolve) => {
+    resolveLate = resolve
+  }))
+  for (let i = 0; i < 5; i++)
+    vi.mocked(listen).mockResolvedValueOnce(stopListener)
+  const wrapper = render()
+  await flushPromises()
+  wrapper.unmount()
+  await flushPromises()
+  expect(stopListener).toHaveBeenCalledTimes(5)
+  expect(vi.getTimerCount()).toBe(0)
+  resolveLate(stopLateListener)
+  await flushPromises()
+  expect(stopLateListener).toHaveBeenCalledOnce()
+  expect(mocks.overview).not.toHaveBeenCalled()
 })
 
 it('guards repeated create requests and keeps a failed form available to retry', async () => {

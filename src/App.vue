@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import type { CreateReminderRequest, Reminder, ReminderRuntime, RuntimeSnapshot, TimerTick } from './types/reminder'
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { createReminder, deleteReminder, getReminderOverview, toggleReminder, updateReminder } from './api/reminder'
 import AddReminderForm from './components/AddReminderForm.vue'
@@ -12,9 +11,11 @@ import ConfirmDialog from './components/ConfirmDialog.vue'
 import ReminderCard from './components/ReminderCard.vue'
 import SettingsPage from './components/SettingsPage.vue'
 import StatsPage from './components/StatsPage.vue'
+import { useAppEvents } from './composables/useAppEvents'
 import { useTheme } from './composables/useTheme'
 import { loadLanguage, useI18n } from './i18n'
 import { emptyReminders } from './utils/reminderVisuals'
+import { withTimeout } from './utils/withTimeout'
 
 const { applyTheme, themeRevision } = useTheme()
 
@@ -40,6 +41,10 @@ const loadError = ref('')
 const loaded = ref(false)
 const pendingToggles = ref(new Set<string>())
 const { locale, t } = useI18n()
+const appEvents = useAppEvents(() => t('feedback.loadTimeout'))
+const requests = new AbortController()
+let eventsReady = false
+let initializing = false
 const globalStatus = computed(() => {
   if (globallyPaused.value)
     return t(suppression.value?.reason === 'system' ? 'runtime.systemPaused' : 'reminder.paused')
@@ -76,49 +81,53 @@ async function toggleAll() {
   }
 }
 
-// 监听定时器 tick 事件
-let unlistenTick: (() => void) | null = null
-let unlistenChanged: (() => void) | null = null
-let unlistenNavigate: (() => void) | null = null
-let unlistenRuntime: (() => void) | null = null
-let unlistenQueue: (() => void) | null = null
-let unlistenSettings: (() => void) | null = null
-
-onMounted(async () => {
-  unlistenTick = await listen<TimerTick>('timer:tick', (event) => {
-    if (globallyPaused.value || runtimeRevision > 0)
-      return
-    countdowns.value[event.payload.reminder_id] = Math.max(0, event.payload.remaining_seconds)
-  })
-
-  unlistenChanged = await listen('reminders:changed', () => {
-    loadReminders()
-  })
-  unlistenRuntime = await listen<RuntimeSnapshot>('reminders:state', event => applyRuntime(event.payload))
-  unlistenQueue = await listen('notification:queue-updated', () => {
-    void loadReminders()
-  })
-
-  unlistenSettings = await listen('settings:changed', () => {
-    void Promise.all([loadTheme(), loadLanguage()])
-  })
-
-  unlistenNavigate = await listen<string>('navigate', (event) => {
-    if (event.payload === 'settings') {
-      showSettings.value = true
+async function initialize() {
+  if (initializing || requests.signal.aborted)
+    return
+  initializing = true
+  loadError.value = ''
+  overviewRequest++
+  try {
+    if (!eventsReady) {
+      await appEvents.connect(listen => Promise.all([
+        listen<TimerTick>('timer:tick', (event) => {
+          if (globallyPaused.value || runtimeRevision > 0)
+            return
+          countdowns.value[event.payload.reminder_id] = Math.max(0, event.payload.remaining_seconds)
+        }),
+        listen('reminders:changed', () => { void loadReminders() }),
+        listen<RuntimeSnapshot>('reminders:state', event => applyRuntime(event.payload)),
+        listen('notification:queue-updated', () => { void loadReminders() }),
+        listen('settings:changed', () => { void Promise.all([loadTheme(), loadLanguage()]) }),
+        listen<string>('navigate', (event) => {
+          if (event.payload === 'settings')
+            showSettings.value = true
+        }),
+      ]))
+      eventsReady = true
     }
-  })
+    if (requests.signal.aborted)
+      return
+    void loadTheme()
+    void loadLanguage()
+    await loadReminders()
+  }
+  catch (error) {
+    if (!requests.signal.aborted) {
+      overviewRequest++
+      loadError.value = t('feedback.failed', { error: String(error) })
+    }
+  }
+  finally {
+    initializing = false
+  }
+}
 
-  await Promise.all([loadTheme(), loadLanguage(), loadReminders()])
-})
+onMounted(initialize)
 
 onUnmounted(() => {
-  unlistenTick?.()
-  unlistenChanged?.()
-  unlistenNavigate?.()
-  unlistenRuntime?.()
-  unlistenQueue?.()
-  unlistenSettings?.()
+  overviewRequest++
+  requests.abort()
 })
 
 function applyRuntime(snapshot: RuntimeSnapshot) {
@@ -164,7 +173,7 @@ async function loadTheme() {
 async function loadReminders() {
   const request = ++overviewRequest
   try {
-    const overview = await getReminderOverview()
+    const overview = await withTimeout(getReminderOverview(), t('feedback.loadTimeout'), requests.signal)
     if (request !== overviewRequest)
       return
     reminders.value = overview.reminders
@@ -290,7 +299,7 @@ async function handleAdd(data: CreateReminderRequest) {
         {{ globalStatus }}
       </p>
       <p v-if="loadError" role="alert">
-        {{ loadError }} <button type="button" @click="loadReminders">
+        {{ loadError }} <button type="button" @click="initialize">
           {{ t('feedback.retry') }}
         </button>
       </p>

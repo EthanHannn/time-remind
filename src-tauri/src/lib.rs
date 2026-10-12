@@ -631,18 +631,25 @@ pub(crate) enum TrayVisualState {
 }
 
 pub(crate) fn set_tray_visual_state<R: Runtime>(app: &AppHandle<R>, state: TrayVisualState) {
-    let Some(tray) = app.tray_by_id(TRAY_ID) else {
-        return;
-    };
-
-    let icon_bytes = match state {
-        TrayVisualState::Idle => include_bytes!("../icons/tray-idle.png").as_slice(),
-        TrayVisualState::Alert => include_bytes!("../icons/tray-alert.png").as_slice(),
-        TrayVisualState::Muted => include_bytes!("../icons/tray-muted.png").as_slice(),
-    };
-
-    if let Ok(icon) = Image::from_bytes(icon_bytes) {
-        let _ = tray.set_icon(Some(icon));
+    // TrayIcon::set_icon waits for the UI thread when called from a worker.
+    // Scheduler callers can hold the DB lock, while startup/IPC on the UI
+    // thread needs that same lock. Queue the whole update without waiting so
+    // the worker can release its locks before the UI processes the update.
+    let handle = app.clone();
+    if let Err(error) = app.run_on_main_thread(move || {
+        let Some(tray) = handle.tray_by_id(TRAY_ID) else {
+            return;
+        };
+        let icon_bytes = match state {
+            TrayVisualState::Idle => include_bytes!("../icons/tray-idle.png").as_slice(),
+            TrayVisualState::Alert => include_bytes!("../icons/tray-alert.png").as_slice(),
+            TrayVisualState::Muted => include_bytes!("../icons/tray-muted.png").as_slice(),
+        };
+        if let Ok(icon) = Image::from_bytes(icon_bytes) {
+            let _ = tray.set_icon(Some(icon));
+        }
+    }) {
+        app_log::warn(format!("调度托盘图标更新失败：{error}"));
     }
 }
 
