@@ -52,11 +52,11 @@ Windows is the verified release platform. macOS and Linux packages are community
 
 ## Install
 
-Download an installer from the [latest GitHub release](https://github.com/EthanHannn/time-remind/releases/tag/v0.1.9).
+Download an installer from the [latest GitHub release](https://github.com/EthanHannn/time-remind/releases/tag/v0.1.10).
 
 Recommended assets:
 
-- Windows: `Time-Remind_0.1.9_windows_x64_nsis.exe`
+- Windows: `Time-Remind_0.1.10_windows_x64_nsis.exe`
 - macOS preview: `.dmg` or zipped `.app` asset
 - Linux preview: `.deb` or `.AppImage` asset
 
@@ -98,8 +98,8 @@ pnpm tauri build --bundles deb,appimage
 
 Expected outputs:
 
-- Windows: `src-tauri/target/release/bundle/nsis/Time Remind_0.1.9_x64-setup.exe`
-- macOS: `src-tauri/target/release/bundle/macos/Time Remind.app`, `src-tauri/target/release/bundle/dmg/Time Remind_0.1.9_*.dmg`
+- Windows: `src-tauri/target/release/bundle/nsis/Time Remind_0.1.10_x64-setup.exe`
+- macOS: `src-tauri/target/release/bundle/macos/Time Remind.app`, `src-tauri/target/release/bundle/dmg/Time Remind_0.1.10_*.dmg`
 - Linux: `src-tauri/target/release/bundle/deb/*.deb`, `src-tauri/target/release/bundle/appimage/*.AppImage`
 
 Only the Windows NSIS installer is currently part of the verified release flow. macOS and Linux outputs are build targets for future validation.
@@ -107,7 +107,7 @@ Only the Windows NSIS installer is currently part of the verified release flow. 
 Release rules:
 
 - Version values in `package.json`, `src-tauri/tauri.conf.json`, release tags, and release notes must match.
-- Public tags use `vMAJOR.MINOR.PATCH`, for example `v0.1.9`.
+- Public tags use `vMAJOR.MINOR.PATCH`, for example `v0.1.10`.
 - Pushing a `v*` tag to GitHub automatically starts the release build workflow.
 - Public installer names must include product name, version, platform, architecture, and package type.
 - Windows remains the verified stable target.
@@ -126,7 +126,7 @@ Use the export feature before reinstalling the system or moving to another devic
 
 ## Known Limitations
 
-- Current version is `0.1.9 Beta`.
+- Current version is `0.1.10 Beta`.
 - Windows installer is not code-signed.
 - macOS and Linux packages are community preview assets, not verified stable packages.
 - macOS signing and notarization are not complete.

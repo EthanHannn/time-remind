@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.10 Beta - 2026-10-12
+
+### Fixed
+
+- Removed a startup deadlock between the scheduler's tray icon update and the main window's database reads. Tray updates now dispatch to the UI thread without waiting while holding the database lock.
+- Added a 15-second timeout and retry for initial event registration and reminder loading, with localized guidance instead of an indefinite loading screen.
+- Cleaned up failed and late event subscriptions, cancelled pending load timers on unmount, and prevented timed-out responses from replacing a newer retry's data.
+
 ## 0.1.9 Beta - 2026-10-10
 
 ### Fixed
