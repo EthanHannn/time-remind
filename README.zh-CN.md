@@ -52,13 +52,15 @@ Windows 是当前已验证发布平台。macOS 和 Linux 安装包属于社区�
 
 ## 安装
 
-从 [最新 GitHub Release](https://github.com/EthanHannn/time-remind/releases/tag/v0.1.10) 下载安装包。
+从 [最新 GitHub Release](https://github.com/EthanHannn/time-remind/releases/tag/v0.1.11) 下载安装包。
 
 推荐下载：
 
-- Windows：`Time-Remind_0.1.10_windows_x64_nsis.exe`
+- Windows：`Time-Remind_0.1.11_windows_x64_nsis.exe`
 - macOS 预览：`.dmg` 或 `.app.zip` 资产
 - Linux 预览：`.deb` 或 `.AppImage` 资产
+
+Windows 安装向导新增**启动设置**：可选择**开机启动**，勾选后再选择**静默启动，仅驻留系统托盘**。新安装默认不勾选；静默启动只在开机自启时隐藏主窗口，手动打开应用仍显示主界面。升级默认保留原有选择，以后也可以在应用设置中修改。
 
 当前 Windows 安装包未做代码签名，可能提示未知发布者。macOS 预览包暂未签名和公证，可能出现 Gatekeeper 安全提示。
 
@@ -98,8 +100,8 @@ pnpm tauri build --bundles deb,appimage
 
 预期产物：
 
-- Windows：`src-tauri/target/release/bundle/nsis/Time Remind_0.1.10_x64-setup.exe`
-- macOS：`src-tauri/target/release/bundle/macos/Time Remind.app`、`src-tauri/target/release/bundle/dmg/Time Remind_0.1.10_*.dmg`
+- Windows：`src-tauri/target/release/bundle/nsis/Time Remind_0.1.11_x64-setup.exe`
+- macOS：`src-tauri/target/release/bundle/macos/Time Remind.app`、`src-tauri/target/release/bundle/dmg/Time Remind_0.1.11_*.dmg`
 - Linux：`src-tauri/target/release/bundle/deb/*.deb`、`src-tauri/target/release/bundle/appimage/*.AppImage`
 
 当前只有 Windows NSIS 安装包属于已验证发布流程。macOS 和 Linux 产物仅作为后续验证目标。
@@ -107,7 +109,7 @@ pnpm tauri build --bundles deb,appimage
 发布规则：
 
 - `package.json`、`src-tauri/tauri.conf.json`、发布标签和发布说明中的版本号必须一致。
-- 公开发布标签使用 `vMAJOR.MINOR.PATCH`，例如 `v0.1.10`。
+- 公开发布标签使用 `vMAJOR.MINOR.PATCH`，例如 `v0.1.11`。
 - 推送 `v*` 标签到 GitHub 会自动触发发布构建 workflow。
 - 对外安装包名称必须包含产品名、版本号、平台、架构和安装包类型。
 - Windows 仍是已验证 stable 目标。
@@ -126,7 +128,7 @@ pnpm tauri build --bundles deb,appimage
 
 ## 已知限制
 
-- 当前版本为 `0.1.10 Beta`。
+- 当前版本为 `0.1.11 Beta`。
 - Windows 安装包未签名。
 - macOS 和 Linux 安装包属于社区预览资产，不是已验证 stable 包。
 - macOS 签名和公证尚未完成。

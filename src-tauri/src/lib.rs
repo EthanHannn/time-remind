@@ -2,6 +2,8 @@ mod app_log;
 mod commands;
 mod db;
 mod fullscreen;
+#[cfg(any(target_os = "windows", test))]
+mod installer;
 mod lifecycle;
 mod models;
 pub mod power;
@@ -1030,6 +1032,8 @@ pub fn run() {
             lifecycle::interrupt(&db.conn.lock().unwrap(), None, Utc::now())
                 .expect("failed to reconcile interrupted actions");
             insert_default_reminders(app.handle(), &db);
+            #[cfg(target_os = "windows")]
+            installer::apply_startup_options(app.handle(), &db);
             reconcile_schedule_on_startup(&db);
             restore_autostart_preference(app.handle(), &db);
             let tray_language = current_ui_language(&db);

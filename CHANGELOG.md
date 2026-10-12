@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.11 Beta - 2026-10-12
+
+### Added
+
+- Added a Windows installer startup page in all 10 installer languages, with opt-in choices for starting with Windows and starting silently in the system tray. Both default off for new installations.
+- Applied installer choices to the app's settings on first launch. Silent startup only hides the main window on Windows sign-in; manual and post-install launches still show it.
+
+### Improved
+
+- Kept existing startup preferences by default during upgrades and reinstalls, including installations that have not launched the app yet. Silent, passive, and update installations preserve preferences without prompting.
+- Preserved autostart registration across maintenance uninstall and installation path changes. A one-time request ID prevents leftover installer files from undoing later in-app changes.
+
 ## 0.1.10 Beta - 2026-10-12
 
 ### Fixed

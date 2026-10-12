@@ -1,5 +1,8 @@
+!include "${__FILEDIR__}\startup.nsh"
+!include "${__FILEDIR__}\startup-languages.nsh"
+
 !macro NSIS_HOOK_POSTINSTALL
-  CreateDirectory "$APPDATA\com.hpk.time-remind"
+  CreateDirectory "$APPDATA\${BUNDLEID}"
 
   StrCpy $R0 "en-US"
   ${If} $LANGUAGE = ${LANG_SIMPCHINESE}
@@ -22,7 +25,9 @@
     StrCpy $R0 "ms-MY"
   ${EndIf}
 
-  FileOpen $R1 "$APPDATA\com.hpk.time-remind\installer-language.txt" w
+  FileOpen $R1 "$APPDATA\${BUNDLEID}\installer-language.txt" w
   FileWrite $R1 "$R0"
   FileClose $R1
+
+  Call TimeRemindApplyStartupOptions
 !macroend
