@@ -97,7 +97,7 @@ function handleSubmit() {
   }
 
   if (actionEnabled.value && (!Number.isInteger(actionDurationSeconds.value) || actionDurationSeconds.value < 1 || actionDurationSeconds.value > 7200)) {
-    errorMessage.value = t('form.actionDurationError')
+    errorMessage.value = t('form.actionDurationError', { min: 1, max: 7200 })
     return
   }
 

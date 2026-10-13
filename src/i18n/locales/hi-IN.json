@@ -28,7 +28,7 @@
     "enabled": "सक्षम",
     "paused": "रुका हुआ",
     "running": "चल रहा है",
-    "restDuration": "{minutes} मिनट आराम",
+    "restDuration": "{duration} का विराम",
     "restTipOn": "आराम का संकेत चालू",
     "restTipOff": "आराम का संकेत बंद",
     "next": "अगला {time}",
@@ -81,7 +81,7 @@
     "requiredError": "कृपया अनुस्मारक नाम और संदेश भरें",
     "intervalError": "अनुस्मारक अंतराल 1 से 1440 मिनट के बीच होना चाहिए",
     "breakDurationError": "आराम की अवधि 1 से 120 मिनट के बीच होनी चाहिए",
-    "actionDurationError": "कार्रवाई की अवधि 1 से 7200 सेकंड के बीच होनी चाहिए"
+    "actionDurationError": "कार्रवाई की अवधि {min} से {max} सेकंड के बीच होनी चाहिए"
   },
   "settings": {
     "title": "सेटिंग्स",

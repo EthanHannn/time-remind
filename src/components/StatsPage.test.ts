@@ -2,6 +2,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { flushPromises, mount } from '@vue/test-utils'
 import { expect, it, vi } from 'vitest'
+import { useI18n } from '../i18n'
 import StatsPage from './StatsPage.vue'
 
 vi.mock('@tauri-apps/api/core', () => ({ invoke: vi.fn() }))
@@ -30,7 +31,7 @@ it('distinguishes a load failure from no statistics and supports retry', async (
   vi.mocked(invoke).mockRejectedValueOnce('disk unavailable').mockResolvedValueOnce(snapshot(1))
   const wrapper = render()
   await flushPromises()
-  expect(wrapper.find('[role="alert"]').text()).toContain('disk unavailable')
+  expect(wrapper.find('[role="alert"]').text()).toContain(useI18n().t('operations.unexpected'))
   expect(wrapper.find('.stats-empty').exists()).toBe(false)
   await wrapper.find('[role="alert"] button').trigger('click')
   await flushPromises()

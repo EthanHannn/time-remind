@@ -32,7 +32,7 @@ describe('language selection', () => {
     expect(localStorage.getItem('app-language')).toBe('ar')
     await loadLanguage({})
     expect(document.documentElement.dir).toBe('rtl')
-    expect(useI18n().t('app.runningCount', { count: 3 })).toContain('3')
+    expect(useI18n().t('app.runningCount', { count: 3 })).toContain(new Intl.NumberFormat('ar').format(3))
     await useI18n().setLanguage('es-ES')
     expect(document.documentElement.dir).toBe('ltr')
   })

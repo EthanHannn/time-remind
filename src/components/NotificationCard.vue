@@ -53,7 +53,7 @@ const primaryLabel = computed(() => {
       return t('notification.startEyeCare')
     if (props.visual.type === 'rest')
       return t('notification.startBreak')
-    return props.actionTitle || t('notification.startBreak')
+    return props.actionTitle || t('ui.startAction')
   }
   return t(props.visual.type === 'drink' ? 'notification.drank' : 'notification.complete')
 })
@@ -75,7 +75,7 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
       <template v-if="collapsed && breakMode">
         <img v-if="visual.iconAsset" :src="visual.iconAsset" alt="" class="compact-icon" width="28" height="28">
         <span class="compact-title" :title="actionTitle">{{ actionTitle }}</span>
-        <span class="compact-countdown" role="timer" :aria-label="t('notification.remaining')">{{ breakCountdownLabel }}</span>
+        <span class="compact-countdown" role="timer" :aria-label="t('notification.remaining')"><bdi dir="ltr">{{ breakCountdownLabel }}</bdi></span>
         <button class="compact-expand" type="button" :aria-label="t('ui.expand')" :title="t('ui.expand')" @click="emit('collapse', false)">
           <AppIcon name="expand" />
         </button>
@@ -105,7 +105,7 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
               {{ breakMode ? countdownMessage : message }}
             </p>
             <div v-if="breakMode" class="countdown-row">
-              <span class="break-countdown" role="timer" :aria-label="t('notification.remaining')">{{ breakCountdownLabel }}</span>
+              <span class="break-countdown" role="timer" :aria-label="t('notification.remaining')"><bdi dir="ltr">{{ breakCountdownLabel }}</bdi></span>
               <span class="countdown-label">{{ t('notification.remaining') }}</span>
             </div>
           </div>

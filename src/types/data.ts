@@ -42,5 +42,5 @@ export interface ImportResult {
   logs_imported: number
   settings_imported: number
   skipped_logs: number
-  message: string
+  autostart_sync_failed: boolean
 }

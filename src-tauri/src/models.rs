@@ -91,6 +91,8 @@ pub struct Reminder {
     pub next_trigger: Option<String>,
     pub created_at: String,
     pub updated_at: String,
+    #[serde(default)]
+    pub template_fields: Option<Vec<String>>,
 }
 
 /// 提醒日志

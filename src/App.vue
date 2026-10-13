@@ -40,7 +40,7 @@ const actionError = ref('')
 const loadError = ref('')
 const loaded = ref(false)
 const pendingToggles = ref(new Set<string>())
-const { locale, t } = useI18n()
+const { locale, t, formatError } = useI18n()
 const appEvents = useAppEvents(() => t('feedback.loadTimeout'))
 const requests = new AbortController()
 let eventsReady = false
@@ -74,7 +74,7 @@ async function toggleAll() {
     await loadReminders()
   }
   catch (error) {
-    actionError.value = t('feedback.failed', { error: String(error) })
+    actionError.value = t('feedback.failed', { error: formatError(error) })
   }
   finally {
     globalTogglePending.value = false
@@ -115,7 +115,7 @@ async function initialize() {
   catch (error) {
     if (!requests.signal.aborted) {
       overviewRequest++
-      loadError.value = t('feedback.failed', { error: String(error) })
+      loadError.value = t('feedback.failed', { error: formatError(error) })
     }
   }
   finally {
@@ -183,7 +183,7 @@ async function loadReminders() {
   }
   catch (err) {
     if (request === overviewRequest)
-      loadError.value = t('feedback.failed', { error: String(err) })
+      loadError.value = t('feedback.failed', { error: formatError(err) })
   }
 }
 
@@ -197,7 +197,7 @@ async function handleToggle(id: string) {
     await loadReminders()
   }
   catch (err) {
-    actionError.value = t('feedback.failed', { error: String(err) })
+    actionError.value = t('feedback.failed', { error: formatError(err) })
   }
   finally {
     pendingToggles.value.delete(id)
@@ -228,7 +228,7 @@ async function handleDeleteConfirm() {
     await loadReminders()
   }
   catch (err) {
-    deleteError.value = t('feedback.failed', { error: String(err) })
+    deleteError.value = t('feedback.failed', { error: formatError(err) })
   }
   finally {
     deleteLoading.value = false
@@ -256,7 +256,7 @@ async function handleAdd(data: CreateReminderRequest) {
     await loadReminders()
   }
   catch (err) {
-    addError.value = t('feedback.failed', { error: String(err) })
+    addError.value = t('feedback.failed', { error: formatError(err) })
   }
   finally {
     addLoading.value = false

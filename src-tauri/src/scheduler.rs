@@ -99,6 +99,17 @@ pub struct NotificationData {
     pub pending_count: usize,
 }
 
+impl NotificationData {
+    fn refresh_copy(&mut self, conn: &Connection) -> Result<(), String> {
+        let reminder = crate::commands::get_reminder_by_id(conn, &self.reminder_id)?;
+        self.name = reminder.name;
+        self.message = reminder.message;
+        self.action_title = reminder.action_title;
+        self.action_message = reminder.action_message;
+        Ok(())
+    }
+}
+
 #[derive(Clone)]
 struct NotificationIdentity {
     reminder_id: String,
@@ -566,13 +577,15 @@ impl Scheduler {
                 next
             };
 
-            let Some(data) = next else {
+            let Some(mut data) = next else {
                 self.emit_queue_state();
                 self.update_tray_state(&conn);
                 break;
             };
 
-            if !reminder_is_due(&conn, &data.reminder_id, Utc::now()) {
+            if !reminder_is_due(&conn, &data.reminder_id, Utc::now())
+                || data.refresh_copy(&conn).is_err()
+            {
                 self.clear_active(&data.reminder_id);
                 continue;
             }
@@ -1098,6 +1111,39 @@ mod tests {
         );
 
         assert_eq!(position, tauri::PhysicalPosition::new(3910, 920));
+    }
+
+    #[test]
+    fn queued_copy_uses_the_latest_language_without_changing_notification_identity() {
+        let db = Database::in_memory();
+        let mut conn = db.conn.lock().unwrap();
+        crate::initialize_default_reminders(&mut conn, "zh-CN").unwrap();
+        let mut data = NotificationData {
+            queue_revision: 5,
+            notification_id: "already-queued".into(),
+            reminder_id: "default-rest".into(),
+            name: "old title".into(),
+            message: "old message".into(),
+            icon: "rest".into(),
+            reminder_type: "rest".into(),
+            break_duration_minutes: 5,
+            break_notification_enabled: true,
+            action_enabled: true,
+            action_title: "old action".into(),
+            action_message: "old action message".into(),
+            action_duration_seconds: 300,
+            action_completion_mode: "auto".into(),
+            pending_count: 2,
+        };
+        crate::template::sync(&conn, "en-US").unwrap();
+        data.refresh_copy(&conn).unwrap();
+        let text = crate::reminder_template_text("en-US");
+        assert_eq!(data.name, text.rest_name);
+        assert_eq!(data.action_message, text.rest_action_message);
+        assert_eq!(data.notification_id, "already-queued");
+        assert_eq!(data.queue_revision, 5);
+        assert_eq!(data.pending_count, 2);
+        assert_eq!(data.action_duration_seconds, 300);
     }
 
     #[test]

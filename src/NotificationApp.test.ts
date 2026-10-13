@@ -21,10 +21,14 @@ vi.mock('@tauri-apps/api/webviewWindow', () => ({
     },
   }),
 }))
-vi.mock('./i18n', () => ({
-  loadLanguage: async () => {},
-  useI18n: () => ({ locale: ref('en'), t: (key: string) => key }),
-}))
+vi.mock('./i18n', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./i18n')>()
+  return {
+    ...actual,
+    loadLanguage: async () => {},
+    useI18n: () => ({ ...actual.useI18n(), locale: ref('en-US'), t: (key: string) => key }),
+  }
+})
 vi.mock('./utils/notificationSound', () => ({ playNotificationSound: mocks.sound }))
 vi.mock('./utils/reminderVisuals', () => ({
   getLocalizedReminderVisual: () => ({ label: 'Drink', accent: '#abc', accentSoft: '#def', borderSoft: '#123', iconText: 'D' }),
@@ -103,6 +107,25 @@ describe('notification cancellation', () => {
       notificationId: 'instance-1',
       finishBreakNow: false,
     })
+  })
+
+  it('refreshes visible built-in copy after a language change without restarting the activity', async () => {
+    await wrapper.find('.complete-button').trigger('click')
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(3000)
+    const remaining = wrapper.find('.break-countdown').text()
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'get_all_settings')
+        return { language: 'fr-FR', notification_duration: '5' }
+      if (command === 'get_reminders')
+        return [{ id: 'drink', name: 'Boire', message: 'Buvez de l’eau', action_title: 'Petite pause', action_message: 'Détendez-vous' }]
+    })
+    emit('settings:changed')
+    await flushPromises()
+    expect(wrapper.find('.notification-title').text()).toBe('Petite pause')
+    expect(wrapper.find('.notification-message').text()).toBe('Détendez-vous')
+    expect(wrapper.find('.break-countdown').text()).toBe(remaining)
+    expect(mocks.invoke.mock.calls.filter(([name]) => name === 'respond_reminder')).toHaveLength(1)
   })
 
   it('does not let an old response close a new notification', async () => {

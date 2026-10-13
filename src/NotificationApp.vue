@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { NotificationPreviewRequest } from './types/notificationPreview'
+import type { Reminder } from './types/reminder'
 import type { MascotStyle } from './utils/mascotStyles'
 import type { NotificationAppearance } from './utils/notificationAppearance'
 import type { NotificationSoundPreset } from './utils/notificationSound'
@@ -45,7 +46,7 @@ const collapsed = shallowRef(false)
 const interacting = shallowRef(false)
 const breakRemainingSeconds = ref(0)
 const pendingCount = ref(0)
-const { locale, t } = useI18n()
+const { locale, t, formatError, unit, clock } = useI18n()
 
 interface SettingsPayload {
   theme?: string
@@ -90,12 +91,7 @@ interface NotificationQueuePayload {
 
 const visual = computed(() => getLocalizedReminderVisual(reminderType.value, locale.value, reminderIcon.value, mascotStyle.value))
 
-const breakCountdownLabel = computed(() => {
-  const safe = Math.max(0, breakRemainingSeconds.value)
-  const minutes = Math.floor(safe / 60)
-  const seconds = safe % 60
-  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
-})
+const breakCountdownLabel = computed(() => clock(breakRemainingSeconds.value, true))
 
 const pendingLabel = computed(() => {
   const count = Math.max(0, pendingCount.value)
@@ -105,7 +101,7 @@ const pendingLabel = computed(() => {
 function buildPostponeOptions(values?: number[]): NotificationOption[] {
   const source = values && values.length > 0 ? values : [5, 10, 15]
   return source.map(minutes => ({
-    label: `${minutes} ${t('common.minutes')}`,
+    label: unit(minutes, 'minute'),
     minutes,
   }))
 }
@@ -218,7 +214,7 @@ async function showPreview(request: NotificationPreviewRequest) {
   message.value = visual.value.shortMessage
   actionEnabled.value = request.reminderType === 'rest' || request.reminderType === 'eye_care'
   actionDurationSeconds.value = visual.value.defaultActionDurationSeconds || 0
-  actionTitle.value = t(request.reminderType === 'eye_care' ? 'notification.startEyeCare' : 'notification.startBreak')
+  actionTitle.value = ''
   actionMessage.value = ''
   actionPending.value = false
   breakMode.value = false
@@ -242,6 +238,28 @@ watch(() => props.previewRequest, (request) => {
 function handlePreviewKeydown(event: KeyboardEvent) {
   if (props.preview && event.key === 'Escape')
     closeNotificationWindow()
+}
+
+async function refreshReminderCopy() {
+  const id = reminderId.value
+  const revision = notificationRevision
+  if (!visible.value || !id)
+    return
+  try {
+    const reminders = await invoke<Reminder[]>('get_reminders')
+    if (disposed || revision !== notificationRevision || id !== reminderId.value)
+      return
+    const reminder = reminders.find(item => item.id === id)
+    if (reminder) {
+      name.value = reminder.name
+      message.value = reminder.message
+      actionTitle.value = reminder.action_title
+      actionMessage.value = reminder.action_message
+    }
+  }
+  catch (error) {
+    console.error('Failed to refresh reminder translations:', error)
+  }
 }
 
 onMounted(async () => {
@@ -268,7 +286,7 @@ onMounted(async () => {
   const appWindow = getCurrentWebviewWindow()
   await loadDisplaySettings()
   unlistenSettings = await appWindow.listen('settings:changed', () => {
-    void loadDisplaySettings()
+    void loadDisplaySettings().then(refreshReminderCopy)
   })
 
   unlistenShow = await appWindow.listen<NotificationPayload>('notification:show', (event) => {
@@ -295,8 +313,8 @@ onMounted(async () => {
     reminderType.value = data.reminder_type || 'custom'
     reminderIcon.value = data.icon || data.reminder_type || 'custom_star'
     actionEnabled.value = Boolean(data.action_enabled)
-    actionTitle.value = data.action_title || t('notification.startBreak')
-    actionMessage.value = data.action_message || t('notification.breakMessage', { time: breakCountdownLabel.value })
+    actionTitle.value = data.action_title || ''
+    actionMessage.value = data.action_message || ''
     actionDurationSeconds.value = data.action_duration_seconds || 0
     pendingCount.value = Math.max(0, Number(data.pending_count || 0))
     visible.value = true
@@ -474,7 +492,7 @@ async function resumeLocalTimers() {
       catch (error) {
         if (revision !== notificationRevision)
           return
-        actionError.value = t('feedback.failed', { error: String(error) })
+        actionError.value = t('feedback.failed', { error: formatError(error) })
       }
     }
     if (breakRemainingSeconds.value <= 0) {
@@ -545,7 +563,7 @@ async function closeBreakPrompt(finishBreakNow: boolean) {
   catch (error) {
     if (revision === notificationRevision) {
       actionPending.value = false
-      actionError.value = t('feedback.failed', { error: String(error) })
+      actionError.value = t('feedback.failed', { error: formatError(error) })
       runBreakCountdown()
     }
   }
@@ -592,7 +610,7 @@ async function handleAction(action: string) {
   catch (err) {
     if (revision === notificationRevision) {
       actionPending.value = false
-      actionError.value = t('feedback.failed', { error: String(err) })
+      actionError.value = t('feedback.failed', { error: formatError(err) })
       startAutoDismiss()
     }
     console.error('Failed to respond:', err)
@@ -623,7 +641,7 @@ async function handlePostpone(minutes: number) {
   catch (err) {
     if (revision === notificationRevision) {
       actionPending.value = false
-      actionError.value = t('feedback.failed', { error: String(err) })
+      actionError.value = t('feedback.failed', { error: formatError(err) })
       startAutoDismiss()
     }
     console.error('Failed to postpone:', err)
@@ -643,8 +661,8 @@ async function handlePostpone(minutes: number) {
     :name="name"
     :message="message"
     :break-mode="breakMode"
-    :action-title="actionTitle"
-    :action-message="actionMessage"
+    :action-title="actionTitle || t(reminderType === 'eye_care' ? 'notification.startEyeCare' : reminderType === 'rest' ? 'notification.startBreak' : 'ui.startAction')"
+    :action-message="actionMessage || t('notification.breakMessage', { time: breakCountdownLabel })"
     :action-enabled="actionEnabled && actionDurationSeconds > 0"
     :remaining-progress="actionDurationSeconds > 0 ? breakRemainingSeconds / actionDurationSeconds : 0"
     :break-countdown-label="breakCountdownLabel"

@@ -34,11 +34,11 @@ fn now_utc_string() -> String {
 fn validate_backup_file_path(path: &str) -> Result<PathBuf, String> {
     let path = PathBuf::from(path);
     let Some(extension) = path.extension().and_then(|value| value.to_str()) else {
-        return Err("备份文件必须使用 .json 后缀".to_string());
+        return Err(crate::errors::code("backupExtension"));
     };
 
     if !extension.eq_ignore_ascii_case("json") {
-        return Err("备份文件必须使用 .json 后缀".to_string());
+        return Err(crate::errors::code("backupExtension"));
     }
 
     Ok(path)
@@ -46,7 +46,10 @@ fn validate_backup_file_path(path: &str) -> Result<PathBuf, String> {
 
 fn validate_backup_content_size(content: &str) -> Result<(), String> {
     if content.len() as u64 > MAX_BACKUP_FILE_BYTES {
-        return Err("备份文件大小不能超过 64MiB".to_string());
+        return Err(crate::errors::params(
+            "backupTooLarge",
+            serde_json::json!({"max": 64}),
+        ));
     }
 
     Ok(())
@@ -55,11 +58,14 @@ fn validate_backup_content_size(content: &str) -> Result<(), String> {
 fn validate_existing_backup_file(path: &Path) -> Result<(), String> {
     let metadata = std::fs::metadata(path).map_err(|e| e.to_string())?;
     if !metadata.is_file() {
-        return Err("备份路径不是有效文件".to_string());
+        return Err(crate::errors::code("invalidBackup"));
     }
 
     if metadata.len() > MAX_BACKUP_FILE_BYTES {
-        return Err("备份文件大小不能超过 64MiB".to_string());
+        return Err(crate::errors::params(
+            "backupTooLarge",
+            serde_json::json!({"max": 64}),
+        ));
     }
 
     Ok(())
@@ -273,7 +279,10 @@ fn start_temp_dnd_at(
     now: chrono::DateTime<Utc>,
 ) -> Result<(), String> {
     if !(1..=480).contains(&minutes) {
-        return Err("免打扰时间必须在 1 到 480 分钟之间".to_string());
+        return Err(crate::errors::params(
+            "dndRange",
+            serde_json::json!({"min": 1, "max": 480}),
+        ));
     }
 
     let transaction = conn
@@ -455,12 +464,9 @@ fn build_next_trigger_from_parts(
         .to_string()
 }
 
-fn validate_interval_minutes(minutes: i64, field_name: &str) -> Result<(), String> {
+fn validate_interval_minutes(minutes: i64) -> Result<(), String> {
     if !(MIN_INTERVAL_MINUTES..=MAX_INTERVAL_MINUTES).contains(&minutes) {
-        return Err(format!(
-            "{}必须在 {} 到 {} 分钟之间",
-            field_name, MIN_INTERVAL_MINUTES, MAX_INTERVAL_MINUTES
-        ));
+        return Err(crate::errors::code("interval"));
     }
 
     Ok(())
@@ -468,7 +474,7 @@ fn validate_interval_minutes(minutes: i64, field_name: &str) -> Result<(), Strin
 
 fn validate_required_text(value: &str, field_name: &str) -> Result<(), String> {
     if value.trim().is_empty() {
-        return Err(format!("{field_name}不能为空"));
+        return Err(crate::errors::code("required"));
     }
     let limit = if field_name == "提醒名称" {
         1024
@@ -476,7 +482,7 @@ fn validate_required_text(value: &str, field_name: &str) -> Result<(), String> {
         16_384
     };
     if value.len() > limit {
-        return Err(format!("{field_name}超过长度限制"));
+        return Err(crate::errors::code("invalidReminder"));
     }
 
     Ok(())
@@ -484,17 +490,14 @@ fn validate_required_text(value: &str, field_name: &str) -> Result<(), String> {
 
 fn validate_reminder_metadata(icon: &str, completion_mode: Option<&str>) -> Result<(), String> {
     if icon.len() > 128 || completion_mode.is_some_and(|mode| mode != "auto") {
-        return Err("无效的图标或完成模式".into());
+        return Err(crate::errors::code("invalidReminder"));
     }
     Ok(())
 }
 
 fn validate_break_duration_minutes(minutes: i64) -> Result<(), String> {
     if !(MIN_BREAK_DURATION_MINUTES..=MAX_BREAK_DURATION_MINUTES).contains(&minutes) {
-        return Err(format!(
-            "休息时长必须在 {} 到 {} 分钟之间",
-            MIN_BREAK_DURATION_MINUTES, MAX_BREAK_DURATION_MINUTES
-        ));
+        return Err(crate::errors::code("breakDuration"));
     }
 
     Ok(())
@@ -502,9 +505,9 @@ fn validate_break_duration_minutes(minutes: i64) -> Result<(), String> {
 
 fn validate_action_duration_seconds(seconds: i64) -> Result<(), String> {
     if !(MIN_ACTION_DURATION_SECONDS..=MAX_ACTION_DURATION_SECONDS).contains(&seconds) {
-        return Err(format!(
-            "动作时长必须在 {} 到 {} 秒之间",
-            MIN_ACTION_DURATION_SECONDS, MAX_ACTION_DURATION_SECONDS
+        return Err(crate::errors::params(
+            "actionDuration",
+            serde_json::json!({"min": MIN_ACTION_DURATION_SECONDS, "max": MAX_ACTION_DURATION_SECONDS}),
         ));
     }
 
@@ -524,19 +527,8 @@ fn normalize_break_settings(
         || action_title.len() > 1024
         || action_message.len() > 16_384
     {
-        return Err("无效的提醒类型或动作文本过长".into());
+        return Err(crate::errors::code("invalidReminder"));
     }
-    let default_title = match reminder_type {
-        "rest" => "休息中",
-        "eye_care" => "护眼中",
-        _ => "行动中",
-    };
-    let default_message = match reminder_type {
-        "rest" => "倒计时结束后再进入下一轮。",
-        "eye_care" => "看向远处，让眼睛放松一下。",
-        _ => "倒计时结束后再进入下一轮。",
-    };
-
     // Resolve legacy defaults at the input boundary; an explicit false always wins.
     if action_enabled {
         validate_action_duration_seconds(action_duration_seconds)?;
@@ -552,8 +544,8 @@ fn normalize_break_settings(
         },
         reminder_type == "rest" && action_enabled,
         action_enabled,
-        normalize_action_text(action_title, default_title),
-        normalize_action_text(action_message, default_message),
+        action_title.trim().to_string(),
+        action_message.trim().to_string(),
         if action_enabled {
             action_duration_seconds
         } else {
@@ -563,25 +555,16 @@ fn normalize_break_settings(
     ))
 }
 
-fn normalize_action_text(value: String, fallback: &str) -> String {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        fallback.to_string()
-    } else {
-        trimmed.to_string()
-    }
-}
-
 fn validate_response_action(action: &str) -> Result<(), String> {
     match action {
         "completed" | "skipped" | "timeout" => Ok(()),
-        _ => Err("无效的提醒响应动作".to_string()),
+        _ => Err(crate::errors::code("invalidReminder")),
     }
 }
 
 pub(crate) fn get_reminder_by_id(conn: &Connection, id: &str) -> Result<Reminder, String> {
     conn.query_row(
-        "SELECT id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at FROM reminders WHERE id = ?1",
+        "SELECT id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at, template_fields FROM reminders WHERE id = ?1",
         [id],
         |row| {
             Ok(Reminder {
@@ -602,6 +585,7 @@ pub(crate) fn get_reminder_by_id(conn: &Connection, id: &str) -> Result<Reminder
                 next_trigger: row.get(14)?,
                 created_at: row.get(15)?,
                 updated_at: row.get(16)?,
+                template_fields: row.get::<_, Option<String>>(17)?.map(|value| serde_json::from_str(&value).unwrap_or_default()),
             })
         },
     )
@@ -611,19 +595,19 @@ pub(crate) fn get_reminder_by_id(conn: &Connection, id: &str) -> Result<Reminder
 fn resolve_local_datetime(date: NaiveDate) -> Result<chrono::DateTime<Local>, String> {
     let naive = date
         .and_hms_opt(0, 0, 0)
-        .ok_or_else(|| "无法构造本地日期边界".to_string())?;
+        .ok_or_else(|| crate::errors::code("invalidDate"))?;
 
     match Local.from_local_datetime(&naive) {
         LocalResult::Single(value) => Ok(value),
         LocalResult::Ambiguous(value, _) => Ok(value),
-        LocalResult::None => Err("无法解析本地日期边界".to_string()),
+        LocalResult::None => Err(crate::errors::code("invalidDate")),
     }
 }
 
 fn local_day_bounds_utc(date: NaiveDate) -> Result<(String, String), String> {
     let next_date = date
         .checked_add_signed(Duration::days(1))
-        .ok_or_else(|| "无法计算下一天日期".to_string())?;
+        .ok_or_else(|| crate::errors::code("invalidDate"))?;
     let start = resolve_local_datetime(date)?
         .with_timezone(&Utc)
         .format("%Y-%m-%dT%H:%M:%S")
@@ -644,7 +628,7 @@ fn parse_utc_timestamp_to_local_date(value: &str) -> Option<NaiveDate> {
 
 fn collect_export_data(conn: &Connection) -> Result<ExportData, String> {
     let mut stmt = conn
-        .prepare("SELECT id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at FROM reminders ORDER BY created_at")
+        .prepare("SELECT id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at, template_fields FROM reminders ORDER BY created_at")
         .map_err(|e| e.to_string())?;
 
     let reminders = stmt
@@ -667,6 +651,9 @@ fn collect_export_data(conn: &Connection) -> Result<ExportData, String> {
                 next_trigger: row.get(14)?,
                 created_at: row.get(15)?,
                 updated_at: row.get(16)?,
+                template_fields: row
+                    .get::<_, Option<String>>(17)?
+                    .map(|value| serde_json::from_str(&value).unwrap_or_default()),
             })
         })
         .map_err(|e| e.to_string())?
@@ -719,7 +706,7 @@ fn collect_export_data(conn: &Connection) -> Result<ExportData, String> {
 
 fn validate_import_data(data: &ExportData) -> Result<(), String> {
     if !matches!(data.version.as_str(), "1.0" | "1.1" | "1.2") {
-        return Err("不支持的备份版本".to_string());
+        return Err(crate::errors::code("unsupportedBackupVersion"));
     }
     // Use the same byte budget as export and automatic snapshots, rather than
     // rejecting a valid exported history with a separate record-count ceiling.
@@ -728,13 +715,13 @@ fn validate_import_data(data: &ExportData) -> Result<(), String> {
     let mut reminder_ids = HashSet::new();
     for reminder in &data.reminders {
         if reminder.id.trim().is_empty() {
-            return Err("备份文件中存在缺少 id 的提醒".to_string());
+            return Err(crate::errors::code("invalidBackup"));
         }
         if reminder.name.trim().is_empty() {
-            return Err("备份文件中存在名称为空的提醒".to_string());
+            return Err(crate::errors::code("invalidBackup"));
         }
         if reminder.message.trim().is_empty() {
-            return Err(format!("备份文件中存在内容为空的提醒: {}", reminder.id));
+            return Err(crate::errors::code("invalidBackup"));
         }
         if reminder.id.len() > 128
             || reminder.name.len() > 1024
@@ -743,21 +730,21 @@ fn validate_import_data(data: &ExportData) -> Result<(), String> {
             || reminder.action_title.len() > 1024
             || reminder.action_message.len() > 16_384
         {
-            return Err("提醒文本超过长度限制".to_string());
+            return Err(crate::errors::code("invalidReminder"));
         }
         if !matches!(
             reminder.reminder_type.as_str(),
             "drink" | "rest" | "eye_care" | "custom"
         ) || reminder.action_completion_mode != "auto"
         {
-            return Err("无效的提醒类型或完成模式".to_string());
+            return Err(crate::errors::code("invalidReminder"));
         }
         crate::settings::timestamp(&reminder.created_at)?;
         crate::settings::timestamp(&reminder.updated_at)?;
         if let Some(next) = &reminder.next_trigger {
             crate::settings::timestamp(next)?;
         }
-        validate_interval_minutes(reminder.interval_minutes, "提醒间隔")?;
+        validate_interval_minutes(reminder.interval_minutes)?;
         let _ = normalize_break_settings(
             &reminder.reminder_type,
             reminder.break_duration_minutes,
@@ -768,17 +755,17 @@ fn validate_import_data(data: &ExportData) -> Result<(), String> {
             reminder.action_duration_seconds,
         )?;
         if !reminder_ids.insert(reminder.id.as_str()) {
-            return Err(format!("备份文件中存在重复提醒 id: {}", reminder.id));
+            return Err(crate::errors::code("invalidBackup"));
         }
     }
 
     let mut log_ids = HashSet::new();
     for log in &data.logs {
         if log.id.trim().is_empty() {
-            return Err("备份文件中存在缺少 id 的日志".to_string());
+            return Err(crate::errors::code("invalidBackup"));
         }
         if !log_ids.insert(log.id.as_str()) {
-            return Err(format!("备份文件中存在重复日志 id: {}", log.id));
+            return Err(crate::errors::code("invalidBackup"));
         }
         if log.id.len() > 128
             || log.reminder_id.trim().is_empty()
@@ -788,12 +775,12 @@ fn validate_import_data(data: &ExportData) -> Result<(), String> {
                 "completed" | "postponed" | "skipped" | "timeout" | "interrupted"
             )
         {
-            return Err("无效的提醒日志".to_string());
+            return Err(crate::errors::code("invalidBackup"));
         }
         let triggered = crate::settings::timestamp(&log.triggered_at)?;
         if let Some(responded) = &log.responded_at {
             if crate::settings::timestamp(responded)? < triggered {
-                return Err("日志响应时间早于触发时间".to_string());
+                return Err(crate::errors::code("invalidBackup"));
             }
         }
     }
@@ -912,7 +899,7 @@ pub fn get_reminders(db: State<'_, Database>) -> Result<Vec<Reminder>, String> {
 
 fn read_reminders(conn: &Connection) -> Result<Vec<Reminder>, String> {
     let mut stmt = conn
-        .prepare("SELECT id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at FROM reminders ORDER BY created_at")
+        .prepare("SELECT id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at, template_fields FROM reminders ORDER BY created_at")
         .map_err(|e| e.to_string())?;
 
     let reminders = stmt
@@ -935,6 +922,9 @@ fn read_reminders(conn: &Connection) -> Result<Vec<Reminder>, String> {
                 next_trigger: row.get(14)?,
                 created_at: row.get(15)?,
                 updated_at: row.get(16)?,
+                template_fields: row
+                    .get::<_, Option<String>>(17)?
+                    .map(|value| serde_json::from_str(&value).unwrap_or_default()),
             })
         })
         .map_err(|e| e.to_string())?
@@ -1090,7 +1080,7 @@ pub fn create_reminder(
     db: State<'_, Database>,
     request: CreateReminderRequest,
 ) -> Result<Reminder, String> {
-    validate_interval_minutes(request.interval_minutes, "提醒间隔")?;
+    validate_interval_minutes(request.interval_minutes)?;
     validate_required_text(&request.name, "提醒名称")?;
     validate_required_text(&request.message, "提醒内容")?;
     validate_reminder_metadata(&request.icon, request.action_completion_mode.as_deref())?;
@@ -1149,7 +1139,7 @@ pub fn create_reminder(
     };
 
     conn.execute(
-        "INSERT INTO reminders (id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+        "INSERT INTO reminders (id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at, template_fields) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, '[]')",
         params![&id, &request.name, &request.reminder_type, &request.icon, &request.message, request.interval_minutes, break_duration_minutes, break_notification_enabled as i32, action_enabled as i32, &action_title, &action_message, action_duration_seconds, &action_completion_mode, enabled as i32, &next_trigger, &now, &now],
     ).map_err(|e| e.to_string())?;
 
@@ -1171,6 +1161,7 @@ pub fn create_reminder(
         next_trigger,
         created_at: now.clone(),
         updated_at: now,
+        template_fields: Some(vec![]),
     })
 }
 
@@ -1183,12 +1174,13 @@ pub fn update_reminder(
     request: UpdateReminderRequest,
 ) -> Result<Reminder, String> {
     if let Some(interval_minutes) = request.interval_minutes {
-        validate_interval_minutes(interval_minutes, "提醒间隔")?;
+        validate_interval_minutes(interval_minutes)?;
     }
 
     let conn = db.conn.lock().unwrap();
     let now = now_utc_string();
     let current = get_reminder_by_id(&conn, &id)?;
+    let template_fields = crate::template::after_edit(&current, &request);
 
     let name = request.name.unwrap_or(current.name);
     let reminder_type = request.reminder_type.unwrap_or(current.reminder_type);
@@ -1242,8 +1234,8 @@ pub fn update_reminder(
     };
 
     conn.execute(
-        "UPDATE reminders SET name = ?1, reminder_type = ?2, icon = ?3, message = ?4, interval_minutes = ?5, break_duration_minutes = ?6, break_notification_enabled = ?7, action_enabled = ?8, action_title = ?9, action_message = ?10, action_duration_seconds = ?11, action_completion_mode = ?12, enabled = ?13, next_trigger = ?14, updated_at = ?15 WHERE id = ?16",
-        (&name, &reminder_type, &icon, &message, interval_minutes, break_duration_minutes, break_notification_enabled as i32, action_enabled as i32, &action_title, &action_message, action_duration_seconds, &action_completion_mode, enabled as i32, &next_trigger, &now, &id),
+        "UPDATE reminders SET name = ?1, reminder_type = ?2, icon = ?3, message = ?4, interval_minutes = ?5, break_duration_minutes = ?6, break_notification_enabled = ?7, action_enabled = ?8, action_title = ?9, action_message = ?10, action_duration_seconds = ?11, action_completion_mode = ?12, enabled = ?13, next_trigger = ?14, updated_at = ?15, template_fields = ?17 WHERE id = ?16",
+        params![&name, &reminder_type, &icon, &message, interval_minutes, break_duration_minutes, break_notification_enabled as i32, action_enabled as i32, &action_title, &action_message, action_duration_seconds, &action_completion_mode, enabled as i32, &next_trigger, &now, &id, serde_json::to_string(&template_fields).unwrap()],
     ).map_err(|e| e.to_string())?;
     if !enabled {
         crate::lifecycle::interrupt(&conn, Some(&id), Utc::now())?;
@@ -1269,6 +1261,7 @@ pub fn update_reminder(
         next_trigger,
         created_at: current.created_at,
         updated_at: now,
+        template_fields: Some(template_fields),
     })
 }
 
@@ -1326,6 +1319,7 @@ pub fn toggle_reminder(
 
     Ok(Reminder {
         id: current.id,
+        template_fields: current.template_fields,
         name: current.name,
         reminder_type: current.reminder_type,
         icon: current.icon,
@@ -1381,7 +1375,7 @@ fn validate_live_notification(
         || setting_timestamp(conn, SYSTEM_PAUSED_AT_KEY).is_some()
         || !scheduler.is_current_notification(reminder_id, notification_id)
     {
-        return Err("通知已取消、暂停或过期".into());
+        return Err(crate::errors::code("unavailable"));
     }
     Ok(())
 }
@@ -1461,7 +1455,7 @@ pub fn postpone_reminder(
     notification_id: String,
     minutes: i64,
 ) -> Result<(), String> {
-    validate_interval_minutes(minutes, "延后时间")?;
+    validate_interval_minutes(minutes)?;
     let conn = db.conn.lock().unwrap();
     validate_live_notification(&conn, &scheduler, &reminder_id, &notification_id)?;
     let current = get_reminder_by_id(&conn, &reminder_id)?;
@@ -1629,7 +1623,7 @@ fn read_trend_stats(
     let days = days.clamp(1, 365);
     let start_date = end_date
         .checked_sub_signed(Duration::days(days - 1))
-        .ok_or_else(|| "无法计算趋势开始日期".to_string())?;
+        .ok_or_else(|| crate::errors::code("invalidDate"))?;
     let (start_utc, _) = local_day_bounds_utc(start_date)?;
     let (_, end_utc) = local_day_bounds_utc(end_date)?;
 
@@ -1682,7 +1676,7 @@ fn read_trend_stats(
         });
         current = current
             .checked_add_signed(Duration::days(1))
-            .ok_or_else(|| "无法推进趋势日期".to_string())?;
+            .ok_or_else(|| crate::errors::code("invalidDate"))?;
     }
 
     Ok(stats)
@@ -1748,7 +1742,9 @@ fn read_streak_stats(conn: &Connection, today: NaiveDate) -> Result<Vec<StreakIn
         let mut current_date = if completed_dates.contains(&today) {
             today
         } else {
-            today.pred_opt().ok_or("无法计算昨天日期")?
+            today
+                .pred_opt()
+                .ok_or_else(|| crate::errors::code("invalidDate"))?
         };
         while completed_dates.contains(&current_date) {
             current_streak += 1;
@@ -1765,7 +1761,7 @@ fn read_streak_stats(conn: &Connection, today: NaiveDate) -> Result<Vec<StreakIn
             if let Some(last_date) = previous_date {
                 let next_expected = last_date
                     .checked_add_signed(Duration::days(1))
-                    .ok_or_else(|| "无法计算连续打卡日期".to_string())?;
+                    .ok_or_else(|| crate::errors::code("invalidDate"))?;
                 if *date == next_expected {
                     temp_streak += 1;
                 } else {
@@ -1838,7 +1834,12 @@ fn prepare_import_data(mut data: ExportData) -> Result<ExportData, String> {
                 "soundEnabled" => ("sound_enabled", "boolean"),
                 "soundPreset" => ("sound_preset", "string"),
                 "soundVolume" => ("sound_volume", "number"),
-                _ => return Err(format!("未知的前端设置: {field}")),
+                _ => {
+                    return Err(crate::errors::params(
+                        "invalidSetting",
+                        serde_json::json!({"key": field}),
+                    ))
+                }
             };
             let typed = match expected {
                 "string" => value.is_string(),
@@ -1848,7 +1849,10 @@ fn prepare_import_data(mut data: ExportData) -> Result<ExportData, String> {
                 _ => false,
             };
             if !typed {
-                return Err(format!("前端设置类型不正确: {field}"));
+                return Err(crate::errors::params(
+                    "invalidSetting",
+                    serde_json::json!({"key": field}),
+                ));
             }
             let text = value
                 .as_str()
@@ -1957,7 +1961,7 @@ pub struct ImportResult {
     pub logs_imported: usize,
     pub settings_imported: usize,
     pub skipped_logs: usize,
-    pub message: String,
+    pub autostart_sync_failed: bool,
 }
 
 /// 导出所有数据
@@ -1967,20 +1971,83 @@ pub fn export_data(db: State<'_, Database>) -> Result<ExportData, String> {
     collect_export_data(&conn)
 }
 
+fn import_reminders(
+    conn: &Connection,
+    reminders: &[Reminder],
+    mode: &ImportMode,
+) -> Result<(), String> {
+    let reminder_insert_sql = if matches!(mode, ImportMode::Merge) {
+        "INSERT OR REPLACE INTO reminders (id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at, template_fields) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)"
+    } else {
+        "INSERT INTO reminders (id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at, template_fields) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18)"
+    };
+
+    for reminder in reminders {
+        let (
+            break_duration_minutes,
+            break_notification_enabled,
+            action_enabled,
+            action_title,
+            action_message,
+            action_duration_seconds,
+            action_completion_mode,
+        ) = normalize_break_settings(
+            &reminder.reminder_type,
+            reminder.break_duration_minutes,
+            reminder.break_notification_enabled,
+            reminder.action_enabled,
+            reminder.action_title.clone(),
+            reminder.action_message.clone(),
+            reminder.action_duration_seconds,
+        )?;
+        conn.execute(
+            reminder_insert_sql,
+            params![
+                &reminder.id,
+                &reminder.name,
+                &reminder.reminder_type,
+                &reminder.icon,
+                &reminder.message,
+                reminder.interval_minutes,
+                break_duration_minutes,
+                break_notification_enabled as i32,
+                action_enabled as i32,
+                &action_title,
+                &action_message,
+                action_duration_seconds,
+                &action_completion_mode,
+                reminder.enabled as i32,
+                &reminder.next_trigger,
+                &reminder.created_at,
+                &reminder.updated_at,
+                serde_json::to_string(&crate::template::fields(reminder)).unwrap(),
+            ],
+        )
+        .map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
 /// 导入数据
 #[tauri::command]
 pub fn import_data(
     app: AppHandle,
     db: State<'_, Database>,
     scheduler: State<'_, Scheduler>,
-    data: ExportData,
+    data: serde_json::Value,
     mode: Option<ImportMode>,
 ) -> Result<ImportResult, String> {
-    let data = prepare_import_data(data)?;
+    let data = prepare_import_data(serde_json::from_value(data).map_err(|error| {
+        crate::app_log::warn(format!("Invalid backup: {error}"));
+        crate::errors::code("invalidBackup")
+    })?)?;
 
     let mode = mode.unwrap_or_default();
     let mut conn = db.conn.lock().unwrap();
     let backup_path = create_import_backup(&app, &conn)?;
+    let previous_language =
+        crate::template::ensure_language(&conn, "en-US").map_err(|e| e.to_string())?;
     let live_system_pause = setting_timestamp(&conn, SYSTEM_PAUSED_AT_KEY);
     let live_boot_marker = conn
         .query_row(
@@ -2001,54 +2068,7 @@ pub fn import_data(
             .map_err(|e| e.to_string())?;
     }
 
-    let reminder_insert_sql = if matches!(mode, ImportMode::Merge) {
-        "INSERT OR REPLACE INTO reminders (id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)"
-    } else {
-        "INSERT INTO reminders (id, name, reminder_type, icon, message, interval_minutes, break_duration_minutes, break_notification_enabled, action_enabled, action_title, action_message, action_duration_seconds, action_completion_mode, enabled, next_trigger, created_at, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)"
-    };
-
-    for reminder in &data.reminders {
-        let (
-            break_duration_minutes,
-            break_notification_enabled,
-            action_enabled,
-            action_title,
-            action_message,
-            action_duration_seconds,
-            action_completion_mode,
-        ) = normalize_break_settings(
-            &reminder.reminder_type,
-            reminder.break_duration_minutes,
-            reminder.break_notification_enabled,
-            reminder.action_enabled,
-            reminder.action_title.clone(),
-            reminder.action_message.clone(),
-            reminder.action_duration_seconds,
-        )?;
-        tx.execute(
-            reminder_insert_sql,
-            params![
-                &reminder.id,
-                &reminder.name,
-                &reminder.reminder_type,
-                &reminder.icon,
-                &reminder.message,
-                reminder.interval_minutes,
-                break_duration_minutes,
-                break_notification_enabled as i32,
-                action_enabled as i32,
-                &action_title,
-                &action_message,
-                action_duration_seconds,
-                &action_completion_mode,
-                reminder.enabled as i32,
-                &reminder.next_trigger,
-                &reminder.created_at,
-                &reminder.updated_at,
-            ],
-        )
-        .map_err(|e| e.to_string())?;
-    }
+    import_reminders(&tx, &data.reminders, &mode)?;
 
     let mut reminder_ids_stmt = tx
         .prepare("SELECT id FROM reminders")
@@ -2131,6 +2151,9 @@ pub fn import_data(
         )
         .map_err(|e| e.to_string())?;
     }
+    let language =
+        crate::template::ensure_language(&tx, &previous_language).map_err(|e| e.to_string())?;
+    crate::template::sync(&tx, &language).map_err(|e| e.to_string())?;
     repair_imported_reminder_schedule(&tx)?;
     tx.commit().map_err(|e| e.to_string())?;
 
@@ -2155,15 +2178,13 @@ pub fn import_data(
         == "true";
     drop(conn);
     let autostart_warning = reconcile_imported_autostart(&app, auto_start).err();
+    if let Some(error) = &autostart_warning {
+        crate::app_log::warn(format!("Imported autostart sync failed: {error}"));
+    }
     crate::refresh_tray_menu_text(&app, &language);
     let _ = app.emit("settings:changed", ());
     app.emit("reminders:changed", ())
         .map_err(|e| e.to_string())?;
-
-    let mode_label = match mode {
-        ImportMode::Replace => "覆盖导入",
-        ImportMode::Merge => "合并导入",
-    };
 
     Ok(ImportResult {
         mode,
@@ -2172,16 +2193,7 @@ pub fn import_data(
         logs_imported,
         settings_imported: data.settings.len(),
         skipped_logs,
-        message: format!(
-            "{}完成：{} 条提醒，{} 条日志，{} 项设置。已自动备份到 {}",
-            mode_label,
-            data.reminders.len(),
-            logs_imported,
-            data.settings.len(),
-            backup_path
-        ) + &autostart_warning
-            .map(|error| format!("；数据已导入，但同步开机自启失败：{error}"))
-            .unwrap_or_default(),
+        autostart_sync_failed: autostart_warning.is_some(),
     })
 }
 
@@ -2604,7 +2616,7 @@ mod tests {
         let error =
             validate_backup_file_path("backup.txt").expect_err("non-json path should be rejected");
 
-        assert!(error.contains(".json"));
+        assert_eq!(error, crate::errors::code("backupExtension"));
     }
 
     #[test]
@@ -2613,7 +2625,10 @@ mod tests {
         let error =
             validate_backup_content_size(&content).expect_err("oversized content should fail");
 
-        assert!(error.contains("64MiB"));
+        assert_eq!(
+            error,
+            crate::errors::params("backupTooLarge", serde_json::json!({"max": 64}))
+        );
     }
 
     #[test]
@@ -2649,6 +2664,7 @@ mod tests {
     fn rejects_import_with_empty_reminder_message() {
         let reminder = Reminder {
             id: "broken".to_string(),
+            template_fields: None,
             name: "Broken reminder".to_string(),
             reminder_type: "custom".to_string(),
             icon: "custom".to_string(),
@@ -2677,7 +2693,47 @@ mod tests {
 
         let error = validate_import_data(&data).expect_err("empty message should fail");
 
-        assert!(error.contains("内容为空"));
+        assert_eq!(error, crate::errors::code("invalidBackup"));
+    }
+
+    #[test]
+    fn backup_import_preserves_custom_fields_and_infers_only_legacy_builtin_fields() {
+        let source = Database::in_memory();
+        let mut conn = source.conn.lock().unwrap();
+        crate::initialize_default_reminders(&mut conn, "zh-CN").unwrap();
+        conn.execute(
+            "UPDATE reminders SET template_fields = '[]' WHERE id = 'default-drink'",
+            [],
+        )
+        .unwrap();
+        conn.execute("UPDATE reminders SET template_fields = NULL, name = 'Custom rest' WHERE id = 'default-rest'", []).unwrap();
+        let backup = collect_export_data(&conn).unwrap();
+        let backup: ExportData =
+            serde_json::from_str(&serde_json::to_string(&backup).unwrap()).unwrap();
+        let backup = prepare_import_data(backup).unwrap();
+        for mode in [ImportMode::Replace, ImportMode::Merge] {
+            let destination = Database::in_memory();
+            let conn = destination.conn.lock().unwrap();
+            import_reminders(&conn, &backup.reminders, &mode).unwrap();
+            crate::template::sync(&conn, "en-US").unwrap();
+            let rest = get_reminder_by_id(&conn, "default-rest").unwrap();
+            assert_eq!(rest.name, "Custom rest");
+            assert_eq!(
+                rest.message,
+                crate::reminder_template_text("en-US").rest_message
+            );
+            let drink = get_reminder_by_id(&conn, "default-drink").unwrap();
+            assert_eq!(
+                drink.name,
+                crate::reminder_template_text("zh-CN").drink_name
+            );
+            assert_eq!(drink.template_fields, Some(vec![]));
+            let exported = collect_export_data(&conn).unwrap();
+            assert!(exported
+                .reminders
+                .iter()
+                .all(|reminder| reminder.template_fields.is_some()));
+        }
     }
 
     fn prepare_pause_test_db() -> Connection {

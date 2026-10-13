@@ -28,7 +28,7 @@
     "enabled": "Habilitado",
     "paused": "Pausado",
     "running": "Em execução",
-    "restDuration": "Descanso de {minutes} min",
+    "restDuration": "Pausa de {duration}",
     "restTipOn": "Aviso de descanso ativado",
     "restTipOff": "Aviso de descanso desativado",
     "next": "Próximo: {time}",
@@ -81,7 +81,7 @@
     "requiredError": "Preencha o nome e a mensagem do lembrete",
     "intervalError": "O intervalo do lembrete deve ser entre 1 e 1.440 minutos",
     "breakDurationError": "A duração do descanso deve ser entre 1 e 120 minutos",
-    "actionDurationError": "A duração da ação deve ser entre 1 e 7.200 segundos"
+    "actionDurationError": "A duração da ação deve ser entre {min} e {max} segundos"
   },
   "settings": {
     "title": "Configurações",

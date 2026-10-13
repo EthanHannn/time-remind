@@ -7,7 +7,7 @@ pub fn timestamp(value: &str) -> Result<DateTime<Utc>, String> {
     NaiveDateTime::parse_from_str(value, "%Y-%m-%dT%H:%M:%S")
         .map(|date| date.and_utc())
         .or_else(|_| DateTime::parse_from_rfc3339(value).map(|date| date.with_timezone(&Utc)))
-        .map_err(|_| format!("无效的日期时间: {value}"))
+        .map_err(|_| crate::errors::code("invalidDate"))
 }
 
 pub fn is_internal(key: &str) -> bool {
@@ -89,7 +89,10 @@ pub fn validate(key: &str, value: &str) -> Result<(), String> {
     if valid && value.len() <= 1024 * 1024 {
         Ok(())
     } else {
-        Err(format!("无效的设置 {key}: 请检查类型或取值范围"))
+        Err(crate::errors::params(
+            "invalidSetting",
+            serde_json::json!({"key": key}),
+        ))
     }
 }
 
@@ -102,7 +105,10 @@ struct Period {
 pub fn save_batch(conn: &mut Connection, settings: &HashMap<String, String>) -> Result<(), String> {
     for (key, value) in settings {
         if is_internal(key) {
-            return Err(format!("不能直接修改运行状态: {key}"));
+            return Err(crate::errors::params(
+                "invalidSetting",
+                serde_json::json!({"key": key}),
+            ));
         }
         validate(key, value)?;
     }
@@ -113,6 +119,9 @@ pub fn save_batch(conn: &mut Connection, settings: &HashMap<String, String>) -> 
             (key, value),
         )
         .map_err(|e| e.to_string())?;
+    }
+    if let Some(language) = settings.get("language") {
+        crate::template::sync(&tx, language).map_err(|e| e.to_string())?;
     }
     tx.commit().map_err(|e| e.to_string())
 }
@@ -126,7 +135,7 @@ pub fn reconcile_autostart(
         apply(desired)?;
     }
     if read()? != desired {
-        return Err("系统自启状态与导入设置不一致".into());
+        return Err(crate::errors::code("autostartSyncFailed"));
     }
     Ok(())
 }

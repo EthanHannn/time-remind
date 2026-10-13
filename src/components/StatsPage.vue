@@ -47,7 +47,7 @@ const error = ref('')
 let requestId = 0
 let disposed = false
 let unlisten: (() => void) | undefined
-const { locale, t } = useI18n()
+const { locale, t, formatError, number } = useI18n()
 
 const hasOverviewData = computed(() => {
   return dailyStats.value.some(stat => stat.total_count > 0)
@@ -87,7 +87,7 @@ async function loadStats() {
   }
   catch (err) {
     if (request === requestId)
-      error.value = t('feedback.failed', { error: String(err) })
+      error.value = t('feedback.failed', { error: formatError(err) })
   }
   finally {
     if (request === requestId)
@@ -176,7 +176,7 @@ function getVisual(type: string, icon?: string) {
                   <div class="stat-info">
                     <div class="stat-row">
                       <span class="stat-name">{{ stat.name }}</span>
-                      <span class="stat-rate">{{ getCompletionRate(stat.completed_count, stat.total_count) }}%</span>
+                      <span class="stat-rate">{{ number(stat.total_count ? stat.completed_count / stat.total_count : 0, { style: 'percent', maximumFractionDigits: 0 }) }}</span>
                     </div>
 
                     <div class="progress-bar">
@@ -190,7 +190,7 @@ function getVisual(type: string, icon?: string) {
                     </div>
 
                     <div class="stat-foot">
-                      <span>{{ stat.completed_count }}/{{ stat.total_count }}</span>
+                      <span>{{ number(stat.completed_count) }}/{{ number(stat.total_count) }}</span>
                       <span>{{ getVisual(stat.reminder_type, stat.icon).description }}</span>
                     </div>
                   </div>
@@ -229,11 +229,11 @@ function getVisual(type: string, icon?: string) {
                   <span class="streak-name">{{ streak.name }}</span>
                   <div class="streak-metrics">
                     <div class="streak-metric">
-                      <span class="metric-value">{{ streak.current_streak }}</span>
+                      <span class="metric-value">{{ number(streak.current_streak) }}</span>
                       <span class="metric-label">{{ t('stats.currentStreak') }}</span>
                     </div>
                     <div class="streak-metric">
-                      <span class="metric-value">{{ streak.max_streak }}</span>
+                      <span class="metric-value">{{ number(streak.max_streak) }}</span>
                       <span class="metric-label">{{ t('stats.maxStreak') }}</span>
                     </div>
                   </div>

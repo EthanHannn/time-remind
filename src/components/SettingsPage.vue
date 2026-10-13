@@ -35,7 +35,7 @@ useModalFocus(useTemplateRef<HTMLElement>('dialog'), handleClose)
 
 const AUTO_START_SETTING_KEY = 'auto_start'
 
-const { language: currentLanguage, t } = useI18n()
+const { language: currentLanguage, t, formatError, number } = useI18n()
 const theme = ref<'light' | 'dark' | 'system'>('system')
 const mascotStyle = shallowRef<MascotStyle>('classic')
 const notificationAppearance = shallowRef<NotificationAppearance>('soft')
@@ -57,6 +57,7 @@ const fullscreenDetectionEnabled = ref(true)
 const exporting = ref(false)
 const importing = ref(false)
 const message = ref('')
+const messageIsError = ref(false)
 const saveError = ref('')
 const loadFailed = ref(false)
 const importMode = ref<ImportMode>('replace')
@@ -111,7 +112,7 @@ function buildFrontendSettings(): FrontendSettings {
 
 const settingsWriter = createSettingsWriter(
   values => invoke('save_settings', { settings: values }),
-  (error) => { saveError.value = t('feedback.failed', { error: String(error) }) },
+  (error) => { saveError.value = t('feedback.failed', { error: formatError(error) }) },
   (values) => {
     saveError.value = ''
     localStorage.setItem('app-settings', JSON.stringify(buildFrontendSettings()))
@@ -222,7 +223,7 @@ async function loadSettings() {
     }
   }
   catch (error) {
-    saveError.value = t('feedback.failed', { error: String(error) })
+    saveError.value = t('feedback.failed', { error: formatError(error) })
     loadFailed.value = true
     return false
   }
@@ -289,7 +290,8 @@ async function loadPlatformCapabilities() {
       invoke('save_setting', { key: 'silent_start', value: 'false' }),
       invoke('save_setting', { key: 'fullscreen_detection_enabled', value: 'false' }),
     ])
-    message.value = t('settings.platformCapabilityLoadFailed', { error: String(err) })
+    messageIsError.value = true
+    message.value = t('settings.platformCapabilityLoadFailed', { error: formatError(err) })
     console.error('Failed to load platform capabilities:', err)
   }
 }
@@ -320,7 +322,8 @@ async function loadAutoStart() {
     autoStart.value = false
   }
   catch (err) {
-    message.value = t('settings.loadAutoStartFailed', { error: String(err) })
+    messageIsError.value = true
+    message.value = t('settings.loadAutoStartFailed', { error: formatError(err) })
     console.error('Failed to load autostart status:', err)
   }
   finally {
@@ -419,7 +422,8 @@ async function handleAutoStartChange() {
   catch (err) {
     autoStart.value = previousAutoStart
     silentStart.value = previousSilentStart
-    message.value = t('settings.autoStartFailed', { error: String(err) })
+    messageIsError.value = true
+    message.value = t('settings.autoStartFailed', { error: formatError(err) })
     console.error('Failed to update autostart:', err)
   }
   finally {
@@ -446,7 +450,8 @@ async function handleSilentStartChange() {
   }
   catch (err) {
     silentStart.value = previousValue
-    message.value = t('settings.silentStartFailed', { error: String(err) })
+    messageIsError.value = true
+    message.value = t('settings.silentStartFailed', { error: formatError(err) })
     console.error('Failed to update silent start:', err)
   }
   finally {
@@ -459,6 +464,7 @@ async function handleExport() {
     return
   exporting.value = true
   message.value = ''
+  messageIsError.value = false
   try {
     await settingsWriter.flush()
     const data = await exportData()
@@ -477,7 +483,8 @@ async function handleExport() {
     }
   }
   catch (err) {
-    message.value = t('settings.exportFailed', { error: String(err) })
+    messageIsError.value = true
+    message.value = t('settings.exportFailed', { error: formatError(err) })
     console.error('Export failed:', err)
   }
   finally {
@@ -490,6 +497,7 @@ async function handleImport() {
     return
   importing.value = true
   message.value = ''
+  messageIsError.value = false
   try {
     await settingsWriter.flush()
     const confirmed = await confirm(
@@ -523,11 +531,20 @@ async function handleImport() {
       if (importMode.value === 'replace')
         localStorage.removeItem('app-language')
       await loadSettings()
-      message.value = result.message
+      messageIsError.value = result.autostart_sync_failed
+      message.value = t('operations.importSummary', {
+        mode: t(result.mode === 'replace' ? 'settings.replaceImport' : 'settings.mergeImport'),
+        reminders: result.reminders_imported,
+        logs: result.logs_imported,
+        settings: result.settings_imported,
+        skipped: result.skipped_logs,
+        path: `\u2068${result.backup_path}\u2069`,
+      }) + (result.autostart_sync_failed ? ` ${t('operations.autostartSyncFailed')}` : '')
     }
   }
   catch (err) {
-    message.value = t('settings.importFailed', { error: String(err) })
+    messageIsError.value = true
+    message.value = t('settings.importFailed', { error: err instanceof SyntaxError ? t('operations.invalidBackup') : formatError(err) })
     console.error('Import failed:', err)
   }
   finally {
@@ -725,7 +742,7 @@ async function handleImport() {
                   <div class="setting-row">
                     <label class="setting-label">{{ t('settings.soundVolume') }}</label>
                     <input v-model.number="soundVolume" :aria-label="t('settings.soundVolume')" class="sound-range" type="range" min="0" max="100">
-                    <span class="sound-volume">{{ soundVolume }}%</span>
+                    <span class="sound-volume">{{ number(soundVolume / 100, { style: 'percent' }) }}</span>
                   </div>
                 </div>
               </Transition>
@@ -804,7 +821,7 @@ async function handleImport() {
               <p class="hint">
                 {{ t('settings.exportHint') }}
               </p>
-              <p v-if="message" class="message" :class="{ 'message-error': message.toLowerCase().includes(t('settings.failedKeyword')) }">
+              <p v-if="message" class="message" :class="{ 'message-error': messageIsError }" :role="messageIsError ? 'alert' : 'status'">
                 {{ message }}
               </p>
             </section>

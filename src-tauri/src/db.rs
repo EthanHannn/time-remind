@@ -241,6 +241,10 @@ impl Database {
             )?;
         }
 
+        if !columns.iter().any(|column| column == "template_fields") {
+            conn.execute("ALTER TABLE reminders ADD COLUMN template_fields TEXT", [])?;
+        }
+
         // Convert legacy action fields only when adding the action switch.
         // Running this on every launch would overwrite an explicit disabled value.
         if !columns.iter().any(|column| column == "action_enabled") {
@@ -265,8 +269,6 @@ impl Database {
             conn.execute(
             "UPDATE reminders
              SET action_enabled = 1,
-                 action_title = CASE WHEN action_title = '' THEN '休息中' ELSE action_title END,
-                 action_message = CASE WHEN action_message = '' THEN '倒计时结束后再进入下一轮。' ELSE action_message END,
                  action_completion_mode = CASE WHEN action_completion_mode = '' THEN 'auto' ELSE action_completion_mode END
              WHERE reminder_type = 'rest'
                AND break_notification_enabled = 1
@@ -277,8 +279,6 @@ impl Database {
             conn.execute(
             "UPDATE reminders
              SET action_enabled = 1,
-                 action_title = CASE WHEN action_title = '' THEN '护眼中' ELSE action_title END,
-                 action_message = CASE WHEN action_message = '' THEN '看向远处，让眼睛放松一下。' ELSE action_message END,
                  action_completion_mode = CASE WHEN action_completion_mode = '' THEN 'auto' ELSE action_completion_mode END
              WHERE reminder_type = 'eye_care'
                AND action_duration_seconds > 0",

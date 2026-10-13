@@ -28,7 +28,7 @@
     "enabled": "Habilitado",
     "paused": "En pausa",
     "running": "En marcha",
-    "restDuration": "Descanso {minutes} min",
+    "restDuration": "Descanso: {duration}",
     "restTipOn": "Aviso de descanso activado",
     "restTipOff": "Aviso de descanso desactivado",
     "next": "Próximo: {time}",
@@ -81,7 +81,7 @@
     "requiredError": "Por favor complete el nombre y el mensaje del recordatorio.",
     "intervalError": "El intervalo del recordatorio debe estar entre 1 y 1440 minutos.",
     "breakDurationError": "La duración del descanso debe estar entre 1 y 120 minutos.",
-    "actionDurationError": "La duración de la acción debe estar entre 1 y 7200 segundos."
+    "actionDurationError": "La duración de la acción debe estar entre {min} y {max} segundos."
   },
   "settings": {
     "title": "Configuración",

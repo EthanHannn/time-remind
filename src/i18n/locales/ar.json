@@ -28,7 +28,7 @@
     "enabled": "ممكّن",
     "paused": "متوقف مؤقتًا",
     "running": "قيد التشغيل",
-    "restDuration": "راحة {minutes} دقيقة",
+    "restDuration": "راحة لمدة {duration}",
     "restTipOn": "تنبيه الراحة مفعّل",
     "restTipOff": "تنبيه الراحة معطّل",
     "next": "التالي: {time}",
@@ -81,7 +81,7 @@
     "requiredError": "يرجى ملء اسم التذكير والرسالة",
     "intervalError": "يجب أن تتراوح فترة التذكير بين 1 و1440 دقيقة",
     "breakDurationError": "يجب أن تتراوح مدة الراحة بين 1 و120 دقيقة",
-    "actionDurationError": "يجب أن تتراوح مدة الإجراء بين 1 و7200 ثانية"
+    "actionDurationError": "يجب أن تتراوح مدة الإجراء بين {min} و{max} ثانية"
   },
   "settings": {
     "title": "الإعدادات",

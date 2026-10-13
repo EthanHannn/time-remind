@@ -28,7 +28,7 @@
     "enabled": "Abilitato",
     "paused": "In pausa",
     "running": "In corso",
-    "restDuration": "Riposo {minutes} min",
+    "restDuration": "Pausa di {duration}",
     "restTipOn": "Avviso di riposo attivo",
     "restTipOff": "Avviso di riposo disattivato",
     "next": "Prossimo: {time}",
@@ -81,7 +81,7 @@
     "requiredError": "Inserisci il nome e il messaggio del promemoria",
     "intervalError": "L'intervallo del promemoria deve essere compreso tra 1 e 1440 minuti",
     "breakDurationError": "La durata del riposo deve essere compresa tra 1 e 120 minuti",
-    "actionDurationError": "La durata dell'azione deve essere compresa tra 1 e 7200 secondi"
+    "actionDurationError": "La durata dell'azione deve essere compresa tra {min} e {max} secondi"
   },
   "settings": {
     "title": "Impostazioni",

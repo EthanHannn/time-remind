@@ -10,7 +10,7 @@ export function withTimeout<T>(request: Promise<T>, message: string, signal: Abo
       return
     }
     signal.addEventListener('abort', abort, { once: true })
-    timer = setTimeout(() => reject(new Error(message)), 15_000)
+    timer = setTimeout(() => reject(new DOMException(message, 'TimeoutError')), 15_000)
   })
   return Promise.race([request, deadline]).finally(() => {
     clearTimeout(timer)

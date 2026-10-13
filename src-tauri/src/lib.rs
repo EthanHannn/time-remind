@@ -1,6 +1,7 @@
 mod app_log;
 mod commands;
 mod db;
+mod errors;
 mod fullscreen;
 #[cfg(any(target_os = "windows", test))]
 mod installer;
@@ -10,6 +11,7 @@ pub mod power;
 mod preview;
 mod scheduler;
 mod settings;
+mod template;
 
 use chrono::{NaiveDateTime, Utc};
 use tauri::{
@@ -103,11 +105,16 @@ fn system_locale_name() -> Option<String> {
 
 #[cfg(not(target_os = "windows"))]
 fn system_locale_name() -> Option<String> {
-    None
+    sys_locale::get_locale()
 }
 
 fn match_template_language(value: &str) -> &'static str {
-    let normalized = value.replace('_', "-").to_ascii_lowercase();
+    let normalized = value
+        .split(['.', '@'])
+        .next()
+        .unwrap_or(value)
+        .replace('_', "-")
+        .to_ascii_lowercase();
 
     if normalized.starts_with("zh-hant")
         || normalized == "zh-tw"
@@ -371,17 +378,15 @@ fn installer_language_marker(app: &AppHandle) -> Option<String> {
         .filter(|value| !value.is_empty())
 }
 
-fn default_template_language(app: &AppHandle) -> (&'static str, bool) {
+fn default_template_language(app: &AppHandle) -> &'static str {
     if let Some(language) = installer_language_marker(app) {
-        return (match_template_language(&language), true);
+        return match_template_language(&language);
     }
 
-    let language = system_locale_name()
+    system_locale_name()
         .as_deref()
         .map(match_template_language)
-        .unwrap_or("en-US");
-
-    (language, false)
+        .unwrap_or("en-US")
 }
 
 fn reminder_template_text(language: &str) -> ReminderTemplateText {
@@ -672,9 +677,9 @@ pub(crate) fn refresh_tray_menu_text<R: Runtime>(app: &AppHandle<R>, language: &
 
 /// 插入默认提醒数据
 fn insert_default_reminders(app: &AppHandle, db: &Database) {
-    let (language, from_installer) = default_template_language(app);
+    let language = default_template_language(app);
     let mut conn = db.conn.lock().unwrap();
-    if let Err(error) = initialize_default_reminders(&mut conn, language, from_installer) {
+    if let Err(error) = initialize_default_reminders(&mut conn, language) {
         app_log::error(format!("初始化默认提醒失败：{error}"));
     }
 }
@@ -682,19 +687,20 @@ fn insert_default_reminders(app: &AppHandle, db: &Database) {
 fn initialize_default_reminders(
     conn: &mut rusqlite::Connection,
     language: &str,
-    from_installer: bool,
 ) -> rusqlite::Result<()> {
     let tx = conn.transaction()?;
+    let language = template::ensure_language(&tx, language)?;
+    template::sync(&tx, &language)?;
     let initialized: String = tx.query_row(
         "SELECT value FROM app_metadata WHERE key = 'defaults_initialized'",
         [],
         |row| row.get(0),
     )?;
     if initialized == "true" {
-        return Ok(());
+        return tx.commit();
     }
     let now = chrono::Utc::now();
-    let text = reminder_template_text(language);
+    let text = reminder_template_text(&language);
     let defaults = vec![
         (
             "default-drink",
@@ -770,12 +776,7 @@ fn initialize_default_reminders(
         )?;
     }
 
-    if from_installer {
-        tx.execute(
-            "INSERT OR REPLACE INTO settings (key, value) VALUES ('language', ?1)",
-            [language],
-        )?;
-    }
+    template::sync(&tx, &language)?;
     tx.execute(
         "UPDATE app_metadata SET value = 'true' WHERE key = 'defaults_initialized'",
         [],
@@ -1256,9 +1257,9 @@ mod tests {
     fn defaults_are_initialized_once_and_never_rewrite_user_choices() {
         let db = Database::in_memory();
         let mut conn = db.conn.lock().unwrap();
-        super::initialize_default_reminders(&mut conn, "zh-CN", false).unwrap();
+        super::initialize_default_reminders(&mut conn, "zh-CN").unwrap();
         conn.execute("UPDATE reminders SET interval_minutes = 45, action_enabled = 0, action_duration_seconds = 0", []).unwrap();
-        super::initialize_default_reminders(&mut conn, "zh-CN", false).unwrap();
+        super::initialize_default_reminders(&mut conn, "zh-CN").unwrap();
         let unchanged: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM reminders WHERE interval_minutes = 45 AND action_enabled = 0",
@@ -1268,7 +1269,7 @@ mod tests {
             .unwrap();
         assert_eq!(unchanged, 3);
         conn.execute("DELETE FROM reminders", []).unwrap();
-        super::initialize_default_reminders(&mut conn, "zh-CN", false).unwrap();
+        super::initialize_default_reminders(&mut conn, "zh-CN").unwrap();
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM reminders", [], |row| row.get(0))
             .unwrap();

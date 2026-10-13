@@ -28,7 +28,7 @@
     "enabled": "Diaktifkan",
     "paused": "Dijeda",
     "running": "Berjalan",
-    "restDuration": "Istirahat {minutes} mnt",
+    "restDuration": "Istirahat {duration}",
     "restTipOn": "Pengingat istirahat aktif",
     "restTipOff": "Pengingat istirahat nonaktif",
     "next": "Berikutnya {time}",
@@ -81,7 +81,7 @@
     "requiredError": "Silakan isi nama pengingat dan pesan",
     "intervalError": "Interval pengingat harus antara 1 dan 1440 menit",
     "breakDurationError": "Durasi istirahat harus antara 1 dan 120 menit",
-    "actionDurationError": "Durasi tindakan harus antara 1 dan 7200 detik"
+    "actionDurationError": "Durasi tindakan harus antara {min} dan {max} detik"
   },
   "settings": {
     "title": "Pengaturan",

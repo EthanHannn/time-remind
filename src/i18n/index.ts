@@ -1,6 +1,8 @@
 import type { Language, MessageSchema } from './messages'
 import { invoke } from '@tauri-apps/api/core'
 import { computed, shallowRef, watch } from 'vue'
+import { localizedError } from './errors'
+import { formatClock, formatNumber, formatUnit, pluralMessage } from './format'
 import { languageOptions, messages } from './messages'
 
 const STORAGE_KEY = 'app-language'
@@ -87,8 +89,8 @@ export function useI18n() {
 
   function t(path: string, params: Record<string, string | number> = {}) {
     return Object.entries(params).reduce(
-      (text, [key, value]) => text.split(`{${key}}`).join(String(value)),
-      getNestedMessage(path),
+      (text, [key, value]) => text.split(`{${key}}`).join(typeof value === 'number' ? formatNumber(language.value, value) : value),
+      pluralMessage(language.value, path, params) ?? getNestedMessage(path),
     )
   }
 
@@ -104,6 +106,10 @@ export function useI18n() {
     languageOptions,
     m,
     t,
+    formatError: (error: unknown) => localizedError(error, t),
+    number: (value: number, options?: Intl.NumberFormatOptions) => formatNumber(language.value, value, options),
+    unit: (value: number, unit: 'minute' | 'second' | 'day') => formatUnit(language.value, value, unit),
+    clock: (seconds: number, paddedMinutes = false) => formatClock(language.value, seconds, paddedMinutes),
     setLanguage,
   }
 }

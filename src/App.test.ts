@@ -24,7 +24,7 @@ vi.mock('./api/reminder', () => ({
   deleteReminder: vi.fn(),
   toggleReminder: vi.fn(),
 }))
-vi.mock('./i18n', () => ({ loadLanguage: vi.fn(), useI18n: () => ({ t: (key: string) => key }) }))
+vi.mock('./i18n', () => ({ loadLanguage: vi.fn(), useI18n: () => ({ formatError: () => 'operations.unexpected', t: (key: string) => key }) }))
 vi.mock('./utils/reminderVisuals', () => ({ emptyReminders: '' }))
 
 function snapshot(paused: boolean, seconds: number) {

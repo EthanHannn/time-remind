@@ -62,9 +62,9 @@ pub fn respond(
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let (triggered, started): (String, Option<String>) = tx.query_row(
         "SELECT triggered_at, started_at FROM active_notifications WHERE notification_id = ?1 AND reminder_id = ?2",
-        (notification_id, &reminder.id), |r| Ok((r.get(0)?, r.get(1)?))).map_err(|_| "通知已取消或过期".to_string())?;
+        (notification_id, &reminder.id), |r| Ok((r.get(0)?, r.get(1)?))).map_err(|_| crate::errors::code("unavailable"))?;
     if !reminder.enabled {
-        return Err("提醒已禁用".into());
+        return Err(crate::errors::code("unavailable"));
     }
     if action == "completed" && reminder.action_enabled && reminder.action_duration_seconds > 0 {
         if started.is_none() {
@@ -76,7 +76,7 @@ pub fn respond(
         return Ok(result);
     }
     if started.is_some() {
-        return Err("动作已开始，请完成当前动作".into());
+        return Err(crate::errors::code("actionRunning"));
     }
     let minutes = postpone_minutes.unwrap_or(reminder.interval_minutes);
     record_outcome(
@@ -132,9 +132,9 @@ pub fn finish(
     let tx = conn.unchecked_transaction().map_err(|e| e.to_string())?;
     let (triggered, deadline): (String, String) = tx.query_row(
         "SELECT triggered_at, deadline FROM active_notifications WHERE notification_id = ?1 AND reminder_id = ?2 AND started_at IS NOT NULL",
-        (id, &reminder.id), |r| Ok((r.get(0)?, r.get(1)?))).map_err(|_| "动作已取消或结束".to_string())?;
+        (id, &reminder.id), |r| Ok((r.get(0)?, r.get(1)?))).map_err(|_| crate::errors::code("unavailable"))?;
     if !manual && crate::settings::timestamp(&deadline)? > now {
-        return Err("动作倒计时尚未结束".into());
+        return Err(crate::errors::code("actionPending"));
     }
     record_outcome(
         &tx,

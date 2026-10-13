@@ -28,7 +28,7 @@
     "enabled": "Etkin",
     "paused": "Duraklatıldı",
     "running": "Çalışıyor",
-    "restDuration": "{minutes} dakika dinlenme",
+    "restDuration": "Mola: {duration}",
     "restTipOn": "Dinlenme istemi açık",
     "restTipOff": "Dinlenme istemi kapalı",
     "next": "Sonraki {time}",
@@ -81,7 +81,7 @@
     "requiredError": "Lütfen hatırlatıcı adını ve mesajını girin",
     "intervalError": "Hatırlatma aralığı 1 ila 1440 dakika arasında olmalıdır",
     "breakDurationError": "Dinlenme süresi 1 ila 120 dakika arasında olmalıdır",
-    "actionDurationError": "Eylem süresi 1 ile 7200 saniye arasında olmalıdır"
+    "actionDurationError": "Eylem süresi {min} ile {max} saniye arasında olmalıdır"
   },
   "settings": {
     "title": "Ayarlar",

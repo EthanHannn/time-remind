@@ -14,7 +14,7 @@ const props = defineProps<{
   runtime?: ReminderRuntime
 }>()
 const emit = defineEmits<{ toggle: [id: string], edit: [id: string] }>()
-const { locale, t } = useI18n()
+const { locale, t, unit, clock } = useI18n()
 const visual = computed(() => getLocalizedReminderVisual(props.reminder.reminder_type, locale.value, props.reminder.icon))
 const totalSeconds = computed(() => props.runtime?.state === 'acting' ? props.reminder.action_duration_seconds : props.reminder.interval_minutes * 60)
 const progress = computed(() => props.remainingSeconds === undefined || !props.reminder.enabled || totalSeconds.value <= 0 ? 0 : Math.max(0, Math.min(100, (1 - props.remainingSeconds / totalSeconds.value) * 100)))
@@ -44,17 +44,9 @@ const durationLabel = computed(() => {
   if (!props.reminder.action_enabled || props.reminder.action_duration_seconds <= 0)
     return ''
   const seconds = props.reminder.action_duration_seconds
-  if (props.reminder.reminder_type === 'rest' && seconds % 60 === 0)
-    return t('reminder.restDuration', { minutes: seconds / 60 })
-  return `${seconds % 60 === 0 ? seconds / 60 : seconds} ${t(seconds % 60 === 0 ? 'common.minutes' : 'common.seconds')}`
+  const duration = unit(seconds % 60 === 0 ? seconds / 60 : seconds, seconds % 60 === 0 ? 'minute' : 'second')
+  return props.reminder.reminder_type === 'rest' ? t('reminder.restDuration', { duration }) : duration
 })
-function formatTime(seconds: number) {
-  const safe = Math.max(0, seconds)
-  const h = Math.floor(safe / 3600)
-  const m = Math.floor(safe % 3600 / 60)
-  const s = String(safe % 60).padStart(2, '0')
-  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${s}` : `${m}:${s}`
-}
 </script>
 
 <template>
@@ -67,7 +59,7 @@ function formatTime(seconds: number) {
           {{ reminder.name }}
         </h2>
         <p class="card-meta">
-          {{ reminder.interval_minutes }} {{ t('common.minutes') }}<span v-if="durationLabel"> · {{ durationLabel }}</span>
+          {{ unit(reminder.interval_minutes, 'minute') }}<span v-if="durationLabel"> · {{ durationLabel }}</span>
         </p>
       </div>
       <div class="card-actions">
@@ -84,7 +76,7 @@ function formatTime(seconds: number) {
       <span v-else-if="specialStatus" class="special-status">{{ specialStatus }}</span>
       <span v-else class="schedule-placeholder" aria-hidden="true">—</span>
       <span class="countdown-panel">
-        {{ t('notification.remaining') }} <span class="countdown-value">{{ reminder.enabled && remainingSeconds !== undefined ? formatTime(remainingSeconds) : '--:--' }}</span>
+        {{ t('notification.remaining') }} <span class="countdown-value" dir="ltr">{{ reminder.enabled && remainingSeconds !== undefined ? clock(remainingSeconds) : '--:--' }}</span>
       </span>
     </div>
     <div class="progress-track" aria-hidden="true">
