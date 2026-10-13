@@ -92,4 +92,76 @@
     "Mulakan secara senyap dalam dulang sistem" "Jangan buka tetingkap ketika mula automatik. Peringatan terus berjalan." \
     "Membuka aplikasi sendiri, termasuk selepas pemasangan, memaparkan tetingkap." \
     "Tetapan tidak dapat disimpan. Cuba pasang semula atau ubah dalam aplikasi."
+  !insertmacro StartupLanguage ${LANG_KHMER} \
+    "ការកំណត់ចាប់ផ្ដើម" "ជ្រើសរបៀបចាប់ផ្ដើម Time Remind ជាមួយ Windows។" \
+    "អ្នកអាចប្ដូរជម្រើសទាំងនេះនៅក្នុងការកំណត់កម្មវិធីពេលក្រោយ។" \
+    "រក្សាការកំណត់បច្ចុប្បន្ន (ដោះធីកដើម្បីប្ដូរ)" \
+    "ចាប់ផ្ដើមជាមួយ Windows" "ដំណើរការការរំលឹកស្វ័យប្រវត្តិពេលចូល Windows។" \
+    "ចាប់ផ្ដើមស្ងាត់នៅក្នុងថាសប្រព័ន្ធ" "ពេលចូលប្រព័ន្ធ ការរំលឹកដំណើរការដោយមិនបើកបង្អួចមេ។" \
+    "ការបើកកម្មវិធីដោយខ្លួនឯង រួមទាំងក្រោយដំឡើង នៅតែបង្ហាញបង្អួច។" \
+    "មិនអាចរក្សាទុកការកំណត់បានទេ។ សូមដំឡើងម្ដងទៀត ឬកែប្រែក្នុងកម្មវិធី។"
+  !insertmacro StartupLanguage ${LANG_SPANISH} \
+    "Opciones de inicio" "Elige cómo se inicia Time Remind con Windows." \
+    "Puedes cambiar estas opciones más tarde en los ajustes de la aplicación." \
+    "Mantener mis ajustes actuales (desmarcar para cambiar)" \
+    "Iniciar con Windows" "Iniciar los recordatorios al entrar en Windows." \
+    "Iniciar en silencio en la bandeja del sistema" "Al iniciar sesión, mantener los recordatorios sin abrir la ventana principal." \
+    "Si abres la aplicación manualmente, incluso tras instalarla, se mostrará la ventana." \
+    "No se pudieron guardar los ajustes. Reintenta la instalación o cámbialos en la aplicación."
+  !insertmacro StartupLanguage ${LANG_PORTUGUESEBR} \
+    "Opções de inicialização" "Escolha como o Time Remind inicia com o Windows." \
+    "Você pode alterar essas opções depois nas configurações do aplicativo." \
+    "Manter as configurações atuais (desmarque para alterar)" \
+    "Iniciar com o Windows" "Iniciar os lembretes automaticamente ao entrar no Windows." \
+    "Iniciar silenciosamente na bandeja do sistema" "Ao entrar, manter os lembretes sem abrir a janela principal." \
+    "Abrir o aplicativo manualmente, inclusive após a instalação, mostra a janela." \
+    "Não foi possível salvar. Tente instalar novamente ou altere nas configurações do aplicativo."
+  !insertmacro StartupLanguage ${LANG_INDONESIAN} \
+    "Pengaturan mulai" "Pilih cara Time Remind dimulai bersama Windows." \
+    "Pilihan ini dapat diubah nanti di pengaturan aplikasi." \
+    "Pertahankan pengaturan saat ini (hapus centang untuk mengubah)" \
+    "Mulai bersama Windows" "Jalankan pengingat otomatis saat masuk ke Windows." \
+    "Mulai diam-diam di baki sistem" "Saat masuk, pengingat tetap berjalan tanpa membuka jendela utama." \
+    "Membuka aplikasi sendiri, termasuk setelah instalasi, tetap menampilkan jendela." \
+    "Pengaturan gagal disimpan. Coba instal lagi atau ubah di pengaturan aplikasi."
+  !insertmacro StartupLanguage ${LANG_ITALIAN} \
+    "Opzioni di avvio" "Scegli come avviare Time Remind con Windows." \
+    "Potrai modificare queste opzioni nelle impostazioni dell’app." \
+    "Mantieni le impostazioni attuali (deseleziona per cambiarle)" \
+    "Avvia con Windows" "Avvia i promemoria automaticamente all’accesso a Windows." \
+    "Avvia silenziosamente nell’area di notifica" "All’accesso, mantieni i promemoria senza aprire la finestra principale." \
+    "Aprire l’app manualmente, anche dopo l’installazione, mostra la finestra." \
+    "Impossibile salvare. Riprova l’installazione o modifica le opzioni nell’app."
+  !insertmacro StartupLanguage ${LANG_RUSSIAN} \
+    "Настройки запуска" "Выберите способ запуска Time Remind вместе с Windows." \
+    "Эти параметры можно изменить позже в настройках приложения." \
+    "Сохранить текущие настройки (снимите флажок для изменения)" \
+    "Запускать вместе с Windows" "Автоматически включать напоминания при входе в Windows." \
+    "Запускать в трее без окна" "При входе в систему напоминания работают без открытия главного окна." \
+    "При ручном запуске, в том числе после установки, окно будет показано." \
+    "Не удалось сохранить настройки. Повторите установку или измените их в приложении."
+  !insertmacro StartupLanguage ${LANG_TURKISH} \
+    "Başlangıç ayarları" "Time Remind uygulamasının Windows ile nasıl başlayacağını seçin." \
+    "Bu seçenekleri daha sonra uygulama ayarlarından değiştirebilirsiniz." \
+    "Mevcut ayarları koru (değiştirmek için işareti kaldırın)" \
+    "Windows ile başlat" "Windows oturumu açıldığında hatırlatıcıları otomatik başlatın." \
+    "Sistem tepsisinde sessizce başlat" "Oturum açıldığında ana pencereyi açmadan hatırlatıcıları çalıştırın." \
+    "Kurulumdan sonra da dahil, uygulamayı elle açmak pencereyi gösterir." \
+    "Ayarlar kaydedilemedi. Kurulumu yeniden deneyin veya uygulamadan değiştirin."
+  !insertmacro StartupLanguage ${LANG_ARABIC} \
+    "إعدادات بدء التشغيل" "اختر طريقة بدء Time Remind مع Windows." \
+    "يمكنك تغيير هذه الخيارات لاحقًا في إعدادات التطبيق." \
+    "الاحتفاظ بالإعدادات الحالية (أزل التحديد لتغييرها)" \
+    "البدء مع Windows" "تشغيل التذكيرات تلقائيًا عند تسجيل الدخول إلى Windows." \
+    "البدء بصمت في علبة النظام" "تشغيل التذكيرات عند تسجيل الدخول دون فتح النافذة الرئيسية." \
+    "فتح التطبيق يدويًا، بما في ذلك بعد التثبيت، يُظهر النافذة دائمًا." \
+    "تعذر حفظ الإعدادات. أعد التثبيت أو غيّرها من إعدادات التطبيق."
+  !insertmacro StartupLanguage ${LANG_HINDI} \
+    "स्टार्टअप सेटिंग" "चुनें कि Time Remind Windows के साथ कैसे शुरू हो।" \
+    "आप बाद में ऐप की सेटिंग में इन विकल्पों को बदल सकते हैं।" \
+    "मौजूदा सेटिंग रखें (बदलने के लिए चयन हटाएँ)" \
+    "Windows के साथ शुरू करें" "Windows में साइन इन करते ही रिमाइंडर शुरू करें।" \
+    "सिस्टम ट्रे में चुपचाप शुरू करें" "साइन इन पर मुख्य विंडो खोले बिना रिमाइंडर चलाएँ।" \
+    "ऐप को खुद खोलने पर, इंस्टॉल करने के बाद भी, विंडो दिखाई देगी।" \
+    "सेटिंग सहेजी नहीं जा सकी। फिर इंस्टॉल करें या ऐप की सेटिंग में बदलें।"
 !macroend

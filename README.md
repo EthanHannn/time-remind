@@ -6,7 +6,7 @@ Time Remind is a lightweight desktop wellness reminder app for people who spend 
 
 ## Screenshots
 
-The current interface with example reminders. Available in 19 languages, with light, dark, and system themes.
+The current interface with example reminders. The app and Windows installer are available in 19 languages, with light, dark, and system themes. Built-in reminder text follows the selected language while preserving your edits.
 
 ### Main window
 

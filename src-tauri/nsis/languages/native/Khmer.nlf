@@ -1,0 +1,191 @@
+﻿# Header, don't edit
+NLF v6
+# Start editing here
+# Language ID
+1107
+# Font and size - dash (-) means default
+Leelawadee UI
+10
+# Codepage - dash (-) means ASCII code page
+0
+# RTL - anything else than RTL means LTR
+-
+# Translation by ..... (any credits should go here)
+# ^Branding
+Nullsoft Install System %s
+# ^SetupCaption
+ដំឡើង $(^Name)
+# ^UninstallCaption
+លុប $(^Name)
+# ^LicenseSubCaption
+: កិច្ចព្រមព្រៀងអាជ្ញាបណ្ណ
+# ^ComponentsSubCaption
+: ជម្រើសដំឡើង
+# ^DirSubCaption
+: ថតដំឡើង
+# ^InstallingSubCaption
+: កំពុងដំឡើង
+# ^CompletedSubCaption
+: បានបញ្ចប់
+# ^UnComponentsSubCaption
+: ជម្រើសលុប
+# ^UnDirSubCaption
+: ថតលុប
+# ^ConfirmSubCaption
+: ការបញ្ជាក់
+# ^UninstallingSubCaption
+: កំពុងលុប
+# ^UnCompletedSubCaption
+: បានបញ្ចប់
+# ^BackBtn
+< ថយក្រោយ (&B)
+# ^NextBtn
+បន្ទាប់ (&N) >
+# ^AgreeBtn
+ខ្ញុំយល់ព្រម (&A)
+# ^AcceptBtn
+ខ្ញុំយល់ព្រមនឹងលក្ខខណ្ឌអាជ្ញាបណ្ណ (&A)
+# ^DontAcceptBtn
+ខ្ញុំមិនយល់ព្រមនឹងលក្ខខណ្ឌអាជ្ញាបណ្ណ (&D)
+# ^InstallBtn
+ដំឡើង (&I)
+# ^UninstallBtn
+លុបកម្មវិធី (&U)
+# ^CancelBtn
+បោះបង់
+# ^CloseBtn
+បិទ (&C)
+# ^BrowseBtn
+រកមើល (&R)...
+# ^ShowDetailsBtn
+បង្ហាញព័ត៌មានលម្អិត (&D)
+# ^ClickNext
+ចុច បន្ទាប់ ដើម្បីបន្ត។
+# ^ClickInstall
+ចុច ដំឡើង ដើម្បីចាប់ផ្ដើមដំឡើង។
+# ^ClickUninstall
+ចុច លុបកម្មវិធី ដើម្បីចាប់ផ្ដើមលុប។
+# ^Name
+ឈ្មោះ
+# ^Completed
+បានបញ្ចប់
+# ^LicenseText
+សូមអានកិច្ចព្រមព្រៀងអាជ្ញាបណ្ណមុនដំឡើង $(^NameDA)។ បើអ្នកយល់ព្រមនឹងលក្ខខណ្ឌទាំងអស់ សូមចុច ខ្ញុំយល់ព្រម។
+# ^LicenseTextCB
+សូមអានកិច្ចព្រមព្រៀងអាជ្ញាបណ្ណមុនដំឡើង $(^NameDA)។ បើអ្នកយល់ព្រម សូមធីកប្រអប់ខាងក្រោម។ $_CLICK
+# ^LicenseTextRB
+សូមអានកិច្ចព្រមព្រៀងអាជ្ញាបណ្ណមុនដំឡើង $(^NameDA)។ បើអ្នកយល់ព្រម សូមជ្រើសជម្រើសទីមួយខាងក្រោម។ $_CLICK
+# ^UnLicenseText
+សូមអានកិច្ចព្រមព្រៀងអាជ្ញាបណ្ណមុនលុប $(^NameDA)។ បើអ្នកយល់ព្រម សូមចុច ខ្ញុំយល់ព្រម។
+# ^UnLicenseTextCB
+សូមអានកិច្ចព្រមព្រៀងអាជ្ញាបណ្ណមុនលុប $(^NameDA)។ បើអ្នកយល់ព្រម សូមធីកប្រអប់ខាងក្រោម។ $_CLICK
+# ^UnLicenseTextRB
+សូមអានកិច្ចព្រមព្រៀងអាជ្ញាបណ្ណមុនលុប $(^NameDA)។ បើអ្នកយល់ព្រម សូមជ្រើសជម្រើសទីមួយខាងក្រោម។ $_CLICK
+# ^Custom
+ផ្ទាល់ខ្លួន
+# ^ComponentsText
+ធីកសមាសភាគដែលចង់ដំឡើង ហើយដោះធីកសមាសភាគដែលមិនចង់ដំឡើង។ $_CLICK
+# ^ComponentsSubText1
+ជ្រើសប្រភេទការដំឡើង៖
+# ^ComponentsSubText2_NoInstTypes
+ជ្រើសសមាសភាគដើម្បីដំឡើង៖
+# ^ComponentsSubText2
+ឬជ្រើសសមាសភាគបន្ថែមដែលចង់ដំឡើង៖
+# ^UnComponentsText
+ធីកសមាសភាគដែលចង់លុប ហើយដោះធីកសមាសភាគដែលមិនចង់លុប។ $_CLICK
+# ^UnComponentsSubText1
+ជ្រើសប្រភេទការលុប៖
+# ^UnComponentsSubText2_NoInstTypes
+ជ្រើសសមាសភាគដើម្បីលុប៖
+# ^UnComponentsSubText2
+ឬជ្រើសសមាសភាគបន្ថែមដែលចង់លុប៖
+# ^DirText
+កម្មវិធីដំឡើងនឹងដំឡើង $(^NameDA) ក្នុងថតខាងក្រោម។ ដើម្បីប្រើថតផ្សេង សូមចុច រកមើល ហើយជ្រើសថត។ $_CLICK
+# ^DirSubText
+ថតគោលដៅ
+# ^DirBrowseText
+ជ្រើសថតសម្រាប់ដំឡើង $(^NameDA)៖
+# ^UnDirText
+កម្មវិធីនឹងលុប $(^NameDA) ពីថតខាងក្រោម។ ដើម្បីប្រើថតផ្សេង សូមចុច រកមើល ហើយជ្រើសថត។ $_CLICK
+# ^UnDirSubText
+""
+# ^UnDirBrowseText
+ជ្រើសថតដែលត្រូវលុប $(^NameDA) ចេញពី៖
+# ^SpaceAvailable
+"ទំហំទំនេរ៖ "
+# ^SpaceRequired
+"ទំហំត្រូវការ៖ "
+# ^UninstallingText
+$(^NameDA) នឹងត្រូវលុបចេញពីថតខាងក្រោម។ $_CLICK
+# ^UninstallingSubText
+លុបចេញពី៖
+# ^FileError
+មិនអាចបើកឯកសារដើម្បីសរសេរ៖ \r\n\r\n$0\r\n\r\nចុច បោះបង់ ដើម្បីឈប់ដំឡើង\r\nសាកល្បងម្ដងទៀត ដើម្បីព្យាយាមម្ដងទៀត ឬ\r\nមិនអើពើ ដើម្បីរំលងឯកសារនេះ។
+# ^FileError_NoIgnore
+មិនអាចបើកឯកសារដើម្បីសរសេរ៖ \r\n\r\n$0\r\n\r\nចុច សាកល្បងម្ដងទៀត ឬ\r\nបោះបង់ ដើម្បីឈប់ដំឡើង។
+# ^CantWrite
+"មិនអាចសរសេរ៖ "
+# ^CopyFailed
+ការចម្លងបរាជ័យ
+# ^CopyTo
+"ចម្លងទៅ "
+# ^Registering
+"កំពុងចុះបញ្ជី៖ "
+# ^Unregistering
+"កំពុងដកចេញពីបញ្ជី៖ "
+# ^SymbolNotFound
+"រកមិនឃើញនិមិត្តសញ្ញា៖ "
+# ^CouldNotLoad
+"មិនអាចផ្ទុក៖ "
+# ^CreateFolder
+"បង្កើតថត៖ "
+# ^CreateShortcut
+"បង្កើតផ្លូវកាត់៖ "
+# ^CreatedUninstaller
+"បានបង្កើតកម្មវិធីលុប៖ "
+# ^Delete
+"លុបឯកសារ៖ "
+# ^DeleteOnReboot
+"លុបពេលចាប់ផ្ដើមឡើងវិញ៖ "
+# ^ErrorCreatingShortcut
+"កំហុសបង្កើតផ្លូវកាត់៖ "
+# ^ErrorCreating
+"កំហុសបង្កើត៖ "
+# ^ErrorDecompressing
+កំហុសពន្លាទិន្នន័យ! កម្មវិធីដំឡើងអាចខូច។
+# ^ErrorRegistering
+កំហុសចុះបញ្ជី DLL
+# ^ExecShell
+"ដំណើរការតាមសែល៖ "
+# ^Exec
+"ដំណើរការ៖ "
+# ^Extract
+"ពន្លា៖ "
+# ^ErrorWriting
+"ពន្លា៖ កំហុសសរសេរទៅឯកសារ "
+# ^InvalidOpcode
+កម្មវិធីដំឡើងខូច៖ កូដប្រតិបត្តិការមិនត្រឹមត្រូវ
+# ^NoOLE
+"គ្មាន OLE សម្រាប់៖ "
+# ^OutputFolder
+"ថតលទ្ធផល៖ "
+# ^RemoveFolder
+"លុបថត៖ "
+# ^RenameOnReboot
+"ប្ដូរឈ្មោះពេលចាប់ផ្ដើមឡើងវិញ៖ "
+# ^Rename
+"ប្ដូរឈ្មោះ៖ "
+# ^Skipped
+"បានរំលង៖ "
+# ^CopyDetails
+ចម្លងព័ត៌មានលម្អិតទៅក្ដារតម្បៀតខ្ទាស់
+# ^LogInstall
+កត់ត្រាដំណើរការដំឡើង
+# ^Byte
+B
+# ^Kilo
+ K
+# ^Mega
+ M
+# ^Giga
+ G

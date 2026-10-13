@@ -465,7 +465,11 @@ FunctionEnd
 
 ;Languages
 {{#each languages}}
+!if "{{this}}" == "Khmer"
+!insertmacro MUI_LANGUAGEEX "${TIME_REMIND_NSIS_DIR}\languages\native" "Khmer"
+!else
 !insertmacro MUI_LANGUAGE "{{this}}"
+!endif
 {{/each}}
 !insertmacro MUI_RESERVEFILE_LANGDLL
 {{#each language_files}}

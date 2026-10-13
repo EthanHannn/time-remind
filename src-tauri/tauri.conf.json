@@ -86,12 +86,24 @@
           "German",
           "Vietnamese",
           "Thai",
-          "Malay"
+          "Malay",
+          "Khmer",
+          "Spanish",
+          "PortugueseBR",
+          "Indonesian",
+          "Italian",
+          "Russian",
+          "Turkish",
+          "Arabic",
+          "Hindi"
         ],
         "customLanguageFiles": {
           "Korean": "nsis/languages/Korean.nsh",
           "Thai": "nsis/languages/Thai.nsh",
-          "Malay": "nsis/languages/Malay.nsh"
+          "Malay": "nsis/languages/Malay.nsh",
+          "Khmer": "nsis/languages/Khmer.nsh",
+          "Indonesian": "nsis/languages/Indonesian.nsh",
+          "Hindi": "nsis/languages/Hindi.nsh"
         },
         "displayLanguageSelector": true,
         "installerHooks": "nsis/hooks.nsh"

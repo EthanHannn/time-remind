@@ -6,11 +6,21 @@ https://github.com/tauri-apps/tauri/blob/tauri-cli-v2.11.2/crates/tauri-bundler/
 
 The upstream template is used under the MIT license in `TAURI-LICENSE-MIT`.
 Keep the template aligned with the locked `@tauri-apps/cli` version when upgrading Tauri.
-Our only additions, besides the attribution comment, are three macro calls:
+Our additions, besides the attribution comment, are three macro calls and a
+local-language branch for Khmer:
 
 - `TIME_REMIND_STARTUP_PAGE` after the directory page, before installation.
 - `TIME_REMIND_STARTUP_LANGUAGES` after the installer languages are loaded.
 - `TIME_REMIND_STARTUP_INIT` after `SetContext` in `.onInit`, before maintenance can uninstall an older version.
+- `MUI_LANGUAGEEX` loads `languages/native/Khmer.nlf` and `Khmer.nsh` from the
+  repository. The NSIS distribution has no Khmer resources; no installed NSIS
+  files are modified. These resources use Khmer (Cambodia), LCID 1107, and the
+  Leelawadee UI font. Their structure follows the NSIS English language files.
+
+The installer offers the same 19 languages as the app. Tauri-specific messages
+for Khmer, Indonesian and Hindi are supplied alongside the existing Korean,
+Thai and Malay overrides. The remaining languages use Tauri's bundled messages.
+All languages also cover the startup-options page and installer-to-app marker.
 
 The existing `hooks.nsh` still records the installer language and now also applies
 the startup choices after installation. The custom page is necessary because a
@@ -40,7 +50,7 @@ registry value named after `productName`, just like `tauri-plugin-autostart`.
 It also writes `%APPDATA%/com.hpk.time-remind/installer-startup.json`:
 
 ```json
-{"schema":1,"request_id":"{a GUID}","auto_start":true,"silent_start":true}
+{ "schema": 1, "request_id": "{a GUID}", "auto_start": true, "silent_start": true }
 ```
 
 `src/installer.rs` consumes this once, after database initialization and before
