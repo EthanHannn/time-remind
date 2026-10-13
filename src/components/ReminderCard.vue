@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { useI18n } from '../i18n'
 import { getLocalizedReminderVisual } from '../utils/reminderVisuals'
 import AppIcon from './AppIcon.vue'
+import CountdownProgress from './CountdownProgress.vue'
 
 const props = defineProps<{
   reminder: Reminder
@@ -18,6 +19,8 @@ const { locale, t, unit, clock } = useI18n()
 const visual = computed(() => getLocalizedReminderVisual(props.reminder.reminder_type, locale.value, props.reminder.icon))
 const totalSeconds = computed(() => props.runtime?.state === 'acting' ? props.reminder.action_duration_seconds : props.reminder.interval_minutes * 60)
 const progress = computed(() => props.remainingSeconds === undefined || !props.reminder.enabled || totalSeconds.value <= 0 ? 0 : Math.max(0, Math.min(100, (1 - props.remainingSeconds / totalSeconds.value) * 100)))
+const countdownRunning = computed(() => props.reminder.enabled && !props.globallyPaused
+  && (!props.runtime || ['scheduled', 'acting', 'dnd'].includes(props.runtime.state)))
 const cardStyle = computed(() => ({ '--visual-accent': visual.value.accent, '--visual-soft': visual.value.accentSoft, '--visual-border': visual.value.borderSoft }))
 const specialStatus = computed(() => {
   if (!props.reminder.enabled || props.globallyPaused || props.globallySuppressed)
@@ -80,7 +83,7 @@ const durationLabel = computed(() => {
       </span>
     </div>
     <div class="progress-track" aria-hidden="true">
-      <div class="progress-bar" :style="{ transform: `scaleX(${progress / 100})` }" />
+      <CountdownProgress class="progress-bar" :value="progress / 100" :target="1" :remaining-seconds="remainingSeconds || 0" :running="countdownRunning" />
     </div>
   </article>
 </template>
@@ -119,6 +122,6 @@ const durationLabel = computed(() => {
 .countdown-panel { margin-inline-start: auto; font-size: 11px; color: var(--text-secondary); }
 .countdown-value { font-variant-numeric: tabular-nums; }
 .progress-track { margin-top: 7px; height: 4px; border-radius: 4px; background: var(--border-color); overflow: hidden; }
-.progress-bar { height: 100%; transform-origin: left; background: linear-gradient(90deg, var(--visual-accent), #6f9fdf); border-radius: inherit; transition: transform 250ms linear; }
+.progress-bar { height: 100%; transform-origin: left; background: linear-gradient(90deg, var(--visual-accent), #6f9fdf); border-radius: inherit; }
 [dir='rtl'] .progress-bar { transform-origin: right; }
 </style>

@@ -5,6 +5,7 @@ import { computed, shallowRef, watch } from 'vue'
 import { useI18n } from '../i18n'
 import { appIconMain } from '../utils/reminderVisuals'
 import AppIcon from './AppIcon.vue'
+import CountdownProgress from './CountdownProgress.vue'
 import SnoozeControl from './SnoozeControl.vue'
 
 const props = defineProps<{
@@ -22,6 +23,9 @@ const props = defineProps<{
   collapsed?: boolean
   actionEnabled?: boolean
   remainingProgress?: number
+  remainingSeconds?: number
+  countdownRunning?: boolean
+  contentHeight?: number
   preview?: boolean
   pending?: boolean
   error?: string
@@ -65,7 +69,10 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
 </script>
 
 <template>
-  <div class="notification-wrapper" :class="{ 'notification-wrapper-visible': visible }">
+  <div
+    class="notification-wrapper" :class="{ 'notification-wrapper-visible': visible }"
+    :style="contentHeight ? { '--notification-shell-height': `calc(${contentHeight}px - 2 * var(--notification-padding))` } : undefined"
+  >
     <section
       v-if="visible" class="notification-shell"
       :class="[`notification-${visual.type}`, `appearance-${appearance || 'soft'}`, { 'notification-counting': breakMode, 'notification-collapsed': collapsed && breakMode }]"
@@ -114,7 +121,7 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
           {{ error }}
         </p>
         <div v-if="breakMode" class="countdown-track" aria-hidden="true">
-          <div class="countdown-fill" :style="{ transform: `scaleX(${progress})` }" />
+          <CountdownProgress class="countdown-fill" :value="progress" :target="0" :remaining-seconds="remainingSeconds || 0" :running="Boolean(countdownRunning)" />
         </div>
         <footer class="notification-actions">
           <template v-if="breakMode">
@@ -138,14 +145,15 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
 </template>
 
 <style scoped>
-.notification-wrapper { width: 100%; height: 100%; display: flex; padding: 16px; background: transparent; }
+.notification-wrapper { --notification-padding: 16px; width: 100%; height: 100%; display: flex; align-items: flex-end; padding: var(--notification-padding); background: transparent; }
 .notification-wrapper-visible { animation: slide-in 200ms ease-out; }
 .notification-shell {
   --action-bg: #e7e1ee; --action-hover: #ded6e7; --action-text: #59496c;
   --notification-accent: #a095b2; --notification-soft: #f6f3f8;
-  width: 100%; height: 100%; min-height: 0; display: flex; flex-direction: column; gap: 10px;
+  width: 100%; height: var(--notification-shell-height, 100%); min-height: 0; display: flex; flex-direction: column; gap: 10px;
   padding: 14px 16px; border-radius: 18px; border: 1px solid var(--border-color);
   background: var(--bg-primary); box-shadow: 0 3px 12px rgb(20 40 60 / 7%);
+  transition: height 180ms ease-out;
 }
 .notification-drink { --action-bg: #ddeaf1; --action-hover: #ccdfeb; --action-text: #30536c; --notification-accent: #8aabba; --notification-soft: #f1f6f9; }
 .notification-rest { --action-bg: #e1ede6; --action-hover: #d3e5dc; --action-text: #3b6250; --notification-accent: #90ac9d; --notification-soft: #f2f7f4; }
@@ -179,7 +187,7 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
 .break-countdown { font-size: 26px; line-height: 1.1; font-weight: 600; color: var(--action-text); letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
 .countdown-label { font-size: 10px; color: var(--text-secondary); }
 .countdown-track { height: 4px; flex-shrink: 0; overflow: hidden; border-radius: 4px; background: var(--bg-secondary); }
-.countdown-fill { height: 100%; background: var(--notification-accent); transform-origin: left; transition: transform 250ms linear; }
+.countdown-fill { height: 100%; background: var(--notification-accent); transform-origin: left; }
 .appearance-minimal { border-inline-start: 3px solid var(--notification-accent); border-radius: 12px; }
 .appearance-minimal .notification-tag::before { display: none; }
 .appearance-minimal .notification-body { display: block; align-content: center; }
@@ -196,7 +204,7 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
 .compact-expand:hover { background: var(--bg-secondary); }
 [dir='rtl'] .countdown-fill { transform-origin: right; }
 @media (max-width: 350px) {
-  .notification-wrapper { padding: 10px; }
+  .notification-wrapper { --notification-padding: 10px; }
   .notification-shell { padding: 12px; }
   .appearance-illustrated .notification-body { grid-template-columns: 80px minmax(0, 1fr); gap: 12px; }
   .appearance-illustrated .notification-visual, .appearance-illustrated .notification-image { width: 80px; height: 100px; }

@@ -31,6 +31,7 @@ vi.mock('./i18n', async (importOriginal) => {
 })
 vi.mock('./utils/notificationSound', () => ({ playNotificationSound: mocks.sound }))
 vi.mock('./utils/reminderVisuals', () => ({
+  appIconMain: '/test-app-icon.png',
   getLocalizedReminderVisual: () => ({ label: 'Drink', accent: '#abc', accentSoft: '#def', borderSoft: '#123', iconText: 'D' }),
 }))
 
@@ -107,6 +108,38 @@ describe('notification cancellation', () => {
       notificationId: 'instance-1',
       finishBreakNow: false,
     })
+  })
+
+  it.each([
+    ['soft', 272],
+    ['minimal', 264],
+    ['illustrated', 296],
+  ])('starts an action in %s without resizing or remounting the native popup', async (appearance, height) => {
+    mocks.invoke.mockImplementation(async (command: string) => {
+      if (command === 'get_all_settings')
+        return { theme: 'light', notification_appearance: appearance }
+      if (command === 'respond_reminder')
+        return { remaining_seconds: 10 }
+      if (command === 'get_reminders')
+        return []
+    })
+    emit('settings:changed')
+    await flushPromises()
+    const shell = wrapper.get('.notification-shell').element
+    const resizes = () => mocks.invoke.mock.calls.filter(([command]) => command === 'resize_notification_window')
+    expect(resizes().slice(-1)[0]?.[1]).toEqual({ width: 400, height })
+    const count = resizes().length
+    await wrapper.get('.complete-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('.break-countdown').text()).toBe('00:10')
+    expect(wrapper.get('.notification-shell').element).toBe(shell)
+    expect(resizes()).toHaveLength(count)
+    await wrapper.get('.collapse-button').trigger('click')
+    await flushPromises()
+    expect(resizes().slice(-1)[0]?.[1]).toEqual({ width: 340, height: 96 })
+    await wrapper.get('.compact-expand').trigger('click')
+    await flushPromises()
+    expect(resizes().slice(-1)[0]?.[1]).toEqual({ width: 400, height })
   })
 
   it('refreshes visible built-in copy after a language change without restarting the activity', async () => {

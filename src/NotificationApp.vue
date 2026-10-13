@@ -45,6 +45,7 @@ const breakMode = ref(false)
 const collapsed = shallowRef(false)
 const interacting = shallowRef(false)
 const breakRemainingSeconds = ref(0)
+const breakCountdownRunning = shallowRef(false)
 const pendingCount = ref(0)
 const { locale, t, formatError, unit, clock } = useI18n()
 
@@ -172,12 +173,18 @@ let notificationRevision = 0
 const actionPending = ref(false)
 const actionError = ref('')
 let disposed = false
+const baseHeight = computed(() => notificationAppearance.value === 'illustrated' ? 264 : notificationAppearance.value === 'minimal' ? 232 : 240)
+const compact = computed(() => collapsed.value && breakMode.value)
+const actionAvailable = computed(() => actionEnabled.value && actionDurationSeconds.value > 0)
+const contentHeight = computed(() => (compact.value ? 96 : baseHeight.value + (breakMode.value ? 32 : 0)) + (actionError.value ? 44 : 0))
+// Reserve transparent space above action reminders before they appear. Starting
+// an action expands only the card, keeping the native window and its anchor still.
 const windowSize = computed(() => ({
-  width: collapsed.value && breakMode.value ? 340 : 400,
-  height: (collapsed.value && breakMode.value ? 96 : (notificationAppearance.value === 'illustrated' ? 264 : notificationAppearance.value === 'minimal' ? 232 : 240) + (breakMode.value ? 32 : 0)) + (actionError.value ? 44 : 0),
+  width: compact.value ? 340 : 400,
+  height: (compact.value ? 96 : baseHeight.value + (actionAvailable.value ? 32 : 0)) + (actionError.value ? 44 : 0),
 }))
 let resizeQueue = Promise.resolve()
-watch([visible, windowSize], () => {
+watch([visible, () => windowSize.value.width, () => windowSize.value.height], () => {
   if (!visible.value || props.previewRequest)
     return
   resizeQueue = resizeQueue.then(async () => {
@@ -434,6 +441,7 @@ function resumeAutoDismiss() {
 }
 
 function stopBreakCountdown() {
+  breakCountdownRunning.value = false
   if (breakTimer) {
     clearInterval(breakTimer)
     breakTimer = null
@@ -446,6 +454,7 @@ function runBreakCountdown() {
 
   stopBreakCountdown()
   breakDeadline = Date.now() + breakRemainingSeconds.value * 1000
+  breakCountdownRunning.value = true
   breakTimer = setInterval(() => {
     breakRemainingSeconds.value = Math.max(0, Math.ceil((breakDeadline - Date.now()) / 1000))
     if (breakRemainingSeconds.value <= 0) {
@@ -652,6 +661,7 @@ async function handlePostpone(minutes: number) {
 <template>
   <NotificationCard
     :style="previewRequest ? { height: `${windowSize.height}px` } : undefined"
+    :content-height="contentHeight"
     :appearance="notificationAppearance"
     :collapsed="collapsed"
     :visible="visible"
@@ -663,8 +673,10 @@ async function handlePostpone(minutes: number) {
     :break-mode="breakMode"
     :action-title="actionTitle || t(reminderType === 'eye_care' ? 'notification.startEyeCare' : reminderType === 'rest' ? 'notification.startBreak' : 'ui.startAction')"
     :action-message="actionMessage || t('notification.breakMessage', { time: breakCountdownLabel })"
-    :action-enabled="actionEnabled && actionDurationSeconds > 0"
+    :action-enabled="actionAvailable"
     :remaining-progress="actionDurationSeconds > 0 ? breakRemainingSeconds / actionDurationSeconds : 0"
+    :remaining-seconds="breakRemainingSeconds"
+    :countdown-running="breakCountdownRunning"
     :break-countdown-label="breakCountdownLabel"
     :pending-label="pendingLabel"
     :postpone-options="postponeOptions"
