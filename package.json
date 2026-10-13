@@ -12,6 +12,8 @@
     "tauri:dev": "tauri dev",
     "tauri:clean": "rimraf node_modules/.vite && tauri dev",
     "test": "vitest run",
+    "site:data": "node scripts/site-releases.mjs",
+    "site:preview": "python -m http.server 8000 --directory site",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix"
   },

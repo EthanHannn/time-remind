@@ -1,0 +1,52 @@
+name: Deploy website
+
+# Publishes site/ to GitHub Pages. The site itself has no build step; the job
+# copies the screenshots the README already uses into the published tree so the
+# pages can reference them.
+#
+# After the first successful run, enable Pages in the repository settings and
+# pick "GitHub Actions" as the source. Custom domains (for example
+# time-remind.dev) can be configured right there.
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'site/**'
+      - 'scripts/site-releases.mjs'
+      - 'assets/screenshots/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assemble site
+        run: |
+          set -euo pipefail
+          rm -rf _site
+          cp -r site _site
+          # The Docker/nginx files are not part of the published site.
+          rm -f _site/Dockerfile _site/nginx.conf
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

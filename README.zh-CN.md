@@ -2,6 +2,12 @@
 
 [English](README.md) | **简体中文**
 
+[![最新版本](https://img.shields.io/github/v/release/EthanHannn/time-remind?label=release&color=38bdf8)](https://github.com/EthanHannn/time-remind/releases)
+[![许可证 MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Windows 已验证](https://img.shields.io/badge/verified-Windows%2010%2F11-0078d4)](#平台支持状态)
+
+**官方网站：** <https://ethanhannn.github.io/time-remind/> · [下载](#安装)
+
 Time Remind 是一款轻量级桌面健康提醒工具，帮助长时间使用电脑的人保持饮水、休息和护眼节奏。
 
 ## 界面预览
@@ -136,6 +142,23 @@ pnpm tauri build --bundles deb,appimage
 - 非 Windows 平台的锁屏检测、全屏检测、托盘行为和开机自启动仍需实机验证。
 - macOS 和 Linux 构建在完成验证清单前仍作为预览资产。
 - 本地音频文件作为提示音、全屏遮罩模式尚未完成。
+
+## 官方网站
+
+[`site/`](site) 目录是纯静态 HTML 与 CSS，无需构建，只有一个自动生成的数据文件。
+
+```powershell
+# 刷新站点使用的发布快照、下载卡片和截图
+node scripts/site-releases.mjs
+
+# 本地预览
+python -m http.server 8000 --directory site
+```
+
+- `site/index.html` 是中文首页，`site/en/index.html` 是英文首页。
+- `site:downloads` 与 `site:history` 注释标记之间的内容由脚本生成，请改脚本而不是直接改生成结果。
+- 发布：提交 `site/` 下的改动会触发 [`.github/workflows/pages.yml`](.github/workflows/pages.yml)，自动部署到 GitHub Pages。
+- 自建托管：[`site/Dockerfile`](site/Dockerfile) 可构建 Nginx 镜像（`docker build -t time-remind-site site`），[`site/nginx.conf`](site/nginx.conf) 也能直接用在普通 VPS 上。
 
 ## 参与反馈
 

@@ -28,6 +28,6 @@ dist-ssr
 *.sw?
 
 # Project-local agent and planning files
-docs/
+/docs/
 AGENTS.md
 CLAUDE.md

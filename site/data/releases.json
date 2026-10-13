@@ -1,0 +1,777 @@
+{
+  "repo": "EthanHannn/time-remind",
+  "repoUrl": "https://github.com/EthanHannn/time-remind",
+  "syncedAt": "2026-10-13T08:33:23.903Z",
+  "latest": {
+    "tag": "v0.1.11",
+    "name": "Time Remind v0.1.11",
+    "version": "0.1.11",
+    "date": "2026-10-12",
+    "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.11",
+    "prerelease": true,
+    "assets": [
+      {
+        "name": "Time-Remind_0.1.11_darwin_x64_app.app.tar.gz",
+        "size": 6304181,
+        "platform": "macos",
+        "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_darwin_x64_app.app.tar.gz"
+      },
+      {
+        "name": "Time-Remind_0.1.11_darwin_x64_dmg.dmg",
+        "size": 6511713,
+        "platform": "macos",
+        "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_darwin_x64_dmg.dmg"
+      },
+      {
+        "name": "Time-Remind_0.1.11_linux_aarch64_appimage.AppImage",
+        "size": 81385992,
+        "platform": "linux",
+        "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_linux_aarch64_appimage.AppImage"
+      },
+      {
+        "name": "Time-Remind_0.1.11_linux_amd64_appimage.AppImage",
+        "size": 83114488,
+        "platform": "linux",
+        "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_linux_amd64_appimage.AppImage"
+      },
+      {
+        "name": "Time-Remind_0.1.11_linux_amd64_deb.deb",
+        "size": 7554366,
+        "platform": "linux",
+        "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_linux_amd64_deb.deb"
+      },
+      {
+        "name": "Time-Remind_0.1.11_linux_arm64_deb.deb",
+        "size": 7599518,
+        "platform": "linux",
+        "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_linux_arm64_deb.deb"
+      },
+      {
+        "name": "Time-Remind_0.1.11_macOS_aarch64_app.zip",
+        "size": 6146194,
+        "platform": "macos",
+        "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_macOS_aarch64_app.zip"
+      },
+      {
+        "name": "Time-Remind_0.1.11_windows_arm64_nsis.exe",
+        "size": 4344434,
+        "platform": "windows",
+        "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_windows_arm64_nsis.exe"
+      },
+      {
+        "name": "Time-Remind_0.1.11_windows_x64_nsis.exe",
+        "size": 4776800,
+        "platform": "windows",
+        "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_windows_x64_nsis.exe"
+      },
+      {
+        "name": "Time.Remind_0.1.11_aarch64.dmg",
+        "size": 6355158,
+        "platform": "macos",
+        "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time.Remind_0.1.11_aarch64.dmg"
+      }
+    ]
+  },
+  "releases": [
+    {
+      "tag": "v0.1.11",
+      "name": "Time Remind v0.1.11",
+      "version": "0.1.11",
+      "date": "2026-10-12",
+      "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.11",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "Time-Remind_0.1.11_darwin_x64_app.app.tar.gz",
+          "size": 6304181,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_darwin_x64_app.app.tar.gz"
+        },
+        {
+          "name": "Time-Remind_0.1.11_darwin_x64_dmg.dmg",
+          "size": 6511713,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_darwin_x64_dmg.dmg"
+        },
+        {
+          "name": "Time-Remind_0.1.11_linux_aarch64_appimage.AppImage",
+          "size": 81385992,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_linux_aarch64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.11_linux_amd64_appimage.AppImage",
+          "size": 83114488,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_linux_amd64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.11_linux_amd64_deb.deb",
+          "size": 7554366,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_linux_amd64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.11_linux_arm64_deb.deb",
+          "size": 7599518,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_linux_arm64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.11_macOS_aarch64_app.zip",
+          "size": 6146194,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_macOS_aarch64_app.zip"
+        },
+        {
+          "name": "Time-Remind_0.1.11_windows_arm64_nsis.exe",
+          "size": 4344434,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_windows_arm64_nsis.exe"
+        },
+        {
+          "name": "Time-Remind_0.1.11_windows_x64_nsis.exe",
+          "size": 4776800,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time-Remind_0.1.11_windows_x64_nsis.exe"
+        },
+        {
+          "name": "Time.Remind_0.1.11_aarch64.dmg",
+          "size": 6355158,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.11/Time.Remind_0.1.11_aarch64.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.10",
+      "name": "Time Remind v0.1.10",
+      "version": "0.1.10",
+      "date": "2026-10-12",
+      "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.10",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "Time-Remind_0.1.10_darwin_x64_app.app.tar.gz",
+          "size": 6303938,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.10/Time-Remind_0.1.10_darwin_x64_app.app.tar.gz"
+        },
+        {
+          "name": "Time-Remind_0.1.10_darwin_x64_dmg.dmg",
+          "size": 6511628,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.10/Time-Remind_0.1.10_darwin_x64_dmg.dmg"
+        },
+        {
+          "name": "Time-Remind_0.1.10_linux_aarch64_appimage.AppImage",
+          "size": 81385992,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.10/Time-Remind_0.1.10_linux_aarch64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.10_linux_amd64_appimage.AppImage",
+          "size": 83110392,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.10/Time-Remind_0.1.10_linux_amd64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.10_linux_amd64_deb.deb",
+          "size": 7560110,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.10/Time-Remind_0.1.10_linux_amd64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.10_linux_arm64_deb.deb",
+          "size": 7602070,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.10/Time-Remind_0.1.10_linux_arm64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.10_macOS_aarch64_app.zip",
+          "size": 6146742,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.10/Time-Remind_0.1.10_macOS_aarch64_app.zip"
+        },
+        {
+          "name": "Time-Remind_0.1.10_windows_arm64_nsis.exe",
+          "size": 4334649,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.10/Time-Remind_0.1.10_windows_arm64_nsis.exe"
+        },
+        {
+          "name": "Time-Remind_0.1.10_windows_x64_nsis.exe",
+          "size": 4763719,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.10/Time-Remind_0.1.10_windows_x64_nsis.exe"
+        },
+        {
+          "name": "Time.Remind_0.1.10_aarch64.dmg",
+          "size": 6355174,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.10/Time.Remind_0.1.10_aarch64.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.9",
+      "name": "Time Remind v0.1.9",
+      "version": "0.1.9",
+      "date": "2026-10-10",
+      "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.9",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "Time-Remind_0.1.9_darwin_x64_app.app.tar.gz",
+          "size": 6301755,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.9/Time-Remind_0.1.9_darwin_x64_app.app.tar.gz"
+        },
+        {
+          "name": "Time-Remind_0.1.9_darwin_x64_dmg.dmg",
+          "size": 6511368,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.9/Time-Remind_0.1.9_darwin_x64_dmg.dmg"
+        },
+        {
+          "name": "Time-Remind_0.1.9_linux_aarch64_appimage.AppImage",
+          "size": 81385992,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.9/Time-Remind_0.1.9_linux_aarch64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.9_linux_amd64_appimage.AppImage",
+          "size": 83118584,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.9/Time-Remind_0.1.9_linux_amd64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.9_linux_amd64_deb.deb",
+          "size": 7558024,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.9/Time-Remind_0.1.9_linux_amd64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.9_linux_arm64_deb.deb",
+          "size": 7602206,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.9/Time-Remind_0.1.9_linux_arm64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.9_macOS_aarch64_app.zip",
+          "size": 6143439,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.9/Time-Remind_0.1.9_macOS_aarch64_app.zip"
+        },
+        {
+          "name": "Time-Remind_0.1.9_windows_arm64_nsis.exe",
+          "size": 4334111,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.9/Time-Remind_0.1.9_windows_arm64_nsis.exe"
+        },
+        {
+          "name": "Time-Remind_0.1.9_windows_x64_nsis.exe",
+          "size": 4765525,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.9/Time-Remind_0.1.9_windows_x64_nsis.exe"
+        },
+        {
+          "name": "Time.Remind_0.1.9_aarch64.dmg",
+          "size": 6353171,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.9/Time.Remind_0.1.9_aarch64.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.8",
+      "name": "Time Remind v0.1.8",
+      "version": "0.1.8",
+      "date": "2026-09-29",
+      "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.8",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "Time-Remind_0.1.8_darwin_x64_app.app.tar.gz",
+          "size": 6190094,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.8/Time-Remind_0.1.8_darwin_x64_app.app.tar.gz"
+        },
+        {
+          "name": "Time-Remind_0.1.8_darwin_x64_dmg.dmg",
+          "size": 6396790,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.8/Time-Remind_0.1.8_darwin_x64_dmg.dmg"
+        },
+        {
+          "name": "Time-Remind_0.1.8_linux_aarch64_appimage.AppImage",
+          "size": 81267208,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.8/Time-Remind_0.1.8_linux_aarch64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.8_linux_amd64_appimage.AppImage",
+          "size": 82995704,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.8/Time-Remind_0.1.8_linux_amd64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.8_linux_amd64_deb.deb",
+          "size": 7441578,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.8/Time-Remind_0.1.8_linux_amd64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.8_linux_arm64_deb.deb",
+          "size": 7497008,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.8/Time-Remind_0.1.8_linux_arm64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.8_macOS_aarch64_app.zip",
+          "size": 6039278,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.8/Time-Remind_0.1.8_macOS_aarch64_app.zip"
+        },
+        {
+          "name": "Time-Remind_0.1.8_windows_arm64_nsis.exe",
+          "size": 4258997,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.8/Time-Remind_0.1.8_windows_arm64_nsis.exe"
+        },
+        {
+          "name": "Time-Remind_0.1.8_windows_x64_nsis.exe",
+          "size": 4682972,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.8/Time-Remind_0.1.8_windows_x64_nsis.exe"
+        },
+        {
+          "name": "Time.Remind_0.1.8_aarch64.dmg",
+          "size": 6251843,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.8/Time.Remind_0.1.8_aarch64.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.7",
+      "name": "Time Remind v0.1.7",
+      "version": "0.1.7",
+      "date": "2026-09-28",
+      "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.7",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "Time-Remind_0.1.7_darwin_x64_app.app.tar.gz",
+          "size": 6890781,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.7/Time-Remind_0.1.7_darwin_x64_app.app.tar.gz"
+        },
+        {
+          "name": "Time-Remind_0.1.7_darwin_x64_dmg.dmg",
+          "size": 7095893,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.7/Time-Remind_0.1.7_darwin_x64_dmg.dmg"
+        },
+        {
+          "name": "Time-Remind_0.1.7_linux_aarch64_appimage.AppImage",
+          "size": 81975816,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.7/Time-Remind_0.1.7_linux_aarch64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.7_linux_amd64_appimage.AppImage",
+          "size": 83724792,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.7/Time-Remind_0.1.7_linux_amd64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.7_linux_amd64_deb.deb",
+          "size": 8148580,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.7/Time-Remind_0.1.7_linux_amd64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.7_linux_arm64_deb.deb",
+          "size": 8183420,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.7/Time-Remind_0.1.7_linux_arm64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.7_macOS_aarch64_app.zip",
+          "size": 6745654,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.7/Time-Remind_0.1.7_macOS_aarch64_app.zip"
+        },
+        {
+          "name": "Time-Remind_0.1.7_windows_arm64_nsis.exe",
+          "size": 4963150,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.7/Time-Remind_0.1.7_windows_arm64_nsis.exe"
+        },
+        {
+          "name": "Time-Remind_0.1.7_windows_x64_nsis.exe",
+          "size": 5386962,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.7/Time-Remind_0.1.7_windows_x64_nsis.exe"
+        },
+        {
+          "name": "Time.Remind_0.1.7_aarch64.dmg",
+          "size": 6956635,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.7/Time.Remind_0.1.7_aarch64.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.6",
+      "name": "Time Remind v0.1.6",
+      "version": "0.1.6",
+      "date": "2026-09-02",
+      "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.6",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "Time-Remind_0.1.6_darwin_x64_app.app.tar.gz",
+          "size": 6867497,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.6/Time-Remind_0.1.6_darwin_x64_app.app.tar.gz"
+        },
+        {
+          "name": "Time-Remind_0.1.6_darwin_x64_dmg.dmg",
+          "size": 7077900,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.6/Time-Remind_0.1.6_darwin_x64_dmg.dmg"
+        },
+        {
+          "name": "Time-Remind_0.1.6_linux_aarch64_appimage.AppImage",
+          "size": 81287688,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.6/Time-Remind_0.1.6_linux_aarch64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.6_linux_amd64_appimage.AppImage",
+          "size": 83016184,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.6/Time-Remind_0.1.6_linux_amd64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.6_linux_amd64_deb.deb",
+          "size": 8130798,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.6/Time-Remind_0.1.6_linux_amd64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.6_linux_arm64_deb.deb",
+          "size": 8170428,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.6/Time-Remind_0.1.6_linux_arm64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.6_macOS_aarch64_app.zip",
+          "size": 6724945,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.6/Time-Remind_0.1.6_macOS_aarch64_app.zip"
+        },
+        {
+          "name": "Time-Remind_0.1.6_windows_arm64_nsis.exe",
+          "size": 4947625,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.6/Time-Remind_0.1.6_windows_arm64_nsis.exe"
+        },
+        {
+          "name": "Time-Remind_0.1.6_windows_x64_nsis.exe",
+          "size": 5382916,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.6/Time-Remind_0.1.6_windows_x64_nsis.exe"
+        },
+        {
+          "name": "Time.Remind_0.1.6_aarch64.dmg",
+          "size": 6941534,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.6/Time.Remind_0.1.6_aarch64.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.5",
+      "name": "Time Remind v0.1.5",
+      "version": "0.1.5",
+      "date": "2026-07-22",
+      "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.5",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "Time-Remind_0.1.5_darwin_x64_app.app.tar.gz",
+          "size": 6753503,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.5/Time-Remind_0.1.5_darwin_x64_app.app.tar.gz"
+        },
+        {
+          "name": "Time-Remind_0.1.5_darwin_x64_dmg.dmg",
+          "size": 6983541,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.5/Time-Remind_0.1.5_darwin_x64_dmg.dmg"
+        },
+        {
+          "name": "Time-Remind_0.1.5_linux_aarch64_appimage.AppImage",
+          "size": 80689672,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.5/Time-Remind_0.1.5_linux_aarch64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.5_linux_amd64_appimage.AppImage",
+          "size": 82450936,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.5/Time-Remind_0.1.5_linux_amd64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.5_linux_amd64_deb.deb",
+          "size": 8001620,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.5/Time-Remind_0.1.5_linux_amd64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.5_linux_arm64_deb.deb",
+          "size": 8056032,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.5/Time-Remind_0.1.5_linux_arm64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.5_macOS_aarch64_app.zip",
+          "size": 6612783,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.5/Time-Remind_0.1.5_macOS_aarch64_app.zip"
+        },
+        {
+          "name": "Time-Remind_0.1.5_windows_arm64_nsis.exe",
+          "size": 4826604,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.5/Time-Remind_0.1.5_windows_arm64_nsis.exe"
+        },
+        {
+          "name": "Time-Remind_0.1.5_windows_x64_nsis.exe",
+          "size": 5263379,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.5/Time-Remind_0.1.5_windows_x64_nsis.exe"
+        },
+        {
+          "name": "Time.Remind_0.1.5_aarch64.dmg",
+          "size": 6822676,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.5/Time.Remind_0.1.5_aarch64.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.4",
+      "name": "Time Remind v0.1.4",
+      "version": "0.1.4",
+      "date": "2026-07-17",
+      "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.4",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "Time-Remind_0.1.4_darwin_x64_app.app.tar.gz",
+          "size": 6753710,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.4/Time-Remind_0.1.4_darwin_x64_app.app.tar.gz"
+        },
+        {
+          "name": "Time-Remind_0.1.4_darwin_x64_dmg.dmg",
+          "size": 6984878,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.4/Time-Remind_0.1.4_darwin_x64_dmg.dmg"
+        },
+        {
+          "name": "Time-Remind_0.1.4_linux_aarch64_appimage.AppImage",
+          "size": 80677384,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.4/Time-Remind_0.1.4_linux_aarch64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.4_linux_amd64_appimage.AppImage",
+          "size": 82442744,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.4/Time-Remind_0.1.4_linux_amd64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.4_linux_amd64_deb.deb",
+          "size": 8000480,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.4/Time-Remind_0.1.4_linux_amd64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.4_linux_arm64_deb.deb",
+          "size": 8040970,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.4/Time-Remind_0.1.4_linux_arm64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.4_macOS_aarch64_app.zip",
+          "size": 6613595,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.4/Time-Remind_0.1.4_macOS_aarch64_app.zip"
+        },
+        {
+          "name": "Time-Remind_0.1.4_windows_arm64_nsis.exe",
+          "size": 4825938,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.4/Time-Remind_0.1.4_windows_arm64_nsis.exe"
+        },
+        {
+          "name": "Time-Remind_0.1.4_windows_x64_nsis.exe",
+          "size": 5263308,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.4/Time-Remind_0.1.4_windows_x64_nsis.exe"
+        },
+        {
+          "name": "Time.Remind_0.1.4_aarch64.dmg",
+          "size": 6822776,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.4/Time.Remind_0.1.4_aarch64.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.3",
+      "name": "Time Remind v0.1.3",
+      "version": "0.1.3",
+      "date": "2026-07-13",
+      "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.3",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "Time-Remind_0.1.3_darwin_x64_app.app.tar.gz",
+          "size": 6752343,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.3/Time-Remind_0.1.3_darwin_x64_app.app.tar.gz"
+        },
+        {
+          "name": "Time-Remind_0.1.3_darwin_x64_dmg.dmg",
+          "size": 6984675,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.3/Time-Remind_0.1.3_darwin_x64_dmg.dmg"
+        },
+        {
+          "name": "Time-Remind_0.1.3_linux_aarch64_appimage.AppImage",
+          "size": 80677384,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.3/Time-Remind_0.1.3_linux_aarch64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.3_linux_amd64_appimage.AppImage",
+          "size": 82438648,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.3/Time-Remind_0.1.3_linux_amd64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.3_linux_amd64_deb.deb",
+          "size": 7999412,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.3/Time-Remind_0.1.3_linux_amd64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.3_linux_arm64_deb.deb",
+          "size": 8046094,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.3/Time-Remind_0.1.3_linux_arm64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.3_macOS_aarch64_app.zip",
+          "size": 6609702,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.3/Time-Remind_0.1.3_macOS_aarch64_app.zip"
+        },
+        {
+          "name": "Time-Remind_0.1.3_windows_arm64_nsis.exe",
+          "size": 4826890,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.3/Time-Remind_0.1.3_windows_arm64_nsis.exe"
+        },
+        {
+          "name": "Time-Remind_0.1.3_windows_x64_nsis.exe",
+          "size": 5272354,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.3/Time-Remind_0.1.3_windows_x64_nsis.exe"
+        },
+        {
+          "name": "Time.Remind_0.1.3_aarch64.dmg",
+          "size": 6818834,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.3/Time.Remind_0.1.3_aarch64.dmg"
+        }
+      ]
+    },
+    {
+      "tag": "v0.1.2",
+      "name": "Time Remind v0.1.2",
+      "version": "0.1.2",
+      "date": "2026-07-06",
+      "url": "https://github.com/EthanHannn/time-remind/releases/tag/v0.1.2",
+      "prerelease": true,
+      "assets": [
+        {
+          "name": "Time-Remind_0.1.2_darwin_x64_app.app.tar.gz",
+          "size": 6964726,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.2/Time-Remind_0.1.2_darwin_x64_app.app.tar.gz"
+        },
+        {
+          "name": "Time-Remind_0.1.2_darwin_x64_dmg.dmg",
+          "size": 7169315,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.2/Time-Remind_0.1.2_darwin_x64_dmg.dmg"
+        },
+        {
+          "name": "Time-Remind_0.1.2_linux_aarch64_appimage.AppImage",
+          "size": 80673288,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.2/Time-Remind_0.1.2_linux_aarch64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.2_linux_amd64_appimage.AppImage",
+          "size": 82561528,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.2/Time-Remind_0.1.2_linux_amd64_appimage.AppImage"
+        },
+        {
+          "name": "Time-Remind_0.1.2_linux_amd64_deb.deb",
+          "size": 8150494,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.2/Time-Remind_0.1.2_linux_amd64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.2_linux_arm64_deb.deb",
+          "size": 8030234,
+          "platform": "linux",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.2/Time-Remind_0.1.2_linux_arm64_deb.deb"
+        },
+        {
+          "name": "Time-Remind_0.1.2_macOS_aarch64_app.zip",
+          "size": 6787603,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.2/Time-Remind_0.1.2_macOS_aarch64_app.zip"
+        },
+        {
+          "name": "Time-Remind_0.1.2_windows_arm64_nsis.exe",
+          "size": 4852371,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.2/Time-Remind_0.1.2_windows_arm64_nsis.exe"
+        },
+        {
+          "name": "Time-Remind_0.1.2_windows_x64_nsis.exe",
+          "size": 5282800,
+          "platform": "windows",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.2/Time-Remind_0.1.2_windows_x64_nsis.exe"
+        },
+        {
+          "name": "Time.Remind_0.1.2_aarch64.dmg",
+          "size": 6978248,
+          "platform": "macos",
+          "url": "https://github.com/EthanHannn/time-remind/releases/download/v0.1.2/Time.Remind_0.1.2_aarch64.dmg"
+        }
+      ]
+    }
+  ]
+}
