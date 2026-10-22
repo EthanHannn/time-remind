@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.1.12 Beta - 2026-10-22
+
+### Fixed
+
+- Stopped reminder popups from flickering and jumping when an action starts. Action reminders now reserve transparent space up front and expand only the card inside a stationary native window, so the popup no longer resizes or remounts.
+- Rendered countdown bars continuously instead of stepping once per second. The progress bar interpolates between clock updates, holds its position while paused, resets cleanly on a new countdown, and falls back to discrete updates when reduced motion is requested.
+
+### Improved
+
+- Localized operation results, validation messages, quantities, and duration labels across all 19 languages. Language changes now preserve user-edited reminder text and schedules instead of overwriting built-in copy.
+- Covered all 19 application languages in the Windows installer, including startup choices and locale mappings, with a repository-owned Khmer translation. Added a regression check for installer language and interpolation coverage.
+- Published the official website as the download page, with light and dark themes, download cards, screenshots, release history, and an FAQ. A sync script refreshes release data and assets from the GitHub API.
+
+### Verified
+
+- 85 frontend tests passed, including popup resize regression tests across all three notification layouts.
+- Windows remains the verified release platform. macOS and Linux packages are community preview assets and still require real-device validation.
+
 ## 0.1.11 Beta - 2026-10-12
 
 ### Added
