@@ -10,6 +10,7 @@ export interface Reminder {
   break_notification_enabled: boolean
   action_enabled: boolean
   action_title: string
+  template_fields?: string[] | null
   action_message: string
   action_duration_seconds: number
   action_completion_mode: 'auto' | 'manual'

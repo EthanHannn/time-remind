@@ -16,6 +16,7 @@ const NOTIFICATION_WINDOW_HEIGHT: f64 = 240.0;
 const NOTIFICATION_WINDOW_RIGHT_MARGIN: f64 = 20.0;
 const NOTIFICATION_WINDOW_BOTTOM_MARGIN: f64 = 96.0;
 const NEXT_NOTIFICATION_DELAY_MS: u64 = 220;
+const COMPLETION_FEEDBACK_MS: u64 = 1800;
 
 pub(crate) fn notification_window_position(
     work_area_position: tauri::PhysicalPosition<i32>,
@@ -93,6 +94,7 @@ pub struct NotificationData {
     pub break_notification_enabled: bool,
     pub action_enabled: bool,
     pub action_title: String,
+    pub action_title_is_default: bool,
     pub action_message: String,
     pub action_duration_seconds: i64,
     pub action_completion_mode: String,
@@ -105,6 +107,10 @@ impl NotificationData {
         self.name = reminder.name;
         self.message = reminder.message;
         self.action_title = reminder.action_title;
+        self.action_title_is_default = reminder
+            .template_fields
+            .as_ref()
+            .is_some_and(|fields| fields.iter().any(|field| field == "action_title"));
         self.action_message = reminder.action_message;
         Ok(())
     }
@@ -134,11 +140,51 @@ struct NotificationQueueState {
 #[derive(Default)]
 struct NotificationQueue {
     current: Option<NotificationIdentity>,
+    current_completed_until: Option<std::time::Instant>,
+    current_hidden_for_fullscreen: bool,
     pending: VecDeque<NotificationData>,
     revision: u64,
 }
 
+#[derive(Debug, PartialEq)]
+enum PresentationChange {
+    None,
+    Hide,
+    Show,
+    Close,
+}
+
+#[derive(Clone, Serialize)]
+struct NotificationPresentation {
+    notification_id: String,
+    reminder_id: String,
+    visible: bool,
+}
+
 impl NotificationQueue {
+    fn clear_current(&mut self) {
+        self.current = None;
+        self.current_completed_until = None;
+        self.current_hidden_for_fullscreen = false;
+    }
+
+    fn presentation_change(&self, fullscreen: bool, now: std::time::Instant) -> PresentationChange {
+        if self.current.is_none() {
+            return PresentationChange::None;
+        }
+        if self
+            .current_completed_until
+            .is_some_and(|until| until <= now || fullscreen)
+        {
+            return PresentationChange::Close;
+        }
+        match (fullscreen, self.current_hidden_for_fullscreen) {
+            (true, false) => PresentationChange::Hide,
+            (false, true) => PresentationChange::Show,
+            _ => PresentationChange::None,
+        }
+    }
+
     fn snapshot(&self) -> NotificationQueueState {
         NotificationQueueState {
             queue_revision: self.revision,
@@ -390,7 +436,11 @@ impl Scheduler {
     pub(crate) fn overview_queue(&self) -> QueueOverview {
         let queue = self.queue.lock().unwrap();
         QueueOverview {
-            current: queue.current.as_ref().map(|item| item.reminder_id.clone()),
+            current: queue
+                .current
+                .as_ref()
+                .filter(|_| queue.current_completed_until.is_none())
+                .map(|item| item.reminder_id.clone()),
             pending: queue
                 .pending
                 .iter()
@@ -423,12 +473,64 @@ impl Scheduler {
             .is_some_and(|current| current.matches(reminder_id, notification_id))
     }
 
+    pub fn is_completed_notification(&self, reminder_id: &str, notification_id: &str) -> bool {
+        let queue = self.queue.lock().unwrap();
+        queue.current_completed_until.is_some()
+            && queue
+                .current
+                .as_ref()
+                .is_some_and(|current| current.matches(reminder_id, notification_id))
+    }
+
+    pub fn complete_notification(
+        &self,
+        conn: &Connection,
+        reminder_id: &str,
+        notification_id: &str,
+    ) {
+        let fullscreen = is_fullscreen_detection_enabled(conn) && is_foreground_window_fullscreen();
+        let show_feedback = {
+            let mut queue = self.queue.lock().unwrap();
+            if !queue
+                .current
+                .as_ref()
+                .is_some_and(|current| current.matches(reminder_id, notification_id))
+                || queue.current_completed_until.is_some()
+            {
+                return;
+            }
+            let show = !fullscreen && !queue.current_hidden_for_fullscreen;
+            queue.current_completed_until =
+                Some(std::time::Instant::now() + Duration::from_millis(COMPLETION_FEEDBACK_MS));
+            show
+        };
+        if !show_feedback {
+            self.release_notification(reminder_id);
+            return;
+        }
+        if let Some(window) = self.app.get_webview_window("notification") {
+            let _ = window.emit(
+                "notification:completed",
+                NotificationPresentation {
+                    notification_id: notification_id.into(),
+                    reminder_id: reminder_id.into(),
+                    visible: true,
+                },
+            );
+        }
+        let scheduler = self.clone();
+        tauri::async_runtime::spawn(async move {
+            sleep(Duration::from_millis(COMPLETION_FEEDBACK_MS)).await;
+            scheduler.show_next_notification();
+        });
+    }
+
     pub fn clear_all_active(&self, conn: &Connection) -> Result<(), String> {
         crate::lifecycle::interrupt(conn, None, Utc::now())?;
         self.active_reminders.lock().unwrap().clear();
         {
             let mut queue = self.queue.lock().unwrap();
-            queue.current = None;
+            queue.clear_current();
             queue.pending.clear();
             queue.revision += 1;
             self.hide_notification_window();
@@ -490,7 +592,7 @@ impl Scheduler {
                 .as_ref()
                 .is_some_and(|item| item.reminder_id == reminder_id);
             if removed {
-                queue.current = None;
+                queue.clear_current();
             }
             queue.pending.retain(|item| item.reminder_id != reminder_id);
             queue.revision += 1;
@@ -546,6 +648,7 @@ impl Scheduler {
         let db = self.app.state::<Database>();
         let conn = db.conn.lock().unwrap();
         if self.queue.lock().unwrap().current.is_some() {
+            self.sync_notification_presentation(&conn);
             self.update_tray_state(&conn);
             return;
         }
@@ -596,6 +699,8 @@ impl Scheduler {
                     reminder_id: data.reminder_id.clone(),
                     notification_id: data.notification_id.clone(),
                 });
+                queue.current_completed_until = None;
+                queue.current_hidden_for_fullscreen = false;
             }
 
             if crate::lifecycle::shown(&conn, &data.reminder_id, &data.notification_id, Utc::now())
@@ -609,13 +714,56 @@ impl Scheduler {
 
             {
                 let mut queue = self.queue.lock().unwrap();
-                queue.current = None;
+                queue.clear_current();
                 queue.revision += 1;
             }
             self.clear_active(&data.reminder_id);
             let _ = crate::lifecycle::interrupt(&conn, Some(&data.reminder_id), Utc::now());
             self.emit_queue_state();
         }
+    }
+
+    fn sync_notification_presentation(&self, conn: &Connection) {
+        let fullscreen = is_fullscreen_detection_enabled(conn) && is_foreground_window_fullscreen();
+        let (current, change) = {
+            let queue = self.queue.lock().unwrap();
+            (
+                queue.current.clone(),
+                queue.presentation_change(fullscreen, std::time::Instant::now()),
+            )
+        };
+        let Some(current) = current else {
+            return;
+        };
+        if change == PresentationChange::Close {
+            self.release_notification(&current.reminder_id);
+            return;
+        }
+        if change == PresentationChange::None {
+            return;
+        }
+        let Some(window) = self.app.get_webview_window("notification") else {
+            return;
+        };
+        let visible = change == PresentationChange::Show;
+        let result = if visible {
+            window.show().and_then(|_| window.set_always_on_top(true))
+        } else {
+            window.hide()
+        };
+        if let Err(error) = result {
+            crate::app_log::warn(format!("更新通知显示状态失败，将重试：{error}"));
+            return;
+        }
+        self.queue.lock().unwrap().current_hidden_for_fullscreen = !visible;
+        let _ = window.emit(
+            "notification:visibility",
+            NotificationPresentation {
+                notification_id: current.notification_id,
+                reminder_id: current.reminder_id,
+                visible,
+            },
+        );
     }
 
     fn update_tray_state(&self, conn: &Connection) {
@@ -750,6 +898,9 @@ impl Scheduler {
         let Some(current) = current else {
             return;
         };
+        if self.is_completed_notification(&current.reminder_id, &current.notification_id) {
+            return;
+        }
         let now = Utc::now();
         if let Ok(Some(progress)) = crate::lifecycle::progress(&conn, &current.notification_id, now)
         {
@@ -765,7 +916,11 @@ impl Scheduler {
                         now,
                     ) {
                         Ok(()) => {
-                            self.release_notification(&current.reminder_id);
+                            self.complete_notification(
+                                &conn,
+                                &current.reminder_id,
+                                &current.notification_id,
+                            );
                             let _ = self.app.emit("reminders:changed", ());
                         }
                         Err(error) => {
@@ -916,6 +1071,7 @@ impl Scheduler {
                             break_notification_enabled: *break_notification_enabled,
                             action_enabled: *action_enabled,
                             action_title: action_title.clone(),
+                            action_title_is_default: false,
                             action_message: action_message.clone(),
                             action_duration_seconds: *action_duration_seconds,
                             action_completion_mode: action_completion_mode.clone(),
@@ -1021,6 +1177,71 @@ mod tests {
         assert!(current.matches("drink", "after-resume"));
         assert!(!current.matches("drink", "before-pause"));
         assert!(!current.matches("rest", "after-resume"));
+    }
+
+    #[test]
+    fn fullscreen_hides_and_restores_an_existing_notification_without_replacing_it() {
+        let now = std::time::Instant::now();
+        let mut queue = NotificationQueue {
+            current: Some(NotificationIdentity {
+                reminder_id: "rest".into(),
+                notification_id: "running".into(),
+            }),
+            ..Default::default()
+        };
+        assert_eq!(
+            queue.presentation_change(false, now),
+            PresentationChange::None
+        );
+        assert_eq!(
+            queue.presentation_change(true, now),
+            PresentationChange::Hide
+        );
+        queue.current_hidden_for_fullscreen = true;
+        assert_eq!(
+            queue.presentation_change(true, now),
+            PresentationChange::None
+        );
+        assert_eq!(
+            queue.presentation_change(false, now),
+            PresentationChange::Show
+        );
+        assert!(queue.current.as_ref().unwrap().matches("rest", "running"));
+    }
+
+    #[test]
+    fn completion_expires_or_closes_silently_when_fullscreen_starts() {
+        let now = std::time::Instant::now();
+        let mut queue = NotificationQueue {
+            current: Some(NotificationIdentity {
+                reminder_id: "rest".into(),
+                notification_id: "finished".into(),
+            }),
+            current_completed_until: Some(now + Duration::from_millis(COMPLETION_FEEDBACK_MS)),
+            ..Default::default()
+        };
+        assert_eq!(
+            queue.presentation_change(false, now),
+            PresentationChange::None
+        );
+        assert_eq!(
+            queue.presentation_change(true, now),
+            PresentationChange::Close
+        );
+        assert_eq!(
+            queue.presentation_change(false, now + Duration::from_secs(2)),
+            PresentationChange::Close
+        );
+        queue.current_hidden_for_fullscreen = true;
+        queue.clear_current();
+        queue.current = Some(NotificationIdentity {
+            reminder_id: "drink".into(),
+            notification_id: "next".into(),
+        });
+        assert_eq!(
+            queue.presentation_change(false, now + Duration::from_secs(2)),
+            PresentationChange::None
+        );
     }
 
     #[test]
@@ -1130,6 +1351,7 @@ mod tests {
             break_notification_enabled: true,
             action_enabled: true,
             action_title: "old action".into(),
+            action_title_is_default: false,
             action_message: "old action message".into(),
             action_duration_seconds: 300,
             action_completion_mode: "auto".into(),
@@ -1140,10 +1362,15 @@ mod tests {
         let text = crate::reminder_template_text("en-US");
         assert_eq!(data.name, text.rest_name);
         assert_eq!(data.action_message, text.rest_action_message);
+        assert!(data.action_title_is_default);
         assert_eq!(data.notification_id, "already-queued");
         assert_eq!(data.queue_revision, 5);
         assert_eq!(data.pending_count, 2);
         assert_eq!(data.action_duration_seconds, 300);
+        conn.execute("UPDATE reminders SET action_title = 'Stretch', template_fields = '[]' WHERE id = 'default-rest'", []).unwrap();
+        data.refresh_copy(&conn).unwrap();
+        assert_eq!(data.action_title, "Stretch");
+        assert!(!data.action_title_is_default);
     }
 
     #[test]

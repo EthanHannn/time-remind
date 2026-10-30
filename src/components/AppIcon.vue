@@ -1,5 +1,5 @@
 <script setup lang="ts">
-defineProps<{ name: 'plus' | 'close' | 'edit' | 'trash' | 'settings' | 'stats' | 'pause' | 'play' | 'chevron-down' | 'expand' | 'collapse' }>()
+defineProps<{ name: 'plus' | 'close' | 'edit' | 'trash' | 'settings' | 'stats' | 'pause' | 'play' | 'chevron-down' | 'expand' | 'collapse' | 'check' }>()
 const paths = {
   'plus': 'M12 5v14M5 12h14',
   'close': 'm6 6 12 12M6 18 18 6',
@@ -12,6 +12,7 @@ const paths = {
   'chevron-down': 'm6 9 6 6 6-6',
   'expand': 'M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5',
   'collapse': 'M3 8h5V3M21 8h-5V3M8 21v-5H3M16 21v-5h5',
+  'check': 'm5 12 4 4L19 6',
 }
 </script>
 

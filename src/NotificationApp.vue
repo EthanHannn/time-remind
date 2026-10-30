@@ -34,6 +34,7 @@ const reminderType = ref('custom')
 const reminderIcon = ref('custom_star')
 const actionEnabled = ref(false)
 const actionTitle = ref('')
+const actionTitleIsDefault = shallowRef(false)
 const actionMessage = ref('')
 const actionDurationSeconds = ref(0)
 const visible = ref(false)
@@ -42,6 +43,8 @@ const soundEnabled = ref(true)
 const soundPreset = ref<NotificationSoundPreset>('soft')
 const soundVolume = ref(60)
 const breakMode = ref(false)
+const completed = shallowRef(false)
+const suppressed = shallowRef(false)
 const collapsed = shallowRef(false)
 const interacting = shallowRef(false)
 const breakRemainingSeconds = ref(0)
@@ -77,6 +80,7 @@ interface NotificationPayload {
   break_notification_enabled?: boolean
   action_enabled?: boolean
   action_title?: string
+  action_title_is_default?: boolean
   action_message?: string
   action_duration_seconds?: number
   action_completion_mode?: 'auto' | 'manual'
@@ -90,9 +94,22 @@ interface NotificationQueuePayload {
   pending_count?: number
 }
 
+interface NotificationPresentationPayload {
+  notification_id: string
+  reminder_id: string
+  visible: boolean
+}
+
 const visual = computed(() => getLocalizedReminderVisual(reminderType.value, locale.value, reminderIcon.value, mascotStyle.value))
 
 const breakCountdownLabel = computed(() => clock(breakRemainingSeconds.value, true))
+const displayActionTitle = computed(() => {
+  if (completed.value)
+    return t(reminderType.value === 'rest' ? 'notificationStatus.breakCompleted' : 'notificationStatus.actionCompleted')
+  if (breakMode.value && reminderType.value === 'rest' && actionTitleIsDefault.value)
+    return t('notificationStatus.breakInProgress')
+  return actionTitle.value || t(reminderType.value === 'eye_care' ? 'notification.startEyeCare' : reminderType.value === 'rest' ? 'notification.startBreak' : 'ui.startAction')
+})
 
 const pendingLabel = computed(() => {
   const count = Math.max(0, pendingCount.value)
@@ -162,6 +179,9 @@ let autoDismissTimer: ReturnType<typeof setTimeout> | null = null
 let autoDismissDeadline: number | null = null
 let autoDismissRemainingMs: number | null = null
 let breakTimer: ReturnType<typeof setInterval> | null = null
+let completionTimer: ReturnType<typeof setTimeout> | null = null
+let unlistenVisibility: (() => void) | null = null
+let unlistenCompleted: (() => void) | null = null
 let unlistenShow: (() => void) | null = null
 let unlistenQueueUpdated: (() => void) | null = null
 let unlistenSystemPaused: (() => void) | null = null
@@ -205,6 +225,7 @@ async function showPreview(request: NotificationPreviewRequest) {
   const revision = ++notificationRevision
   clearAutoDismiss()
   stopBreakCountdown()
+  clearCompletion()
   visible.value = false
   await loadLanguage({ language: request.settings.language || locale.value })
   if (disposed || revision !== notificationRevision)
@@ -222,6 +243,7 @@ async function showPreview(request: NotificationPreviewRequest) {
   actionEnabled.value = request.reminderType === 'rest' || request.reminderType === 'eye_care'
   actionDurationSeconds.value = visual.value.defaultActionDurationSeconds || 0
   actionTitle.value = ''
+  actionTitleIsDefault.value = true
   actionMessage.value = ''
   actionPending.value = false
   breakMode.value = false
@@ -261,6 +283,7 @@ async function refreshReminderCopy() {
       name.value = reminder.name
       message.value = reminder.message
       actionTitle.value = reminder.action_title
+      actionTitleIsDefault.value = !reminder.action_title || Boolean(reminder.template_fields?.includes('action_title'))
       actionMessage.value = reminder.action_message
     }
   }
@@ -311,6 +334,8 @@ onMounted(async () => {
     actionError.value = ''
     clearAutoDismiss()
     stopBreakCountdown()
+    clearCompletion()
+    suppressed.value = false
     breakMode.value = false
     collapsed.value = false
     name.value = data.name
@@ -321,6 +346,7 @@ onMounted(async () => {
     reminderIcon.value = data.icon || data.reminder_type || 'custom_star'
     actionEnabled.value = Boolean(data.action_enabled)
     actionTitle.value = data.action_title || ''
+    actionTitleIsDefault.value = !data.action_title || Boolean(data.action_title_is_default)
     actionMessage.value = data.action_message || ''
     actionDurationSeconds.value = data.action_duration_seconds || 0
     pendingCount.value = Math.max(0, Number(data.pending_count || 0))
@@ -328,10 +354,10 @@ onMounted(async () => {
 
     const shownRevision = notificationRevision
     void loadDisplaySettings().then(() => {
-      if (!visible.value || breakMode.value || notificationRevision !== shownRevision)
+      if (!visible.value || breakMode.value || completed.value || notificationRevision !== shownRevision)
         return
 
-      if (soundEnabled.value) {
+      if (soundEnabled.value && !suppressed.value) {
         playNotificationSound({
           preset: soundPreset.value,
           volume: soundVolume.value,
@@ -373,6 +399,22 @@ onMounted(async () => {
   unlistenSystemResumed = await appWindow.listen('system:resumed', () => {
     resumeLocalTimers()
   })
+  unlistenVisibility = await appWindow.listen<NotificationPresentationPayload>('notification:visibility', ({ payload }) => {
+    if (payload.notification_id !== notificationId.value || payload.reminder_id !== reminderId.value)
+      return
+    suppressed.value = !payload.visible
+    if (suppressed.value) {
+      interacting.value = false
+      pauseAutoDismiss()
+    }
+    else {
+      resumeAutoDismiss()
+    }
+  })
+  unlistenCompleted = await appWindow.listen<NotificationPresentationPayload>('notification:completed', ({ payload }) => {
+    if (payload.notification_id === notificationId.value && payload.reminder_id === reminderId.value)
+      showCompletion()
+  })
 })
 
 onUnmounted(() => {
@@ -384,8 +426,11 @@ onUnmounted(() => {
   unlistenSystemPaused?.()
   unlistenSystemResumed?.()
   unlistenSettings?.()
+  unlistenVisibility?.()
+  unlistenCompleted?.()
   clearAutoDismiss()
   stopBreakCountdown()
+  clearCompletion()
 })
 
 function clearAutoDismiss() {
@@ -399,10 +444,10 @@ function clearAutoDismiss() {
 
 function startAutoDismiss(durationMs = notificationDuration.value) {
   clearAutoDismiss()
-  if (!visible.value || breakMode.value)
+  if (!visible.value || breakMode.value || completed.value)
     return
 
-  if (systemTimersPaused || interacting.value) {
+  if (systemTimersPaused || interacting.value || suppressed.value) {
     autoDismissRemainingMs = durationMs
     return
   }
@@ -427,7 +472,7 @@ function pauseAutoDismiss() {
 }
 
 function resumeAutoDismiss() {
-  if (autoDismissRemainingMs === null || !visible.value || breakMode.value || systemTimersPaused || interacting.value)
+  if (autoDismissRemainingMs === null || !visible.value || breakMode.value || completed.value || systemTimersPaused || interacting.value || suppressed.value)
     return
 
   const remainingMs = autoDismissRemainingMs
@@ -449,7 +494,7 @@ function stopBreakCountdown() {
 }
 
 function runBreakCountdown() {
-  if (systemTimersPaused)
+  if (systemTimersPaused || completed.value)
     return
 
   stopBreakCountdown()
@@ -485,6 +530,8 @@ async function resumeLocalTimers() {
     return
 
   systemTimersPaused = false
+  if (completed.value)
+    return
   if (breakMode.value) {
     if (!props.preview) {
       const revision = notificationRevision
@@ -517,6 +564,8 @@ async function resumeLocalTimers() {
 }
 
 function resetNotificationState() {
+  clearCompletion()
+  suppressed.value = false
   notificationRevision += 1
   actionPending.value = false
   actionError.value = ''
@@ -531,6 +580,34 @@ function resetNotificationState() {
   actionDurationSeconds.value = 0
   breakRemainingSeconds.value = 0
   pendingCount.value = 0
+}
+
+function clearCompletion() {
+  if (completionTimer)
+    clearTimeout(completionTimer)
+  completionTimer = null
+  completed.value = false
+}
+
+function showCompletion() {
+  if (!visible.value || completed.value)
+    return
+  clearAutoDismiss()
+  stopBreakCountdown()
+  actionPending.value = false
+  actionError.value = ''
+  if (suppressed.value) {
+    closeNotificationWindow()
+    return
+  }
+  completed.value = true
+  breakMode.value = true
+  breakRemainingSeconds.value = 0
+  const revision = notificationRevision
+  completionTimer = setTimeout(() => {
+    if (revision === notificationRevision)
+      closeNotificationWindow()
+  }, 1800)
 }
 
 function closeNotificationWindow() {
@@ -549,10 +626,10 @@ function closeNotificationWindow() {
 }
 
 async function closeBreakPrompt(finishBreakNow: boolean) {
-  if (!visible.value || actionPending.value)
+  if (!visible.value || actionPending.value || completed.value)
     return
   if (props.preview) {
-    closeNotificationWindow()
+    showCompletion()
     return
   }
   actionPending.value = true
@@ -567,7 +644,7 @@ async function closeBreakPrompt(finishBreakNow: boolean) {
       finishBreakNow,
     })
     if (revision === notificationRevision)
-      closeNotificationWindow()
+      showCompletion()
   }
   catch (error) {
     if (revision === notificationRevision) {
@@ -664,6 +741,8 @@ async function handlePostpone(minutes: number) {
     :content-height="contentHeight"
     :appearance="notificationAppearance"
     :collapsed="collapsed"
+    :completed="completed"
+    :suppressed="suppressed"
     :visible="visible"
     :pending="actionPending"
     :error="actionError"
@@ -671,8 +750,8 @@ async function handlePostpone(minutes: number) {
     :name="name"
     :message="message"
     :break-mode="breakMode"
-    :action-title="actionTitle || t(reminderType === 'eye_care' ? 'notification.startEyeCare' : reminderType === 'rest' ? 'notification.startBreak' : 'ui.startAction')"
-    :action-message="actionMessage || t('notification.breakMessage', { time: breakCountdownLabel })"
+    :action-title="displayActionTitle"
+    :action-message="completed ? t('notificationStatus.completionMessage') : actionMessage || t('notification.breakMessage', { time: breakCountdownLabel })"
     :action-enabled="actionAvailable"
     :remaining-progress="actionDurationSeconds > 0 ? breakRemainingSeconds / actionDurationSeconds : 0"
     :remaining-seconds="breakRemainingSeconds"

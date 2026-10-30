@@ -8,6 +8,7 @@ import itIT from './locales/it-IT.json'
 import ptBR from './locales/pt-BR.json'
 import ruRU from './locales/ru-RU.json'
 import trTR from './locales/tr-TR.json'
+import { notificationStatusMessages } from './notificationStatus'
 import { operationMessages } from './operations'
 import { runtimeMessages } from './runtime'
 
@@ -701,7 +702,7 @@ const baseMessages = {
 } as const
 
 export const messages = Object.fromEntries(
-  Object.entries(baseMessages).map(([key, value]) => [key, { ...value, operations: operationMessages[key as Language], feedback: feedbackMessages[key as Language], runtime: runtimeMessages[key as Language], ui: interfaceMessages[key as Language] }]),
-) as { [K in Language]: (typeof baseMessages)[K] & { operations: (typeof operationMessages)[K], feedback: (typeof feedbackMessages)[K], runtime: (typeof runtimeMessages)[K], ui: (typeof interfaceMessages)[K] } }
+  Object.entries(baseMessages).map(([key, value]) => [key, { ...value, operations: operationMessages[key as Language], feedback: feedbackMessages[key as Language], runtime: runtimeMessages[key as Language], ui: interfaceMessages[key as Language], notificationStatus: notificationStatusMessages[key as Language] }]),
+) as { [K in Language]: (typeof baseMessages)[K] & { operations: (typeof operationMessages)[K], feedback: (typeof feedbackMessages)[K], runtime: (typeof runtimeMessages)[K], ui: (typeof interfaceMessages)[K], notificationStatus: (typeof notificationStatusMessages)[K] } }
 
 export type MessageSchema = (typeof messages)[Language]

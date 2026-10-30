@@ -1472,7 +1472,7 @@ pub fn postpone_reminder(
     Ok(())
 }
 
-/// Complete the current action before releasing its notification.
+/// 完成当前动作，并短暂保留完成反馈。
 #[tauri::command]
 pub fn release_notification(
     app: AppHandle,
@@ -1484,6 +1484,9 @@ pub fn release_notification(
 ) -> Result<(), String> {
     let conn = db.conn.lock().unwrap();
     validate_live_notification(&conn, &scheduler, &reminder_id, &notification_id)?;
+    if scheduler.is_completed_notification(&reminder_id, &notification_id) {
+        return Ok(());
+    }
     let current = get_reminder_by_id(&conn, &reminder_id)?;
     crate::lifecycle::finish(
         &conn,
@@ -1492,7 +1495,7 @@ pub fn release_notification(
         finish_break_now.unwrap_or(false),
         Utc::now(),
     )?;
-    scheduler.release_notification(&reminder_id);
+    scheduler.complete_notification(&conn, &reminder_id, &notification_id);
     let _ = app.emit("reminders:changed", ());
     Ok(())
 }

@@ -21,6 +21,8 @@ const props = defineProps<{
   postponeOptions: { label: string, minutes: number }[]
   appearance?: NotificationAppearance
   collapsed?: boolean
+  completed?: boolean
+  suppressed?: boolean
   actionEnabled?: boolean
   remainingProgress?: number
   remainingSeconds?: number
@@ -41,8 +43,8 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const hovered = shallowRef(false)
 const focused = shallowRef(false)
-watch(() => props.visible, (visible) => {
-  if (!visible) {
+watch([() => props.visible, () => props.suppressed], ([visible, suppressed]) => {
+  if (!visible || suppressed) {
     hovered.value = false
     focused.value = false
   }
@@ -81,9 +83,10 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
     >
       <template v-if="collapsed && breakMode">
         <img v-if="visual.iconAsset" :src="visual.iconAsset" alt="" class="compact-icon" width="28" height="28">
-        <span class="compact-title" :title="actionTitle">{{ actionTitle }}</span>
-        <span class="compact-countdown" role="timer" :aria-label="t('notification.remaining')"><bdi dir="ltr">{{ breakCountdownLabel }}</bdi></span>
-        <button class="compact-expand" type="button" :aria-label="t('ui.expand')" :title="t('ui.expand')" @click="emit('collapse', false)">
+        <span class="compact-title" :title="actionTitle" :role="completed ? 'status' : undefined">{{ actionTitle }}</span>
+        <AppIcon v-if="completed" name="check" class="completion-check" />
+        <span v-else class="compact-countdown" role="timer" :aria-label="t('notification.remaining')"><bdi dir="ltr">{{ breakCountdownLabel }}</bdi></span>
+        <button v-if="!completed" class="compact-expand" type="button" :aria-label="t('ui.expand')" :title="t('ui.expand')" @click="emit('collapse', false)">
           <AppIcon name="expand" />
         </button>
         <p v-if="error" class="notification-error" role="alert">
@@ -99,7 +102,16 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
             {{ t('notification.skip') }}
           </button>
         </header>
-        <div class="notification-body">
+        <div v-if="completed" class="notification-completion" role="status">
+          <span class="completion-icon"><AppIcon name="check" /></span>
+          <h2 class="notification-title">
+            {{ actionTitle }}
+          </h2>
+          <p class="notification-message">
+            {{ actionMessage }}
+          </p>
+        </div>
+        <div v-else class="notification-body">
           <div v-if="appearance !== 'minimal'" class="notification-visual">
             <img v-if="imageAsset" :src="imageAsset" alt="" class="notification-image" width="112" height="112">
             <span v-else class="notification-fallback-icon" aria-hidden="true">{{ visual.iconText }}</span>
@@ -120,10 +132,10 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
         <p v-if="error" class="notification-error" role="alert">
           {{ error }}
         </p>
-        <div v-if="breakMode" class="countdown-track" aria-hidden="true">
+        <div v-if="breakMode && !completed" class="countdown-track" aria-hidden="true">
           <CountdownProgress class="countdown-fill" :value="progress" :target="0" :remaining-seconds="remainingSeconds || 0" :running="Boolean(countdownRunning)" />
         </div>
-        <footer class="notification-actions">
+        <footer v-if="!completed" class="notification-actions">
           <template v-if="breakMode">
             <button class="complete-button finish-button" :disabled="pending" type="button" @click="emit('finish')">
               {{ t(visual.type === 'rest' ? 'notification.finishBreak' : 'notification.complete') }}
@@ -202,6 +214,9 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
 .compact-countdown { font-size: 17px; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--action-text); }
 .compact-expand { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 7px; color: var(--text-secondary); }
 .compact-expand:hover { background: var(--bg-secondary); }
+.notification-completion { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; padding-bottom: 14px; }
+.completion-icon { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--action-bg); color: var(--action-text); }
+.completion-check { color: var(--action-text); }
 [dir='rtl'] .countdown-fill { transform-origin: right; }
 @media (max-width: 350px) {
   .notification-wrapper { --notification-padding: 10px; }
