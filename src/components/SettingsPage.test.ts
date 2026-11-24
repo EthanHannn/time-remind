@@ -88,3 +88,24 @@ it('rejects malformed backup JSON with a localized message before importing', as
   expect(vi.mocked(invoke).mock.calls.some(([command]) => command === 'import_data')).toBe(false)
   wrapper.unmount()
 })
+
+it('switches between the three settings tabs cleanly', async () => {
+  const wrapper = mount(SettingsPage, { global: { stubs: { LanguageSelect: true, MascotStyleSettings: true, NotificationAppearanceSettings: true } } })
+  await flushPromises()
+  const tabs = wrapper.findAll('.settings-tab')
+  const panels = wrapper.findAll('.settings-panel')
+  expect(tabs).toHaveLength(3)
+  expect(tabs[0]!.attributes('aria-selected')).toBe('true')
+  expect((panels[0]!.element as HTMLElement).style.display).not.toBe('none')
+  expect((panels[1]!.element as HTMLElement).style.display).toBe('none')
+
+  await tabs[1]!.trigger('click')
+  expect(tabs[1]!.attributes('aria-selected')).toBe('true')
+  expect((panels[0]!.element as HTMLElement).style.display).toBe('none')
+  expect((panels[1]!.element as HTMLElement).style.display).not.toBe('none')
+
+  await tabs[2]!.trigger('click')
+  expect(tabs[2]!.attributes('aria-selected')).toBe('true')
+  expect((panels[2]!.element as HTMLElement).style.display).not.toBe('none')
+  wrapper.unmount()
+})

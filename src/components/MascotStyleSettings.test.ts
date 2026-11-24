@@ -128,4 +128,52 @@ describe('cat style settings', () => {
     Reflect.deleteProperty(HTMLDialogElement.prototype, 'showModal')
     Reflect.deleteProperty(HTMLDialogElement.prototype, 'close')
   })
+
+  it('persists new mecha companions and popup color palettes independently', async () => {
+    wrapper = mount(SettingsPage)
+    await flushPromises()
+    await wrapper.get('input[value="mecha_sazabi"]').setValue()
+    await wrapper.get('.palette-settings input[value="sage"]').setValue()
+    await vi.advanceTimersByTimeAsync(350)
+    await flushPromises()
+    expect(mocks.settings.mascot_style).toBe('mecha_sazabi')
+    expect(mocks.settings.notification_palette).toBe('sage')
+    await wrapper.get('.mascot-preview-button').trigger('click')
+    await flushPromises()
+    expect(mocks.invoke).toHaveBeenCalledWith('preview_notification', {
+      request: expect.objectContaining({
+        mascotStyle: 'mecha_sazabi',
+        settings: expect.objectContaining({ notificationPalette: 'sage' }),
+      }),
+    })
+  })
+
+  it('updates the inline live preview, active-group dot, and root palette in real time', async () => {
+    wrapper = mount(SettingsPage)
+    await flushPromises()
+    expect(document.documentElement.dataset.palette).toBe('paper')
+    expect(wrapper.get('.live-preview-stage .notification-image').attributes('src')).toContain('classic/drink.webp')
+
+    // Switch to mecha_nu -> auto palette resolves to ink and inline preview updates immediately
+    await wrapper.get('input[value="mecha_nu"]').setValue()
+    await flushPromises()
+    expect(document.documentElement.dataset.palette).toBe('ink')
+    expect(wrapper.get('.live-preview-stage .notification-image').attributes('src')).toContain('mecha-nu/drink.webp')
+
+    // Browse back to cat group tab without changing selected mascot -> dot stays on mecha tab (3rd tab)
+    const groupTabs = wrapper.findAll('.mascot-group-tab')
+    await groupTabs[0]!.trigger('click')
+    expect(groupTabs[0]!.find('.mascot-group-dot').exists()).toBe(false)
+    expect(groupTabs[2]!.find('.mascot-group-dot').exists()).toBe(true)
+
+    // Switch inline preview to rest, click Start Break, then Reset
+    await wrapper.get('.mascot-state-select').setValue('rest')
+    await wrapper.get('.live-preview-stage .complete-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.live-preview-stage .break-countdown').exists()).toBe(true)
+    expect(wrapper.find('.mascot-reset-button').exists()).toBe(true)
+    await wrapper.get('.mascot-reset-button').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('.live-preview-stage .break-countdown').exists()).toBe(false)
+  })
 })

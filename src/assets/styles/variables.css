@@ -1,30 +1,44 @@
-/* 主题变量 - 亮色主题 */
+/* 主题变量 - 默认以暖纸奶油（paper）为基调，同时支持 ink（极简雾墨）与 sage（柔雾森息） */
 :root {
-  /* 主色调 */
-  --color-primary: #247db7;
-  --color-primary-hover: #19689e;
-  --color-primary-active: #2968e0;
-  --color-primary-light: #e8f0ff;
+  /* 主色调（默认 paper 浅色） */
+  --color-primary: #3d3026;
+  --color-primary-hover: #524134;
+  --color-primary-active: #2e241c;
+  --color-primary-contrast: #fcf9f2;
+  --color-primary-light: #efe6d8;
 
   /* 背景色 */
-  --bg-primary: #ffffff;
-  --bg-secondary: #f5f7fa;
-  --bg-tertiary: #ebedf0;
+  --bg-primary: #fcf9f2;
+  --bg-secondary: #f3ece0;
+  --bg-tertiary: #e8dfd0;
+  --app-shell-bg: linear-gradient(155deg, rgb(253 250 244 / 95%), rgb(246 239 227 / 93%));
+  --card-surface: rgb(255 253 248 / 86%);
+  --switch-thumb: #fcf9f2;
 
   /* 文本色 */
-  --text-primary: #1d2129;
-  --text-secondary: #4e5969;
-  --text-tertiary: #86909c;
-  --text-inverse: #ffffff;
+  --text-primary: #2a211a;
+  --text-secondary: #6e5f52;
+  --text-tertiary: #9a8c7e;
+  --text-inverse: #fcf9f2;
 
   /* 边框色 */
-  --border-color: #e5e6eb;
-  --border-color-hover: #c9cdd4;
+  --border-color: rgb(110 82 54 / 15%);
+  --border-color-hover: rgb(110 82 54 / 28%);
+
+  /* 低饱和提醒类型色 */
+  --type-drink: #4c839e;
+  --type-drink-soft: rgb(76 131 158 / 12%);
+  --type-rest: #558669;
+  --type-rest-soft: rgb(85 134 105 / 12%);
+  --type-eye-care: #c27b3c;
+  --type-eye-care-soft: rgb(194 123 60 / 12%);
+  --type-custom: #7f6d90;
+  --type-custom-soft: rgb(127 109 144 / 12%);
 
   /* 阴影 */
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 2px rgb(42 33 26 / 6%);
+  --shadow-md: 0 4px 14px rgb(42 33 26 / 9%);
+  --shadow-lg: 0 12px 28px rgb(42 33 26 / 14%);
 
   /* 圆角 */
   --radius-sm: 4px;
@@ -54,7 +68,7 @@
 
   /* 通知弹窗 */
   --notification-width: 400px;
-  --notification-height: 240px;
+  --notification-height: 232px;
 
   /* 兼容现有组件使用的别名 */
   --primary: var(--color-primary);
@@ -66,26 +80,169 @@
   --bg: var(--bg-secondary);
 }
 
-/* 暗色主题 */
+/* 暗色主题（默认 paper 暗色） */
 [data-theme='dark'] {
-  --color-primary: #5a9aff;
-  --color-primary-hover: #4080ff;
-  --color-primary-active: #2968e0;
-  --color-primary-light: #1a2a40;
+  --color-primary: #e0ccb0;
+  --color-primary-hover: #ecdcc6;
+  --color-primary-active: #cbb494;
+  --color-primary-contrast: #211a14;
+  --color-primary-light: rgb(224 204 176 / 14%);
 
-  --bg-primary: #1c2b3d;
-  --bg-secondary: #23364a;
-  --bg-tertiary: #293e55;
+  --bg-primary: #211d19;
+  --bg-secondary: #2b2520;
+  --bg-tertiary: #362f28;
+  --app-shell-bg: linear-gradient(155deg, rgb(31 27 23 / 95%), rgb(23 20 17 / 95%));
+  --card-surface: rgb(38 33 28 / 86%);
+  --switch-thumb: #211a14;
 
-  --text-primary: #f0f0f0;
-  --text-secondary: #b0b0b0;
-  --text-tertiary: #808080;
-  --text-inverse: #1a1a1a;
+  --text-primary: #f5efe6;
+  --text-secondary: #b5a99b;
+  --text-tertiary: #84786b;
+  --text-inverse: #1e1914;
 
-  --border-color: #344a61;
-  --border-color-hover: #444444;
+  --border-color: rgb(236 218 194 / 13%);
+  --border-color-hover: rgb(236 218 194 / 24%);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.3);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.4);
+  --type-drink: #7ab4cf;
+  --type-drink-soft: rgb(122 180 207 / 15%);
+  --type-rest: #7db896;
+  --type-rest-soft: rgb(125 184 150 / 15%);
+  --type-eye-care: #dfa263;
+  --type-eye-care-soft: rgb(223 162 99 / 16%);
+  --type-custom: #b39ec9;
+  --type-custom-soft: rgb(179 158 201 / 15%);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 22%);
+  --shadow-md: 0 4px 14px rgb(0 0 0 / 32%);
+  --shadow-lg: 0 12px 30px rgb(0 0 0 / 46%);
+}
+
+/* 极简雾墨（Minimal Ink） */
+[data-palette='ink'] {
+  --color-primary: #1a1e28;
+  --color-primary-hover: #2d3344;
+  --color-primary-active: #10131a;
+  --color-primary-contrast: #ffffff;
+  --color-primary-light: #eceff5;
+
+  --bg-primary: #ffffff;
+  --bg-secondary: #f3f5f8;
+  --bg-tertiary: #e6e9f0;
+  --app-shell-bg: linear-gradient(155deg, rgb(252 253 255 / 95%), rgb(243 245 249 / 94%));
+  --card-surface: rgb(255 255 255 / 88%);
+  --switch-thumb: #ffffff;
+
+  --text-primary: #141820;
+  --text-secondary: #5e6778;
+  --text-tertiary: #8e97a8;
+  --text-inverse: #ffffff;
+
+  --border-color: rgb(18 24 38 / 10%);
+  --border-color-hover: rgb(18 24 38 / 20%);
+
+  --type-drink: #5282a8;
+  --type-drink-soft: rgb(82 130 168 / 11%);
+  --type-rest: #4e8c74;
+  --type-rest-soft: rgb(78 140 116 / 11%);
+  --type-eye-care: #b88142;
+  --type-eye-care-soft: rgb(184 129 66 / 11%);
+  --type-custom: #756b93;
+  --type-custom-soft: rgb(117 107 147 / 11%);
+}
+
+[data-theme='dark'][data-palette='ink'] {
+  --color-primary: #e4e8f0;
+  --color-primary-hover: #ffffff;
+  --color-primary-active: #cfd6e3;
+  --color-primary-contrast: #14171f;
+  --color-primary-light: rgb(228 232 240 / 13%);
+
+  --bg-primary: #171a21;
+  --bg-secondary: #20242e;
+  --bg-tertiary: #2a2f3c;
+  --app-shell-bg: linear-gradient(155deg, rgb(23 26 33 / 95%), rgb(16 18 24 / 95%));
+  --card-surface: rgb(29 33 42 / 88%);
+  --switch-thumb: #14171f;
+
+  --text-primary: #f3f5f8;
+  --text-secondary: #9ba4b5;
+  --text-tertiary: #6e7788;
+  --text-inverse: #14171f;
+
+  --border-color: rgb(255 255 255 / 10%);
+  --border-color-hover: rgb(255 255 255 / 20%);
+
+  --type-drink: #7ab0da;
+  --type-drink-soft: rgb(122 176 218 / 15%);
+  --type-rest: #73ba9e;
+  --type-rest-soft: rgb(115 186 158 / 15%);
+  --type-eye-care: #e0ad6e;
+  --type-eye-care-soft: rgb(224 173 110 / 15%);
+  --type-custom: #a89dc8;
+  --type-custom-soft: rgb(168 157 200 / 15%);
+}
+
+/* 柔雾森息（Soft Mist） */
+[data-palette='sage'] {
+  --color-primary: #39755a;
+  --color-primary-hover: #2f624b;
+  --color-primary-active: #25503d;
+  --color-primary-contrast: #f6fbf8;
+  --color-primary-light: #e4f1ea;
+
+  --bg-primary: #fafcfa;
+  --bg-secondary: #eff5f1;
+  --bg-tertiary: #e2ece6;
+  --app-shell-bg: linear-gradient(155deg, rgb(249 252 250 / 95%), rgb(236 244 239 / 94%));
+  --card-surface: rgb(255 255 255 / 86%);
+  --switch-thumb: #ffffff;
+
+  --text-primary: #1c2924;
+  --text-secondary: #566b63;
+  --text-tertiary: #849991;
+  --text-inverse: #ffffff;
+
+  --border-color: rgb(24 52 42 / 11%);
+  --border-color-hover: rgb(24 52 42 / 22%);
+
+  --type-drink: #447e9e;
+  --type-drink-soft: rgb(68 126 158 / 11%);
+  --type-rest: #438568;
+  --type-rest-soft: rgb(67 133 104 / 11%);
+  --type-eye-care: #b57736;
+  --type-eye-care-soft: rgb(181 119 54 / 11%);
+  --type-custom: #7c6f97;
+  --type-custom-soft: rgb(124 111 151 / 11%);
+}
+
+[data-theme='dark'][data-palette='sage'] {
+  --color-primary: #7bc4a3;
+  --color-primary-hover: #90d1b4;
+  --color-primary-active: #64b18e;
+  --color-primary-contrast: #13211b;
+  --color-primary-light: rgb(123 196 163 / 15%);
+
+  --bg-primary: #16211d;
+  --bg-secondary: #1e2d28;
+  --bg-tertiary: #273933;
+  --app-shell-bg: linear-gradient(155deg, rgb(22 33 29 / 95%), rgb(16 25 22 / 95%));
+  --card-surface: rgb(28 42 37 / 86%);
+  --switch-thumb: #13211b;
+
+  --text-primary: #edf4f1;
+  --text-secondary: #98b0a7;
+  --text-tertiary: #6a837a;
+  --text-inverse: #13211b;
+
+  --border-color: rgb(215 236 228 / 12%);
+  --border-color-hover: rgb(215 236 228 / 22%);
+
+  --type-drink: #73b2d4;
+  --type-drink-soft: rgb(115 178 212 / 15%);
+  --type-rest: #6fba97;
+  --type-rest-soft: rgb(111 186 151 / 15%);
+  --type-eye-care: #dca15e;
+  --type-eye-care-soft: rgb(220 161 94 / 15%);
+  --type-custom: #aa9bc7;
+  --type-custom-soft: rgb(170 155 199 / 15%);
 }

@@ -955,6 +955,7 @@ fn restore_autostart_preference(app: &AppHandle, db: &Database) {
 #[cfg(not(target_os = "windows"))]
 fn restore_autostart_preference(_app: &AppHandle, _db: &Database) {}
 
+#[cfg(any(target_os = "linux", test))]
 fn should_use_xwayland_fallback(
     wayland_session: bool,
     xwayland_available: bool,

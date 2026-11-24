@@ -21,7 +21,6 @@ const totalSeconds = computed(() => props.runtime?.state === 'acting' ? props.re
 const progress = computed(() => props.remainingSeconds === undefined || !props.reminder.enabled || totalSeconds.value <= 0 ? 0 : Math.max(0, Math.min(100, (1 - props.remainingSeconds / totalSeconds.value) * 100)))
 const countdownRunning = computed(() => props.reminder.enabled && !props.globallyPaused
   && (!props.runtime || ['scheduled', 'acting', 'dnd'].includes(props.runtime.state)))
-const cardStyle = computed(() => ({ '--visual-accent': visual.value.accent, '--visual-soft': visual.value.accentSoft, '--visual-border': visual.value.borderSoft }))
 const specialStatus = computed(() => {
   if (!props.reminder.enabled || props.globallyPaused || props.globallySuppressed)
     return ''
@@ -53,10 +52,16 @@ const durationLabel = computed(() => {
 </script>
 
 <template>
-  <article class="reminder-card" :class="{ 'reminder-card-disabled': !reminder.enabled }" :style="cardStyle" :aria-label="reminder.name">
+  <article
+    class="reminder-card"
+    :class="[`reminder-type-${visual.type}`, { 'reminder-card-disabled': !reminder.enabled }]"
+    :aria-label="reminder.name"
+  >
     <div class="card-top">
-      <img v-if="visual.iconAsset" :src="visual.iconAsset" alt="" class="icon-image" width="32" height="32">
-      <span v-else aria-hidden="true">{{ visual.iconText }}</span>
+      <div class="icon-badge">
+        <img v-if="visual.iconAsset" :src="visual.iconAsset" alt="" class="icon-image" width="26" height="26">
+        <span v-else class="icon-fallback" aria-hidden="true">{{ visual.iconText }}</span>
+      </div>
       <div class="card-copy">
         <h2 class="card-title" :title="reminder.name">
           {{ reminder.name }}
@@ -75,12 +80,13 @@ const durationLabel = computed(() => {
       </div>
     </div>
     <div class="schedule-row">
+      <span class="countdown-panel">
+        <span class="countdown-value" dir="ltr">{{ reminder.enabled && remainingSeconds !== undefined ? clock(remainingSeconds) : '--:--' }}</span>
+        <span class="countdown-caption">{{ t('notification.remaining') }}</span>
+      </span>
       <span v-if="showNextTrigger" class="next-trigger">{{ t('reminder.next', { time: nextTriggerLabel }) }}</span>
       <span v-else-if="specialStatus" class="special-status">{{ specialStatus }}</span>
       <span v-else class="schedule-placeholder" aria-hidden="true">—</span>
-      <span class="countdown-panel">
-        {{ t('notification.remaining') }} <span class="countdown-value" dir="ltr">{{ reminder.enabled && remainingSeconds !== undefined ? clock(remainingSeconds) : '--:--' }}</span>
-      </span>
     </div>
     <div class="progress-track" aria-hidden="true">
       <CountdownProgress class="progress-bar" :value="progress / 100" :target="1" :remaining-seconds="remainingSeconds || 0" :running="countdownRunning" />
@@ -90,38 +96,63 @@ const durationLabel = computed(() => {
 
 <style scoped>
 .reminder-card {
-  margin-bottom: 10px; padding: 13px 14px; border-radius: 13px; border: 1px solid var(--visual-border);
-  background: rgba(255, 255, 255, 0.72);
+  --card-accent: var(--type-custom);
+  --card-soft: var(--type-custom-soft);
+  position: relative;
+  margin-bottom: 10px;
+  padding: 13px 15px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--card-surface);
   -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
-  box-shadow: 0 3px 12px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.66);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 150ms ease, box-shadow 150ms ease, opacity 150ms ease;
 }
-[data-theme='dark'] .reminder-card {
-  background: rgba(24, 29, 38, 0.72);
-  box-shadow: 0 3px 12px rgba(2, 6, 23, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+.reminder-card:hover {
+  border-color: var(--border-color-hover);
+  box-shadow: var(--shadow-md);
 }
-.reminder-card-disabled { opacity: 0.65; }
-.card-top { display: flex; align-items: center; gap: 10px; }
-.icon-image { flex: 0 0 32px; object-fit: contain; }
+.reminder-type-drink { --card-accent: var(--type-drink); --card-soft: var(--type-drink-soft); }
+.reminder-type-rest { --card-accent: var(--type-rest); --card-soft: var(--type-rest-soft); }
+.reminder-type-eye_care { --card-accent: var(--type-eye-care); --card-soft: var(--type-eye-care-soft); }
+.reminder-type-custom { --card-accent: var(--type-custom); --card-soft: var(--type-custom-soft); }
+
+.reminder-card-disabled { opacity: 0.58; }
+.card-top { display: flex; align-items: center; gap: 11px; }
+.icon-badge {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  border-radius: 11px;
+  background: var(--card-soft);
+  display: grid;
+  place-items: center;
+}
+.icon-image { width: 24px; height: 24px; object-fit: contain; }
+.icon-fallback { font-size: 15px; font-weight: 700; color: var(--card-accent); }
 .card-copy { min-width: 0; flex: 1; }
-.card-title { margin: 0; overflow: hidden; font-size: 14px; font-weight: 650; line-height: 1.5; color: var(--text-primary); white-space: nowrap; text-overflow: ellipsis; }
+.card-title { margin: 0; overflow: hidden; font-size: 14px; font-weight: 650; line-height: 1.4; color: var(--text-primary); white-space: nowrap; text-overflow: ellipsis; }
 .card-meta { margin-top: 2px; font-size: 11px; color: var(--text-secondary); }
-.card-actions { display: flex; align-items: center; gap: 4px; }
-.edit-button { display: grid; place-items: center; width: 30px; height: 32px; border-radius: 8px; color: var(--text-secondary); }
-.edit-button .app-icon { width: 16px; height: 16px; }
-.edit-button:hover { color: var(--color-primary); background: var(--bg-secondary); }
-.toggle-button { min-width: 44px; min-height: 36px; display: grid; place-items: center; border-radius: 8px; }
-.toggle-pill { width: 34px; height: 20px; position: relative; border-radius: 999px; background: #8a97a8; transition: background-color 150ms ease; }
-.toggle-button-active .toggle-pill { background: var(--color-primary); }
-.toggle-thumb { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: white; transition: transform 150ms ease; }
-.toggle-button-active .toggle-thumb { transform: translateX(14px); }
+.card-actions { display: flex; align-items: center; gap: 2px; }
+.edit-button { display: grid; place-items: center; width: 30px; height: 32px; border-radius: 8px; color: var(--text-secondary); transition: background-color 140ms ease, color 140ms ease; }
+.edit-button .app-icon { width: 15px; height: 15px; }
+.edit-button:hover { color: var(--text-primary); background: var(--bg-secondary); }
+.toggle-button { min-width: 42px; min-height: 34px; display: grid; place-items: center; border-radius: 8px; }
+.toggle-pill { width: 34px; height: 20px; position: relative; border-radius: 999px; background: var(--bg-tertiary); border: 1px solid var(--border-color); transition: background-color 150ms ease, border-color 150ms ease; }
+.toggle-button-active .toggle-pill { background: var(--color-primary); border-color: transparent; }
+.toggle-thumb { position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--bg-primary); box-shadow: 0 1px 2px rgb(0 0 0 / 20%); transition: transform 150ms ease, background-color 150ms ease; }
+.toggle-button-active .toggle-thumb { transform: translateX(14px); background: var(--switch-thumb); }
+
 .schedule-row { display: flex; align-items: baseline; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin-top: 12px; }
-.next-trigger { font-size: 16px; line-height: 1.5; font-weight: 650; font-variant-numeric: tabular-nums; color: var(--text-primary); }
-.special-status { font-size: 12px; color: var(--text-secondary); }
-.schedule-placeholder { color: var(--text-tertiary); }
-.countdown-panel { margin-inline-start: auto; font-size: 11px; color: var(--text-secondary); }
-.countdown-value { font-variant-numeric: tabular-nums; }
-.progress-track { margin-top: 7px; height: 4px; border-radius: 4px; background: var(--border-color); overflow: hidden; }
-.progress-bar { height: 100%; transform-origin: left; background: linear-gradient(90deg, var(--visual-accent), #6f9fdf); border-radius: inherit; }
+.countdown-panel { display: inline-flex; align-items: baseline; gap: 6px; }
+.countdown-value { font-size: 18px; line-height: 1.2; font-weight: 700; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.countdown-caption { font-size: 11px; color: var(--text-secondary); }
+.next-trigger { margin-inline-start: auto; font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--text-secondary); }
+.special-status { margin-inline-start: auto; padding: 2px 8px; border-radius: 999px; background: var(--card-soft); font-size: 11px; font-weight: 500; color: var(--card-accent); }
+.schedule-placeholder { margin-inline-start: auto; color: var(--text-tertiary); font-size: 12px; }
+
+.progress-track { margin-top: 8px; height: 5px; border-radius: 999px; background: var(--bg-secondary); overflow: hidden; }
+.progress-bar { height: 100%; transform-origin: left; background: var(--card-accent); border-radius: inherit; }
 [dir='rtl'] .progress-bar { transform-origin: right; }
 </style>

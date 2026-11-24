@@ -3,6 +3,7 @@ import type { NotificationPreviewRequest } from './types/notificationPreview'
 import type { Reminder } from './types/reminder'
 import type { MascotStyle } from './utils/mascotStyles'
 import type { NotificationAppearance } from './utils/notificationAppearance'
+import type { NotificationPaletteSetting } from './utils/notificationPalette'
 import type { NotificationSoundPreset } from './utils/notificationSound'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow'
@@ -12,6 +13,7 @@ import { useTheme } from './composables/useTheme'
 import { loadLanguage, useI18n } from './i18n'
 import { normalizeMascotStyle } from './utils/mascotStyles'
 import { normalizeNotificationAppearance } from './utils/notificationAppearance'
+import { normalizeNotificationPalette, resolveNotificationPalette } from './utils/notificationPalette'
 import { playNotificationSound } from './utils/notificationSound'
 import { getLocalizedReminderVisual } from './utils/reminderVisuals'
 
@@ -26,6 +28,8 @@ const { applyTheme } = useTheme()
 
 const mascotStyle = shallowRef<MascotStyle>('classic')
 const notificationAppearance = shallowRef<NotificationAppearance>('soft')
+const notificationPalette = shallowRef<NotificationPaletteSetting>('auto')
+const resolvedPalette = computed(() => resolveNotificationPalette(notificationPalette.value, mascotStyle.value))
 const name = ref('')
 const message = ref('')
 const reminderId = ref('')
@@ -56,6 +60,7 @@ interface SettingsPayload {
   theme?: string
   mascotStyle?: MascotStyle
   notificationAppearance?: NotificationAppearance
+  notificationPalette?: NotificationPaletteSetting
   notificationDuration?: number
   postponeOptions?: number[]
   soundEnabled?: boolean
@@ -153,6 +158,7 @@ async function loadDisplaySettings() {
     const settings = await invoke<Record<string, string>>('get_all_settings')
     mascotStyle.value = normalizeMascotStyle(settings.mascot_style)
     notificationAppearance.value = normalizeNotificationAppearance(settings.notification_appearance)
+    notificationPalette.value = normalizeNotificationPalette(settings.notification_palette)
     notificationDuration.value = Math.min(Math.max(Number(settings.notification_duration || 30), 5), 120) * 1000
     soundEnabled.value = settings.sound_enabled !== 'false'
     soundPreset.value = normalizeSoundPreset(settings.sound_preset)
@@ -166,6 +172,7 @@ async function loadDisplaySettings() {
     const legacy = getLegacySettings()
     mascotStyle.value = normalizeMascotStyle(legacy?.mascotStyle)
     notificationAppearance.value = normalizeNotificationAppearance(legacy?.notificationAppearance)
+    notificationPalette.value = normalizeNotificationPalette(legacy?.notificationPalette)
     notificationDuration.value = Math.min(Math.max(legacy?.notificationDuration || 30, 5), 120) * 1000
     soundEnabled.value = legacy?.soundEnabled ?? true
     soundPreset.value = normalizeSoundPreset(legacy?.soundPreset)
@@ -193,15 +200,15 @@ let notificationRevision = 0
 const actionPending = ref(false)
 const actionError = ref('')
 let disposed = false
-const baseHeight = computed(() => notificationAppearance.value === 'illustrated' ? 264 : notificationAppearance.value === 'minimal' ? 232 : 240)
+const baseHeight = computed(() => notificationAppearance.value === 'illustrated' ? 256 : notificationAppearance.value === 'minimal' ? 212 : 232)
 const compact = computed(() => collapsed.value && breakMode.value)
 const actionAvailable = computed(() => actionEnabled.value && actionDurationSeconds.value > 0)
-const contentHeight = computed(() => (compact.value ? 96 : baseHeight.value + (breakMode.value ? 32 : 0)) + (actionError.value ? 44 : 0))
-// Reserve transparent space above action reminders before they appear. Starting
-// an action expands only the card, keeping the native window and its anchor still.
+// Keep the visible card height identical between reminder and active countdown states
+// so starting rest/eye-care never jumps vertically or triggers a native window resize.
+const contentHeight = computed(() => (compact.value ? 84 : baseHeight.value) + (actionError.value ? 44 : 0))
 const windowSize = computed(() => ({
-  width: compact.value ? 340 : 400,
-  height: (compact.value ? 96 : baseHeight.value + (actionAvailable.value ? 32 : 0)) + (actionError.value ? 44 : 0),
+  width: compact.value ? 320 : 400,
+  height: contentHeight.value,
 }))
 let resizeQueue = Promise.resolve()
 watch([visible, () => windowSize.value.width, () => windowSize.value.height], () => {
@@ -233,6 +240,7 @@ async function showPreview(request: NotificationPreviewRequest) {
 
   mascotStyle.value = normalizeMascotStyle(request.mascotStyle)
   notificationAppearance.value = normalizeNotificationAppearance(request.settings.notificationAppearance)
+  notificationPalette.value = normalizeNotificationPalette(request.settings.notificationPalette)
   reminderType.value = request.reminderType
   reminderIcon.value = request.icon || request.reminderType
   applyTheme(request.settings.theme)
@@ -740,6 +748,7 @@ async function handlePostpone(minutes: number) {
     :style="previewRequest ? { height: `${windowSize.height}px` } : undefined"
     :content-height="contentHeight"
     :appearance="notificationAppearance"
+    :palette="resolvedPalette"
     :collapsed="collapsed"
     :completed="completed"
     :suppressed="suppressed"
@@ -751,7 +760,7 @@ async function handlePostpone(minutes: number) {
     :message="message"
     :break-mode="breakMode"
     :action-title="displayActionTitle"
-    :action-message="completed ? t('notificationStatus.completionMessage') : actionMessage || t('notification.breakMessage', { time: breakCountdownLabel })"
+    :action-message="completed ? t('notificationStatus.completionMessage') : actionMessage || t('ui.breakCountdownHint')"
     :action-enabled="actionAvailable"
     :remaining-progress="actionDurationSeconds > 0 ? breakRemainingSeconds / actionDurationSeconds : 0"
     :remaining-seconds="breakRemainingSeconds"

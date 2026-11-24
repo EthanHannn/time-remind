@@ -26,7 +26,19 @@ pub fn validate(key: &str, value: &str) -> Result<(), String> {
     let integer = |min, max| value.parse::<i64>().is_ok_and(|n| (min..=max).contains(&n));
     let valid = match key {
         "theme" => matches!(value, "light" | "dark" | "system"),
-        "mascot_style" => matches!(value, "classic" | "editorial" | "watercolor"),
+        "mascot_style" => matches!(
+            value,
+            "classic"
+                | "editorial"
+                | "watercolor"
+                | "cat_silver"
+                | "cat_siamese"
+                | "shiba_black"
+                | "shiba_cream"
+                | "mecha_sazabi"
+                | "mecha_nu"
+        ),
+        "notification_palette" => matches!(value, "auto" | "paper" | "ink" | "sage"),
         "notification_appearance" => {
             matches!(value, "soft" | "classic" | "minimal" | "illustrated")
         }
@@ -168,6 +180,26 @@ mod tests {
             assert!(validate("notification_appearance", appearance).is_ok());
         }
         assert!(validate("notification_appearance", "unknown").is_err());
+
+        for mascot in [
+            "classic",
+            "editorial",
+            "watercolor",
+            "cat_silver",
+            "cat_siamese",
+            "shiba_black",
+            "shiba_cream",
+            "mecha_sazabi",
+            "mecha_nu",
+        ] {
+            assert!(validate("mascot_style", mascot).is_ok());
+        }
+        assert!(validate("mascot_style", "unknown").is_err());
+
+        for palette in ["auto", "paper", "ink", "sage"] {
+            assert!(validate("notification_palette", palette).is_ok());
+        }
+        assert!(validate("notification_palette", "neon").is_err());
     }
 
     #[test]

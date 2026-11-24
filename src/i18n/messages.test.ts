@@ -45,7 +45,7 @@ describe('messages', () => {
   })
 
   it('does not silently reuse English copy except shared names and loanwords', () => {
-    const shared = ['common.appName', 'reminderTypes.custom.iconText']
+    const shared = ['common.appName', 'reminderTypes.custom.iconText', 'ui.mascotMechaZz', 'ui.mascotMechaSazabi', 'ui.mascotMechaNu']
     const loanwords: Record<string, string[]> = {
       'fr-FR': ['common.minute', 'common.minutes', 'app.stats', 'form.type', 'form.content', 'settings.notification', 'settings.soundVolume', 'stats.title'],
       'de-DE': ['reminder.countdown', 'form.name', 'settings.systemTheme', 'settings.system', 'stats.trend'],

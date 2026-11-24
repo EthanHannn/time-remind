@@ -77,12 +77,12 @@ onUnmounted(() => document.removeEventListener('pointerdown', outside))
 </template>
 
 <style scoped>
-.snooze-control { position: relative; display: flex; min-width: 0; border: 1px solid var(--border-color); border-radius: 9px; }
-.snooze-default, .snooze-trigger { color: var(--text-secondary); min-height: 36px; font-size: 12px; border-radius: 8px; }
-.snooze-default { padding: 6px 10px; overflow-wrap: anywhere; flex: 1; }
-.snooze-trigger { display: grid; place-items: center; width: 30px; flex: 0 0 30px; border-inline-start: 1px solid var(--border-color); border-start-start-radius: 0; border-end-start-radius: 0; }
+.snooze-control { position: relative; display: flex; min-width: 0; border: 1px solid var(--popup-border, var(--border-color)); border-radius: 11px; background: var(--popup-sec-bg, transparent); }
+.snooze-default, .snooze-trigger { color: var(--popup-sec-text, var(--text-secondary)); min-height: 36px; font-size: 12px; font-weight: 500; border-radius: 10px; transition: background-color 140ms ease, color 140ms ease; }
+.snooze-default { padding: 6px 11px; overflow-wrap: anywhere; flex: 1; }
+.snooze-trigger { display: grid; place-items: center; width: 30px; flex: 0 0 30px; border-inline-start: 1px solid var(--popup-border, var(--border-color)); border-start-start-radius: 0; border-end-start-radius: 0; }
 .snooze-trigger .app-icon { width: 14px; height: 14px; }
-.snooze-default:hover, .snooze-trigger:hover, .snooze-option:hover { background: var(--bg-secondary); color: var(--text-primary); }
-.snooze-menu { position: absolute; bottom: calc(100% + 6px); inset-inline-end: 0; z-index: 5; width: max-content; min-width: 120px; max-width: 240px; max-height: 136px; overflow-y: auto; padding: 4px; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-primary); box-shadow: 0 6px 20px rgb(0 0 0 / 12%); }
-.snooze-option { display: block; width: 100%; text-align: start; border-radius: 6px; padding: 8px 12px; font-size: 12px; color: var(--text-primary); }
+.snooze-default:hover, .snooze-trigger:hover, .snooze-option:hover { background: var(--popup-sub-bg, var(--bg-secondary)); color: var(--popup-text, var(--text-primary)); }
+.snooze-menu { position: absolute; bottom: calc(100% + 6px); inset-inline-end: 0; z-index: 5; width: max-content; min-width: 120px; max-width: 240px; max-height: 136px; overflow-y: auto; padding: 4px; border: 1px solid var(--popup-border, var(--border-color)); border-radius: 11px; background: var(--popup-surface-solid, var(--bg-primary)); box-shadow: 0 8px 24px rgb(0 0 0 / 16%); }
+.snooze-option { display: block; width: 100%; text-align: start; border-radius: 7px; padding: 8px 12px; font-size: 12px; color: var(--popup-text, var(--text-primary)); }
 </style>

@@ -298,20 +298,12 @@ function getVisual(type: string, icon?: string) {
   width: min(100%, 760px);
   max-height: 88vh;
   overflow: hidden;
-  border-radius: 28px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background:
-    radial-gradient(circle at top right, rgba(47, 159, 216, 0.12), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.92));
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.22);
+  border-radius: 22px;
+  border: 1px solid var(--border-color);
+  background: var(--app-shell-bg);
+  box-shadow: var(--shadow-md);
   display: flex;
   flex-direction: column;
-}
-
-[data-theme='dark'] .stats-container {
-  background:
-    radial-gradient(circle at top right, rgba(47, 159, 216, 0.16), transparent 28%),
-    linear-gradient(180deg, rgba(24, 28, 37, 0.96), rgba(16, 20, 28, 0.94));
 }
 
 .stats-header {
@@ -319,8 +311,8 @@ function getVisual(type: string, icon?: string) {
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
-  padding: 24px 24px 18px;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
+  padding: 20px 22px 16px;
+  border-bottom: 1px solid var(--border-color);
 }
 
 .stats-title {
@@ -440,14 +432,9 @@ function getVisual(type: string, icon?: string) {
   align-items: center;
   gap: 14px;
   padding: 14px;
-  border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  background: rgba(255, 255, 255, 0.66);
-}
-
-[data-theme='dark'] .stat-card,
-[data-theme='dark'] .streak-card {
-  background: rgba(24, 29, 38, 0.84);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--card-surface);
 }
 
 .stat-visual,
@@ -556,33 +543,25 @@ function getVisual(type: string, icon?: string) {
 .trend-button {
   padding: 6px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--border-color);
+  background: var(--card-surface);
   color: var(--text-primary);
   font-size: 12px;
   font-weight: 600;
 }
 
-[data-theme='dark'] .trend-button {
-  background: rgba(24, 29, 38, 0.84);
-}
-
 .trend-button-active {
-  background: linear-gradient(135deg, #2f9fd8, #4f8cff);
-  color: white;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
   border-color: transparent;
 }
 
 .trend-panel {
   min-height: 220px;
-  border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.14);
-  background: rgba(255, 255, 255, 0.66);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--card-surface);
   padding: 10px 8px 6px;
-}
-
-[data-theme='dark'] .trend-panel {
-  background: rgba(24, 29, 38, 0.84);
 }
 
 .empty-inline {

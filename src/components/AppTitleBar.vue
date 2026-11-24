@@ -6,6 +6,7 @@ import { appIconMain } from '../utils/reminderVisuals'
 
 const appWindow = getCurrentWindow()
 const { t } = useI18n()
+const isDev = import.meta.env.DEV
 const isMaximized = shallowRef(false)
 let unlistenResized: (() => void) | null = null
 
@@ -80,6 +81,7 @@ onUnmounted(() => {
       <div class="app-titlebar-brand">
         <img :src="appIconMain" alt="" width="22" height="22" class="app-titlebar-logo" draggable="false">
         <span class="app-titlebar-name">{{ t('common.appName') }}</span>
+        <span v-if="isDev" class="app-titlebar-dev">DEV</span>
       </div>
     </div>
 
@@ -122,14 +124,20 @@ onUnmounted(() => {
   flex: 0 0 44px;
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid rgba(148, 163, 184, 0.14);
-  background: rgba(255, 255, 255, 0.18);
+  border-bottom: 1px solid var(--border-color);
+  background: transparent;
   user-select: none;
 }
 
-[data-theme='dark'] .app-titlebar {
-  border-bottom-color: rgba(148, 163, 184, 0.12);
-  background: rgba(24, 24, 27, 0.14);
+.app-titlebar-dev {
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
 }
 
 .app-titlebar-drag-region {

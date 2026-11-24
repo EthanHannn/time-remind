@@ -9,10 +9,6 @@ import reminderDrink from '../assets/icons/reminder/reminder-drink.png'
 import reminderEyeCare from '../assets/icons/reminder/reminder-eye-care.png'
 import reminderRest from '../assets/icons/reminder/reminder-rest.png'
 import emptyReminders from '../assets/illustrations/empty/empty-reminders.png'
-import catDrink from '../assets/illustrations/mascot/cat-drink.png'
-import catEyeCare from '../assets/illustrations/mascot/cat-eye-care.png'
-import catRest from '../assets/illustrations/mascot/cat-rest.png'
-import catSnooze from '../assets/illustrations/mascot/cat-snooze.png'
 import { messages } from '../i18n/messages'
 import { getMascotAsset } from './mascotStyles'
 
@@ -67,8 +63,8 @@ const reminderVisualMap: Record<ReminderTypeKey, ReminderVisual> = {
     borderSoft: 'rgba(47, 159, 216, 0.26)',
     badgeBackground: 'linear-gradient(180deg, rgba(47, 159, 216, 0.18), rgba(47, 159, 216, 0.08))',
     iconAsset: reminderDrink,
-    mascotAsset: catDrink,
-    statusAsset: catSnooze,
+    mascotAsset: getMascotAsset('classic', 'drink'),
+    statusAsset: getMascotAsset('classic', 'snooze'),
   },
   rest: {
     type: 'rest',
@@ -85,8 +81,8 @@ const reminderVisualMap: Record<ReminderTypeKey, ReminderVisual> = {
     borderSoft: 'rgba(87, 197, 154, 0.26)',
     badgeBackground: 'linear-gradient(180deg, rgba(87, 197, 154, 0.18), rgba(87, 197, 154, 0.08))',
     iconAsset: reminderRest,
-    mascotAsset: catRest,
-    statusAsset: catSnooze,
+    mascotAsset: getMascotAsset('classic', 'rest'),
+    statusAsset: getMascotAsset('classic', 'snooze'),
   },
   eye_care: {
     type: 'eye_care',
@@ -101,8 +97,8 @@ const reminderVisualMap: Record<ReminderTypeKey, ReminderVisual> = {
     borderSoft: 'rgba(246, 179, 91, 0.26)',
     badgeBackground: 'linear-gradient(180deg, rgba(246, 179, 91, 0.18), rgba(246, 179, 91, 0.08))',
     iconAsset: reminderEyeCare,
-    mascotAsset: catEyeCare,
-    statusAsset: catSnooze,
+    mascotAsset: getMascotAsset('classic', 'eye_care'),
+    statusAsset: getMascotAsset('classic', 'snooze'),
   },
   custom: {
     type: 'custom',

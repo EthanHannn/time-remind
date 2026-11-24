@@ -1,6 +1,7 @@
 import type { Language } from '../i18n'
 import type { MascotStyle } from '../utils/mascotStyles'
 import type { NotificationAppearance } from '../utils/notificationAppearance'
+import type { NotificationPaletteSetting } from '../utils/notificationPalette'
 import type { NotificationSoundPreset } from '../utils/notificationSound'
 import type { Reminder } from './reminder'
 
@@ -16,6 +17,7 @@ export interface FrontendSettings {
   theme: 'light' | 'dark' | 'system'
   mascotStyle?: MascotStyle
   notificationAppearance?: NotificationAppearance
+  notificationPalette?: NotificationPaletteSetting
   language?: Language
   notificationDuration: number
   postponeOptions: number[]

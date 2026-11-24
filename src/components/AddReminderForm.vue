@@ -332,18 +332,10 @@ function handleSubmit() {
   max-height: min(88vh, 760px);
   overflow-y: auto;
   border-radius: 20px;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background:
-    radial-gradient(circle at top right, rgba(47, 159, 216, 0.12), transparent 28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.9));
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.22);
+  border: 1px solid var(--border-color);
+  background: var(--app-shell-bg);
+  box-shadow: var(--shadow-md);
   padding: 20px;
-}
-
-[data-theme='dark'] .form-container {
-  background:
-    radial-gradient(circle at top right, rgba(47, 159, 216, 0.16), transparent 28%),
-    linear-gradient(180deg, rgba(24, 28, 37, 0.96), rgba(16, 20, 28, 0.94));
 }
 
 .form-header {
@@ -415,9 +407,9 @@ function handleSubmit() {
   display: flex;
   align-items: center;
   gap: 12px;
-  border-radius: 18px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background: rgba(255, 255, 255, 0.72);
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--card-surface);
   text-align: start;
   transition:
     transform 0.18s ease,
@@ -426,24 +418,16 @@ function handleSubmit() {
     background-color 0.18s ease;
 }
 
-[data-theme='dark'] .type-card {
-  background: rgba(22, 27, 36, 0.82);
-}
-
 .type-card:hover {
   transform: translateY(-1px);
-  border-color: var(--type-border);
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-sm);
 }
 
 .type-card-active {
-  border-color: var(--type-border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), var(--type-soft));
-  box-shadow: 0 14px 24px rgba(15, 23, 42, 0.08);
-}
-
-[data-theme='dark'] .type-card-active {
-  background: linear-gradient(180deg, rgba(25, 31, 43, 0.96), rgba(25, 31, 43, 0.9));
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 .type-visual {
@@ -501,25 +485,21 @@ function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.2);
-  background: rgba(255, 255, 255, 0.72);
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--card-surface);
   transition: transform 0.18s ease, border-color 0.18s ease, background-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-[data-theme='dark'] .custom-icon-button {
-  background: rgba(22, 27, 36, 0.88);
 }
 
 .custom-icon-button:hover {
   transform: translateY(-1px);
-  border-color: rgba(122, 140, 168, 0.5);
+  border-color: var(--color-primary);
 }
 
 .custom-icon-button-active {
-  border-color: rgba(79, 140, 255, 0.58);
-  background: rgba(79, 140, 255, 0.12);
-  box-shadow: 0 0 0 3px rgba(79, 140, 255, 0.1);
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+  box-shadow: 0 0 0 1px var(--color-primary);
 }
 
 .custom-icon-image {
@@ -536,10 +516,10 @@ function handleSubmit() {
 
 .text-input {
   width: 100%;
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(255, 255, 255, 0.78);
+  padding: 11px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
   color: var(--text-primary);
   outline: none;
   transition:
@@ -548,13 +528,9 @@ function handleSubmit() {
     background-color 0.18s ease;
 }
 
-[data-theme='dark'] .text-input {
-  background: rgba(20, 24, 31, 0.88);
-}
-
 .text-input:focus {
-  border-color: rgba(47, 159, 216, 0.4);
-  box-shadow: 0 0 0 4px rgba(47, 159, 216, 0.12);
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
 }
 
 .rest-options {
@@ -567,9 +543,9 @@ function handleSubmit() {
   justify-content: space-between;
   gap: 16px;
   padding: 14px 16px;
-  border-radius: 18px;
-  border: 1px solid rgba(87, 197, 154, 0.22);
-  background: rgba(87, 197, 154, 0.08);
+  border-radius: 14px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
 }
 
 .rest-tip-title {
@@ -602,26 +578,28 @@ function handleSubmit() {
 .slider {
   position: absolute;
   inset: 0;
-  border-radius: 10px;
-  background-color: rgba(148, 163, 184, 0.36);
+  border-radius: 999px;
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
   transition: background-color 0.2s ease;
 }
 
 .slider::before {
   content: '';
   position: absolute;
-  left: 3px;
-  bottom: 3px;
+  left: 2px;
+  bottom: 2px;
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  background: white;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.22);
-  transition: transform 0.22s ease;
+  background: var(--switch-thumb);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 20%);
+  transition: transform 0.2s ease;
 }
 
 input:checked + .slider {
-  background-color: #57C59A;
+  background-color: var(--color-primary);
+  border-color: transparent;
 }
 
 input:checked + .slider::before {
@@ -637,22 +615,30 @@ input:checked + .slider::before {
 
 .btn-secondary,
 .btn-primary {
-  padding: 11px 18px;
+  padding: 10px 18px;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  transition: transform 0.18s ease, background-color 0.18s ease;
 }
 
 .btn-secondary {
-  background: rgba(148, 163, 184, 0.14);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
   color: var(--text-primary);
 }
 
+.btn-secondary:hover {
+  background: var(--bg-tertiary);
+}
+
 .btn-primary {
-  background: linear-gradient(135deg, #2f9fd8, #4f8cff);
-  color: white;
-  box-shadow: 0 14px 24px rgba(47, 159, 216, 0.24);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.btn-primary:hover {
+  background: var(--color-primary-hover);
 }
 
 .btn-secondary:active,

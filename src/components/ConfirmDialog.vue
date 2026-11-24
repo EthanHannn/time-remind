@@ -95,19 +95,11 @@ useModalFocus(useTemplateRef<HTMLElement>('dialog'), handleCancel)
 
 .confirm-container {
   width: min(100%, 420px);
-  border-radius: 28px;
-  border: 1px solid rgba(148, 163, 184, 0.16);
-  background:
-    radial-gradient(circle at top right, rgba(227, 93, 106, 0.12), transparent 30%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(255, 255, 255, 0.92));
-  box-shadow: 0 30px 60px rgba(15, 23, 42, 0.22);
-  padding: 24px;
-}
-
-[data-theme='dark'] .confirm-container {
-  background:
-    radial-gradient(circle at top right, rgba(227, 93, 106, 0.16), transparent 30%),
-    linear-gradient(180deg, rgba(24, 28, 37, 0.96), rgba(16, 20, 28, 0.94));
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  background: var(--app-shell-bg);
+  box-shadow: var(--shadow-md);
+  padding: 22px;
 }
 
 .confirm-header {
@@ -163,17 +155,13 @@ useModalFocus(useTemplateRef<HTMLElement>('dialog'), handleCancel)
 }
 
 .confirm-button-secondary {
-  border-color: rgba(148, 163, 184, 0.16);
-  background: rgba(255, 255, 255, 0.72);
+  border-color: var(--border-color);
+  background: var(--bg-secondary);
   color: var(--text-primary);
 }
 
-[data-theme='dark'] .confirm-button-secondary {
-  background: rgba(24, 29, 38, 0.84);
-}
-
 .confirm-button-secondary:hover:not(:disabled) {
-  box-shadow: 0 12px 24px rgba(15, 23, 42, 0.08);
+  background: var(--bg-tertiary);
 }
 
 .confirm-button-danger {

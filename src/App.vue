@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import type { CreateReminderRequest, Reminder, ReminderRuntime, RuntimeSnapshot, TimerTick } from './types/reminder'
+import type { MascotStyle } from './utils/mascotStyles'
+import type { NotificationPaletteSetting } from './utils/notificationPalette'
 import { invoke } from '@tauri-apps/api/core'
-import { computed, onMounted, onUnmounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
 import { createReminder, deleteReminder, getReminderOverview, toggleReminder, updateReminder } from './api/reminder'
 import AddReminderForm from './components/AddReminderForm.vue'
 import AppIcon from './components/AppIcon.vue'
@@ -14,11 +16,14 @@ import StatsPage from './components/StatsPage.vue'
 import { useAppEvents } from './composables/useAppEvents'
 import { useTheme } from './composables/useTheme'
 import { loadLanguage, useI18n } from './i18n'
-import { emptyReminders } from './utils/reminderVisuals'
+import { getMascotAsset, mascotStyleOptions, normalizeMascotStyle } from './utils/mascotStyles'
+import { applyPalette, normalizeNotificationPalette, resolveNotificationPalette } from './utils/notificationPalette'
 import { withTimeout } from './utils/withTimeout'
 
 const { applyTheme, themeRevision } = useTheme()
 
+const mascotStyle = shallowRef<MascotStyle>('classic')
+const notificationPalette = shallowRef<NotificationPaletteSetting>('auto')
 const reminders = ref<Reminder[]>([])
 const countdowns = ref<Record<string, number>>({})
 const globallyPaused = ref(false)
@@ -40,11 +45,26 @@ const actionError = ref('')
 const loadError = ref('')
 const loaded = ref(false)
 const pendingToggles = ref(new Set<string>())
-const { locale, t, formatError } = useI18n()
+const { locale, t, formatError, clock } = useI18n()
 const appEvents = useAppEvents(() => t('feedback.loadTimeout'))
 const requests = new AbortController()
 let eventsReady = false
 let initializing = false
+const activeMascotOption = computed(() => mascotStyleOptions.find(option => option.id === mascotStyle.value) ?? mascotStyleOptions[0])
+const companionAvatar = computed(() => getMascotAsset(mascotStyle.value, activeMascotOption.value.previewState))
+const emptyMascotAsset = computed(() => getMascotAsset(mascotStyle.value, 'snooze'))
+const enabledCount = computed(() => reminders.value.filter(item => item.enabled).length)
+const nextCountdownLabel = computed(() => {
+  if (globallyPaused.value || suppression.value || !clock)
+    return ''
+  const upcoming = reminders.value
+    .filter(item => item.enabled && typeof countdowns.value[item.id] === 'number')
+    .map(item => countdowns.value[item.id]!)
+    .filter(sec => Number.isFinite(sec) && sec > 0)
+  if (upcoming.length === 0)
+    return ''
+  return t('ui.nextUp', { time: clock(Math.min(...upcoming)) })
+})
 const globalStatus = computed(() => {
   if (globallyPaused.value)
     return t(suppression.value?.reason === 'system' ? 'runtime.systemPaused' : 'reminder.paused')
@@ -52,6 +72,16 @@ const globalStatus = computed(() => {
     return ''
   const until = suppression.value.until
   return until ? t('runtime.until', { time: new Date(`${until}Z`).toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' }) }) : t('settings.dnd')
+})
+const companionSummary = computed(() => {
+  if (globallyPaused.value)
+    return t(suppression.value?.reason === 'system' ? 'runtime.systemPaused' : 'reminder.paused')
+  if (suppression.value)
+    return globalStatus.value
+  if (enabledCount.value === 0)
+    return t('app.keepRhythm')
+  const countText = t('app.runningCount', { count: enabledCount.value })
+  return nextCountdownLabel.value ? `${countText} · ${nextCountdownLabel.value}` : countText
 })
 
 function openCreate() {
@@ -146,6 +176,9 @@ async function loadTheme() {
     const settings = await invoke<Record<string, string>>('get_all_settings')
     if (revision !== themeRevision())
       return
+    mascotStyle.value = normalizeMascotStyle(settings.mascot_style)
+    notificationPalette.value = normalizeNotificationPalette(settings.notification_palette)
+    applyPalette(resolveNotificationPalette(notificationPalette.value, mascotStyle.value))
     if (settings.theme) {
       applyTheme(settings.theme)
       return
@@ -158,11 +191,16 @@ async function loadTheme() {
   }
 
   const legacy = localStorage.getItem('app-settings')
-  if (!legacy)
+  if (!legacy) {
+    applyPalette(resolveNotificationPalette(notificationPalette.value, mascotStyle.value))
     return
+  }
 
   try {
     const settings = JSON.parse(legacy)
+    mascotStyle.value = normalizeMascotStyle(settings.mascotStyle)
+    notificationPalette.value = normalizeNotificationPalette(settings.notificationPalette)
+    applyPalette(resolveNotificationPalette(notificationPalette.value, mascotStyle.value))
     applyTheme(settings.theme || 'system')
   }
   catch {
@@ -295,6 +333,16 @@ async function handleAdd(data: CreateReminderRequest) {
     </header>
 
     <main class="reminder-list">
+      <button v-if="loaded && !loadError && reminders.length > 0" class="companion-strip" type="button" @click="showSettings = true">
+        <span class="companion-avatar-wrap">
+          <img :src="companionAvatar" alt="" class="companion-avatar" width="44" height="44">
+        </span>
+        <span class="companion-copy">
+          <span class="companion-name">{{ t(activeMascotOption.nameKey) }}</span>
+          <span class="companion-summary">{{ companionSummary }}</span>
+        </span>
+        <span class="companion-action">{{ t('ui.switchCompanion') }}</span>
+      </button>
       <p v-if="globalStatus" class="global-status" role="status">
         {{ globalStatus }}
       </p>
@@ -310,7 +358,7 @@ async function handleAdd(data: CreateReminderRequest) {
         {{ t('feedback.loading') }}
       </p>
       <div v-if="loaded && !loadError && reminders.length === 0" class="empty-state">
-        <img :src="emptyReminders" :alt="t('app.emptyAlt')" class="empty-image">
+        <img :src="emptyMascotAsset" :alt="t('app.emptyAlt')" class="empty-image">
         <h2 class="empty-title">
           {{ t('app.emptyTitle') }}
         </h2>
@@ -383,29 +431,69 @@ async function handleAdd(data: CreateReminderRequest) {
 
 <style>
 .app-shell {
-  position: relative; display: flex; flex-direction: column; height: 100vh; overflow: hidden;
-  background:
-    radial-gradient(circle at top left, rgba(47, 159, 216, 0.12), transparent 34%),
-    radial-gradient(circle at top right, rgba(246, 179, 91, 0.1), transparent 28%),
-    rgba(255, 255, 255, 0.8);
-  -webkit-backdrop-filter: blur(12px);
-  backdrop-filter: blur(12px);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--app-shell-bg);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  transition: background 220ms ease;
 }
-[data-theme='dark'] .app-shell {
-  background:
-    radial-gradient(circle at top left, rgba(47, 159, 216, 0.2), transparent 34%),
-    radial-gradient(circle at top right, rgba(246, 179, 91, 0.16), transparent 28%),
-    rgba(24, 24, 27, 0.8);
-}
-.app-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; }
+.app-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px 10px; }
 .title-block, .title-copy { min-width: 0; }
 .app-title { margin: 0; font-size: 18px; font-weight: 700; color: var(--text-primary); line-height: 1.3; overflow-wrap: anywhere; }
 .header-actions { display: flex; align-items: center; gap: 5px; flex-shrink: 0; }
-.header-button { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; color: var(--text-secondary); transition: background-color 150ms ease; }
-.header-button:hover { background: var(--bg-secondary); color: var(--color-primary); }
-.header-button-primary { color: var(--color-primary); background: var(--color-primary-light); }
+.header-button { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; color: var(--text-secondary); transition: background-color 150ms ease, color 150ms ease, transform 120ms ease; }
+.header-button:hover { background: var(--bg-secondary); color: var(--text-primary); }
+.header-button:active { transform: scale(0.95); }
+.header-button-primary { color: var(--color-primary-contrast); background: var(--color-primary); box-shadow: var(--shadow-sm); }
+.header-button-primary:hover { background: var(--color-primary-hover); color: var(--color-primary-contrast); }
 .reminder-list { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
-.global-status { margin: 0 0 10px; padding: 9px 12px; border-radius: 9px; font-size: 12px; color: var(--text-secondary); background: var(--bg-secondary); }
+.companion-strip {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  background: var(--card-surface);
+  text-align: start;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 150ms ease, box-shadow 150ms ease, transform 120ms ease;
+}
+.companion-strip:hover {
+  border-color: var(--border-color-hover);
+  box-shadow: var(--shadow-md);
+}
+.companion-strip:active { transform: scale(0.99); }
+.companion-avatar-wrap {
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  border-radius: 13px;
+  background: var(--bg-secondary);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.companion-avatar { width: 42px; height: 42px; object-fit: contain; }
+.companion-copy { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.companion-name { font-size: 13px; font-weight: 650; color: var(--text-primary); line-height: 1.3; }
+.companion-summary { font-size: 11px; color: var(--text-secondary); line-height: 1.4; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.companion-action {
+  flex-shrink: 0;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--color-primary-light);
+  color: var(--color-primary);
+  font-size: 11px;
+  font-weight: 600;
+}
+.global-status { margin: 0 0 10px; padding: 9px 12px; border-radius: 11px; border: 1px solid var(--border-color); font-size: 12px; color: var(--text-secondary); background: var(--bg-secondary); }
 
 .empty-state {
   min-height: calc(100vh - 120px);
@@ -418,40 +506,40 @@ async function handleAdd(data: CreateReminderRequest) {
 }
 
 .empty-image {
-  width: min(240px, 70%);
-  max-width: 240px;
+  width: min(196px, 60%);
+  max-width: 196px;
   margin-bottom: 18px;
 }
 
 .empty-title {
   margin: 0 0 8px;
-  font-size: 24px;
+  font-size: 22px;
   color: var(--text-primary);
 }
 
 .empty-description {
   margin: 0;
   max-width: 320px;
-  font-size: 14px;
+  font-size: 13px;
   color: var(--text-secondary);
   line-height: 1.7;
 }
 
 .empty-action {
   margin-top: 18px;
-  padding: 11px 18px;
+  padding: 10px 20px;
   border-radius: 999px;
-  background: linear-gradient(135deg, #2f9fd8, #4f8cff);
-  color: white;
-  font-size: 14px;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-size: 13px;
   font-weight: 600;
-  box-shadow: 0 12px 22px rgba(47, 159, 216, 0.22);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-md);
+  transition: transform 0.18s ease, background-color 0.18s ease;
 }
 
 .empty-action:hover {
   transform: translateY(-1px);
-  box-shadow: 0 18px 28px rgba(47, 159, 216, 0.26);
+  background: var(--color-primary-hover);
 }
 
 .empty-action:active {

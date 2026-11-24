@@ -4,6 +4,7 @@ import type { ExportData, FrontendSettings, ImportMode } from '../types/data'
 import type { PlatformCapabilities } from '../types/platform'
 import type { MascotStyle } from '../utils/mascotStyles'
 import type { NotificationAppearance } from '../utils/notificationAppearance'
+import type { NotificationPaletteSetting } from '../utils/notificationPalette'
 import type { NotificationSoundPreset } from '../utils/notificationSound'
 import { invoke } from '@tauri-apps/api/core'
 import { disable as disableAutostart, enable as enableAutostart, isEnabled as isAutostartEnabled } from '@tauri-apps/plugin-autostart'
@@ -16,6 +17,7 @@ import { useTheme } from '../composables/useTheme'
 import { loadLanguage, useI18n } from '../i18n'
 import { normalizeMascotStyle } from '../utils/mascotStyles'
 import { normalizeNotificationAppearance } from '../utils/notificationAppearance'
+import { applyPalette, normalizeNotificationPalette, resolveNotificationPalette } from '../utils/notificationPalette'
 import { playNotificationSound } from '../utils/notificationSound'
 import { appIconMain } from '../utils/reminderVisuals'
 import { createSettingsWriter } from '../utils/settingsWriter'
@@ -36,9 +38,17 @@ useModalFocus(useTemplateRef<HTMLElement>('dialog'), handleClose)
 const AUTO_START_SETTING_KEY = 'auto_start'
 
 const { language: currentLanguage, t, formatError, number } = useI18n()
+type SettingsTab = 'appearance' | 'reminders' | 'system'
+const activeTab = shallowRef<SettingsTab>('appearance')
+const settingsTabs: { id: SettingsTab, labelKey: string }[] = [
+  { id: 'appearance', labelKey: 'ui.settingsTabAppearance' },
+  { id: 'reminders', labelKey: 'ui.settingsTabReminders' },
+  { id: 'system', labelKey: 'ui.settingsTabSystem' },
+]
 const theme = ref<'light' | 'dark' | 'system'>('system')
 const mascotStyle = shallowRef<MascotStyle>('classic')
 const notificationAppearance = shallowRef<NotificationAppearance>('soft')
+const notificationPalette = shallowRef<NotificationPaletteSetting>('auto')
 const language = ref<Language>(currentLanguage.value)
 const notificationDuration = ref(30)
 const postponeOptions = ref([5, 10, 15])
@@ -101,6 +111,7 @@ function buildFrontendSettings(): FrontendSettings {
     theme: theme.value,
     mascotStyle: mascotStyle.value,
     notificationAppearance: notificationAppearance.value,
+    notificationPalette: notificationPalette.value,
     language: language.value,
     notificationDuration: notificationDuration.value,
     postponeOptions: postponeOptions.value,
@@ -152,6 +163,7 @@ async function loadSettings() {
   loadFailed.value = false
   mascotStyle.value = 'classic'
   notificationAppearance.value = 'soft'
+  notificationPalette.value = 'auto'
   theme.value = 'system'
   notificationDuration.value = 30
   postponeOptions.value = [5, 10, 15]
@@ -170,7 +182,10 @@ async function loadSettings() {
     await loadLanguage(settings)
     mascotStyle.value = normalizeMascotStyle(settings.mascot_style)
     notificationAppearance.value = normalizeNotificationAppearance(settings.notification_appearance)
+    notificationPalette.value = normalizeNotificationPalette(settings.notification_palette)
     if (settings.notification_appearance)
+      hasFrontendSettingsInDb = true
+    if (settings.notification_palette)
       hasFrontendSettingsInDb = true
     if (settings.mascot_style)
       hasFrontendSettingsInDb = true
@@ -235,6 +250,7 @@ async function loadSettings() {
       theme.value = settings.theme || 'system'
       mascotStyle.value = normalizeMascotStyle(settings.mascotStyle)
       notificationAppearance.value = normalizeNotificationAppearance(settings.notificationAppearance)
+      notificationPalette.value = normalizeNotificationPalette(settings.notificationPalette)
       language.value = settings.language || 'zh-CN'
       notificationDuration.value = settings.notificationDuration || 30
       postponeOptions.value = settings.postponeOptions || [5, 10, 15]
@@ -248,6 +264,7 @@ async function loadSettings() {
   }
 
   applyTheme(theme.value)
+  applyPalette(resolveNotificationPalette(notificationPalette.value, mascotStyle.value))
   language.value = currentLanguage.value
   await nextTick()
   settingsLoaded.value = wasLoaded
@@ -341,12 +358,14 @@ async function initializeSettings() {
 
 onMounted(initializeSettings)
 
-watch([theme, mascotStyle, notificationAppearance, language, notificationDuration, postponeOptions, soundEnabled, soundPreset, soundVolume], () => {
+watch([theme, mascotStyle, notificationAppearance, notificationPalette, language, notificationDuration, postponeOptions, soundEnabled, soundPreset, soundVolume], () => {
   if (!settingsLoaded.value)
     return
   applyTheme(theme.value)
+  applyPalette(resolveNotificationPalette(notificationPalette.value, mascotStyle.value))
   settingsWriter.enqueue({
     notification_appearance: notificationAppearance.value,
+    notification_palette: notificationPalette.value,
     mascot_style: mascotStyle.value,
     theme: theme.value,
     language: language.value,
@@ -577,255 +596,302 @@ async function handleImport() {
         </button>
       </div>
 
-      <p v-if="saveError" role="alert" class="message message-error">
+      <div class="settings-tabs-bar">
+        <div class="settings-tabs" role="tablist" :aria-label="t('settings.title')">
+          <button
+            v-for="tab in settingsTabs"
+            :id="`${fieldId}-tab-${tab.id}`"
+            :key="tab.id"
+            type="button"
+            role="tab"
+            class="settings-tab"
+            :class="{ 'settings-tab-active': activeTab === tab.id }"
+            :aria-selected="activeTab === tab.id"
+            :aria-controls="`${fieldId}-panel-${tab.id}`"
+            @click="activeTab = tab.id"
+          >
+            {{ t(tab.labelKey) }}
+          </button>
+        </div>
+      </div>
+
+      <p v-if="saveError" role="alert" class="message message-error save-error-banner">
         {{ saveError }} <button type="button" @click="retrySave">
           {{ t('feedback.retry') }}
         </button>
       </p>
-      <div class="settings-content" :inert="importing || exporting || !settingsLoaded">
-        <section class="setting-section appearance-section">
-          <div class="appearance-row">
-            <h3 class="section-title">
-              {{ t('settings.appearance') }}
-            </h3>
-            <div class="theme-selector" role="group" :aria-label="t('settings.appearance')">
-              <button v-for="option in ['light', 'dark', 'system'] as const" :key="option" class="theme-button" :class="{ 'theme-button-active': theme === option }" :aria-pressed="theme === option" :aria-label="t(option === 'system' ? 'settings.systemTheme' : `settings.${option}`)" :title="t(option === 'system' ? 'settings.systemTheme' : `settings.${option}`)" type="button" @click="theme = option">
-                <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <template v-if="option === 'light'"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></template>
-                  <path v-else-if="option === 'dark'" d="M20 14A8 8 0 0 1 10 4a8.5 8.5 0 1 0 10 10Z" />
-                  <template v-else><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8m-4-4v4" /></template>
-                </svg>
-                <span class="theme-label">{{ t(option === 'system' ? 'settings.systemTheme' : `settings.${option}`) }}</span>
-              </button>
-            </div>
-          </div>
-          <div class="appearance-row language-row">
-            <label class="setting-label" :for="`${fieldId}-language`">{{ t('settings.language') }}</label>
-            <LanguageSelect :id="`${fieldId}-language`" v-model="language" class="language-select" />
-          </div>
-        </section>
-        <div class="settings-columns">
-          <div class="settings-column">
-            <section class="setting-section visual-settings">
-              <NotificationAppearanceSettings v-model="notificationAppearance" :disabled="!settingsLoaded" />
-              <MascotStyleSettings v-model="mascotStyle" :settings="buildFrontendSettings()" :disabled="!settingsLoaded" />
-            </section>
-            <section class="setting-section">
-              <div class="section-heading">
-                <h3 class="section-title">
-                  {{ t('settings.system') }}
-                </h3>
-              </div>
 
-              <div class="setting-row setting-card">
-                <div class="setting-card-main">
-                  <div class="setting-card-header">
-                    <div class="setting-card-copy">
-                      <label class="setting-label">{{ t('settings.autoStart') }}</label>
-                      <p v-if="platformCapabilitiesLoaded && !supportsAutostart" class="setting-description setting-warning">
+      <div class="settings-content" :inert="importing || exporting || !settingsLoaded">
+        <!-- Tab 1: Appearance & Companion -->
+        <div
+          v-show="activeTab === 'appearance'"
+          :id="`${fieldId}-panel-appearance`"
+          role="tabpanel"
+          :aria-labelledby="`${fieldId}-tab-appearance`"
+          class="settings-panel"
+        >
+          <section class="setting-section appearance-section">
+            <div class="appearance-row">
+              <h3 class="section-title">
+                {{ t('settings.appearance') }}
+              </h3>
+              <div class="theme-selector" role="group" :aria-label="t('settings.appearance')">
+                <button v-for="option in ['light', 'dark', 'system'] as const" :key="option" class="theme-button" :class="{ 'theme-button-active': theme === option }" :aria-pressed="theme === option" :aria-label="t(option === 'system' ? 'settings.systemTheme' : `settings.${option}`)" :title="t(option === 'system' ? 'settings.systemTheme' : `settings.${option}`)" type="button" @click="theme = option">
+                  <svg class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <template v-if="option === 'light'"><circle cx="12" cy="12" r="4" /><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5" /></template>
+                    <path v-else-if="option === 'dark'" d="M20 14A8 8 0 0 1 10 4a8.5 8.5 0 1 0 10 10Z" />
+                    <template v-else><rect x="3" y="4" width="18" height="13" rx="2" /><path d="M8 21h8m-4-4v4" /></template>
+                  </svg>
+                  <span class="theme-label">{{ t(option === 'system' ? 'settings.systemTheme' : `settings.${option}`) }}</span>
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section class="setting-section visual-settings">
+            <NotificationAppearanceSettings v-model="notificationAppearance" v-model:palette="notificationPalette" :disabled="!settingsLoaded" />
+            <MascotStyleSettings v-model="mascotStyle" :settings="buildFrontendSettings()" :disabled="!settingsLoaded" />
+          </section>
+        </div>
+
+        <!-- Tab 2: Reminders & Sound -->
+        <div
+          v-show="activeTab === 'reminders'"
+          :id="`${fieldId}-panel-reminders`"
+          role="tabpanel"
+          :aria-labelledby="`${fieldId}-tab-reminders`"
+          class="settings-panel"
+        >
+          <section class="setting-section">
+            <div class="section-heading">
+              <h3 class="section-title">
+                {{ t('settings.notification') }}
+              </h3>
+            </div>
+
+            <div class="setting-row">
+              <label class="setting-label" :for="`${fieldId}-duration`">{{ t('settings.duration') }}</label>
+              <input :id="`${fieldId}-duration`" v-model.number="notificationDuration" class="setting-input" type="number" min="5" max="120">
+            </div>
+
+            <div class="setting-row sound-row">
+              <label class="setting-label">{{ t('settings.sound') }}</label>
+              <label class="switch">
+                <input v-model="soundEnabled" :aria-label="t('settings.sound')" type="checkbox">
+                <span class="slider" />
+              </label>
+            </div>
+
+            <Transition name="slide-down">
+              <div v-if="soundEnabled" class="sound-panel">
+                <div class="setting-row">
+                  <label class="setting-label">{{ t('settings.soundPreset') }}</label>
+                  <select v-model="soundPreset" :aria-label="t('settings.soundPreset')" class="setting-input">
+                    <option value="soft">
+                      {{ t('settings.soundSoft') }}
+                    </option>
+                    <option value="bright">
+                      {{ t('settings.soundBright') }}
+                    </option>
+                    <option value="calm">
+                      {{ t('settings.soundCalm') }}
+                    </option>
+                    <option value="anime">
+                      {{ t('settings.soundAnime') }}
+                    </option>
+                    <option value="arcade">
+                      {{ t('settings.soundArcade') }}
+                    </option>
+                  </select>
+                  <button class="data-button sound-test-button" type="button" @click="testNotificationSound">
+                    {{ t('settings.testSound') }}
+                  </button>
+                </div>
+
+                <div class="setting-row">
+                  <label class="setting-label">{{ t('settings.soundVolume') }}</label>
+                  <input v-model.number="soundVolume" :aria-label="t('settings.soundVolume')" class="sound-range" type="range" min="0" max="100">
+                  <span class="sound-volume">{{ number(soundVolume / 100, { style: 'percent' }) }}</span>
+                </div>
+              </div>
+            </Transition>
+          </section>
+
+          <section class="setting-section">
+            <div class="section-heading">
+              <h3 class="section-title">
+                {{ t('settings.dnd') }}
+              </h3>
+            </div>
+
+            <div class="setting-row">
+              <label class="setting-label">{{ t('settings.dndEnabled') }}</label>
+              <label class="switch">
+                <input v-model="dndEnabled" :aria-label="t('settings.dndEnabled')" type="checkbox">
+                <span class="slider" />
+              </label>
+            </div>
+
+            <Transition name="slide-down">
+              <div v-if="dndEnabled" class="time-range">
+                <div class="time-field">
+                  <label class="time-label">{{ t('settings.startTime') }}</label>
+                  <input v-model="dndStart" :aria-label="t('settings.startTime')" class="setting-input" type="time">
+                </div>
+                <div class="time-field">
+                  <label class="time-label">{{ t('settings.endTime') }}</label>
+                  <input v-model="dndEnd" :aria-label="t('settings.endTime')" class="setting-input" type="time">
+                </div>
+              </div>
+            </Transition>
+          </section>
+        </div>
+
+        <!-- Tab 3: System & Data -->
+        <div
+          v-show="activeTab === 'system'"
+          :id="`${fieldId}-panel-system`"
+          role="tabpanel"
+          :aria-labelledby="`${fieldId}-tab-system`"
+          class="settings-panel"
+        >
+          <section class="setting-section">
+            <div class="section-heading">
+              <h3 class="section-title">
+                {{ t('settings.system') }}
+              </h3>
+            </div>
+
+            <div class="setting-row language-row">
+              <label class="setting-label" :for="`${fieldId}-language`">{{ t('settings.language') }}</label>
+              <LanguageSelect :id="`${fieldId}-language`" v-model="language" class="language-select" />
+            </div>
+
+            <div class="setting-row setting-card">
+              <div class="setting-card-main">
+                <div class="setting-card-header">
+                  <div class="setting-card-copy">
+                    <label class="setting-label">{{ t('settings.autoStart') }}</label>
+                    <p v-if="platformCapabilitiesLoaded && !supportsAutostart" class="setting-description setting-warning">
+                      {{ t('settings.unsupportedOnPlatform') }}
+                    </p>
+                  </div>
+                  <label class="switch" :class="{ 'switch-disabled': autoStartDisabled, 'switch-loading': autoStartLoading }">
+                    <input
+                      v-model="autoStart" :aria-label="t('settings.autoStart')"
+                      :disabled="autoStartDisabled"
+                      type="checkbox"
+                      @change="handleAutoStartChange"
+                    >
+                    <span class="slider" />
+                  </label>
+                </div>
+
+                <Transition name="slide-down">
+                  <div v-if="autoStart" class="setting-subcard">
+                    <div class="setting-subcard-copy">
+                      <label class="setting-label">{{ t('settings.silentStart') }}</label>
+                      <p class="setting-description">
+                        {{ t('settings.silentStartDescription') }}
+                      </p>
+                      <p v-if="platformCapabilitiesLoaded && !supportsSilentStart" class="setting-description setting-warning">
                         {{ t('settings.unsupportedOnPlatform') }}
                       </p>
                     </div>
-                    <label class="switch" :class="{ 'switch-disabled': autoStartDisabled, 'switch-loading': autoStartLoading }">
+                    <label class="switch" :class="{ 'switch-disabled': silentStartDisabled, 'switch-loading': silentStartLoading }">
                       <input
-                        v-model="autoStart" :aria-label="t('settings.autoStart')"
-                        :disabled="autoStartDisabled"
+                        v-model="silentStart" :aria-label="t('settings.silentStart')"
+                        :disabled="silentStartDisabled"
                         type="checkbox"
-                        @change="handleAutoStartChange"
+                        @change="handleSilentStartChange"
                       >
                       <span class="slider" />
                     </label>
                   </div>
-
-                  <Transition name="slide-down">
-                    <div v-if="autoStart" class="setting-subcard">
-                      <div class="setting-subcard-copy">
-                        <label class="setting-label">{{ t('settings.silentStart') }}</label>
-                        <p class="setting-description">
-                          {{ t('settings.silentStartDescription') }}
-                        </p>
-                        <p v-if="platformCapabilitiesLoaded && !supportsSilentStart" class="setting-description setting-warning">
-                          {{ t('settings.unsupportedOnPlatform') }}
-                        </p>
-                      </div>
-                      <label class="switch" :class="{ 'switch-disabled': silentStartDisabled, 'switch-loading': silentStartLoading }">
-                        <input
-                          v-model="silentStart" :aria-label="t('settings.silentStart')"
-                          :disabled="silentStartDisabled"
-                          type="checkbox"
-                          @change="handleSilentStartChange"
-                        >
-                        <span class="slider" />
-                      </label>
-                    </div>
-                  </Transition>
-                </div>
+                </Transition>
               </div>
+            </div>
 
-              <div class="setting-row">
-                <div class="setting-inline-copy">
-                  <label class="setting-label">{{ t('settings.fullscreenDelay') }}</label>
-                  <p v-if="platformCapabilitiesLoaded && !supportsFullscreenDetection" class="setting-description setting-warning">
-                    {{ t('settings.unsupportedOnPlatform') }}
+            <div class="setting-row">
+              <div class="setting-inline-copy">
+                <label class="setting-label">{{ t('settings.fullscreenDelay') }}</label>
+                <p v-if="platformCapabilitiesLoaded && !supportsFullscreenDetection" class="setting-description setting-warning">
+                  {{ t('settings.unsupportedOnPlatform') }}
+                </p>
+              </div>
+              <label class="switch" :class="{ 'switch-disabled': fullscreenDetectionDisabled }">
+                <input v-model="fullscreenDetectionEnabled" :aria-label="t('settings.fullscreenDelay')" :disabled="fullscreenDetectionDisabled" type="checkbox">
+                <span class="slider" />
+              </label>
+            </div>
+            <details class="platform-capability-card">
+              <summary>{{ t('settings.platformCapabilities') }}</summary>
+              <div class="setting-card-main">
+                <div class="setting-card-copy">
+                  <p class="setting-description">
+                    {{ platformStatusDescription }}
+                  </p>
+                  <p v-if="platformCapabilitiesLoaded && !supportsLockDetection" class="setting-description setting-warning">
+                    {{ t('settings.lockDetectionUnsupported') }}
+                  </p>
+                  <p v-if="platformCapabilitiesLoaded && !supportsTray" class="setting-description setting-warning">
+                    {{ t('settings.trayUnsupported') }}
                   </p>
                 </div>
-                <label class="switch" :class="{ 'switch-disabled': fullscreenDetectionDisabled }">
-                  <input v-model="fullscreenDetectionEnabled" :aria-label="t('settings.fullscreenDelay')" :disabled="fullscreenDetectionDisabled" type="checkbox">
-                  <span class="slider" />
-                </label>
               </div>
-              <details class="platform-capability-card">
-                <summary>{{ t('settings.platformCapabilities') }}</summary>
-                <div class="setting-card-main">
-                  <div class="setting-card-copy">
-                    <p class="setting-description">
-                      {{ platformStatusDescription }}
-                    </p>
-                    <p v-if="platformCapabilitiesLoaded && !supportsLockDetection" class="setting-description setting-warning">
-                      {{ t('settings.lockDetectionUnsupported') }}
-                    </p>
-                    <p v-if="platformCapabilitiesLoaded && !supportsTray" class="setting-description setting-warning">
-                      {{ t('settings.trayUnsupported') }}
-                    </p>
-                  </div>
-                </div>
-              </details>
-            </section>
-          </div>
-          <div class="settings-column">
-            <section class="setting-section">
-              <div class="section-heading">
-                <h3 class="section-title">
-                  {{ t('settings.notification') }}
-                </h3>
-              </div>
+            </details>
+          </section>
 
-              <div class="setting-row">
-                <label class="setting-label" :for="`${fieldId}-duration`">{{ t('settings.duration') }}</label>
-                <input :id="`${fieldId}-duration`" v-model.number="notificationDuration" class="setting-input" type="number" min="5" max="120">
-              </div>
+          <section class="setting-section">
+            <div class="section-heading">
+              <h3 class="section-title">
+                {{ t('settings.dataManagement') }}
+              </h3>
+            </div>
 
-              <div class="setting-row sound-row">
-                <label class="setting-label">{{ t('settings.sound') }}</label>
-                <label class="switch">
-                  <input v-model="soundEnabled" :aria-label="t('settings.sound')" type="checkbox">
-                  <span class="slider" />
-                </label>
-              </div>
+            <div class="import-mode">
+              <button
+                class="mode-button"
+                :class="{ 'mode-button-active': importMode === 'replace' }"
+                :disabled="exporting || importing"
+                type="button"
+                @click="importMode = 'replace'"
+              >
+                {{ t('settings.replaceImport') }}
+              </button>
+              <button
+                class="mode-button"
+                :class="{ 'mode-button-active': importMode === 'merge' }"
+                :disabled="exporting || importing"
+                type="button"
+                @click="importMode = 'merge'"
+              >
+                {{ t('settings.mergeImport') }}
+              </button>
+            </div>
 
-              <Transition name="slide-down">
-                <div v-if="soundEnabled" class="sound-panel">
-                  <div class="setting-row">
-                    <label class="setting-label">{{ t('settings.soundPreset') }}</label>
-                    <select v-model="soundPreset" :aria-label="t('settings.soundPreset')" class="setting-input">
-                      <option value="soft">
-                        {{ t('settings.soundSoft') }}
-                      </option>
-                      <option value="bright">
-                        {{ t('settings.soundBright') }}
-                      </option>
-                      <option value="calm">
-                        {{ t('settings.soundCalm') }}
-                      </option>
-                      <option value="anime">
-                        {{ t('settings.soundAnime') }}
-                      </option>
-                      <option value="arcade">
-                        {{ t('settings.soundArcade') }}
-                      </option>
-                    </select>
-                    <button class="data-button sound-test-button" type="button" @click="testNotificationSound">
-                      {{ t('settings.testSound') }}
-                    </button>
-                  </div>
+            <div class="data-actions">
+              <button class="data-button" :disabled="exporting" type="button" @click="handleExport">
+                <span>{{ exporting ? t('settings.exporting') : t('settings.exportData') }}</span>
+              </button>
+              <button class="data-button" :disabled="importing" type="button" @click="handleImport">
+                <span>{{ importing ? t('settings.importing') : t('settings.importData') }}</span>
+              </button>
+            </div>
 
-                  <div class="setting-row">
-                    <label class="setting-label">{{ t('settings.soundVolume') }}</label>
-                    <input v-model.number="soundVolume" :aria-label="t('settings.soundVolume')" class="sound-range" type="range" min="0" max="100">
-                    <span class="sound-volume">{{ number(soundVolume / 100, { style: 'percent' }) }}</span>
-                  </div>
-                </div>
-              </Transition>
-            </section>
-            <section class="setting-section">
-              <div class="section-heading">
-                <h3 class="section-title">
-                  {{ t('settings.dnd') }}
-                </h3>
-              </div>
-
-              <div class="setting-row">
-                <label class="setting-label">{{ t('settings.dndEnabled') }}</label>
-                <label class="switch">
-                  <input v-model="dndEnabled" :aria-label="t('settings.dndEnabled')" type="checkbox">
-                  <span class="slider" />
-                </label>
-              </div>
-
-              <Transition name="slide-down">
-                <div v-if="dndEnabled" class="time-range">
-                  <div class="time-field">
-                    <label class="time-label">{{ t('settings.startTime') }}</label>
-                    <input v-model="dndStart" :aria-label="t('settings.startTime')" class="setting-input" type="time">
-                  </div>
-                  <div class="time-field">
-                    <label class="time-label">{{ t('settings.endTime') }}</label>
-                    <input v-model="dndEnd" :aria-label="t('settings.endTime')" class="setting-input" type="time">
-                  </div>
-                </div>
-              </Transition>
-            </section>
-            <section class="setting-section">
-              <div class="section-heading">
-                <h3 class="section-title">
-                  {{ t('settings.dataManagement') }}
-                </h3>
-              </div>
-
-              <div class="import-mode">
-                <button
-                  class="mode-button"
-                  :class="{ 'mode-button-active': importMode === 'replace' }"
-                  :disabled="exporting || importing"
-                  type="button"
-                  @click="importMode = 'replace'"
-                >
-                  {{ t('settings.replaceImport') }}
-                </button>
-                <button
-                  class="mode-button"
-                  :class="{ 'mode-button-active': importMode === 'merge' }"
-                  :disabled="exporting || importing"
-                  type="button"
-                  @click="importMode = 'merge'"
-                >
-                  {{ t('settings.mergeImport') }}
-                </button>
-              </div>
-
-              <div class="data-actions">
-                <button class="data-button" :disabled="exporting" type="button" @click="handleExport">
-                  <span>{{ exporting ? t('settings.exporting') : t('settings.exportData') }}</span>
-                </button>
-                <button class="data-button" :disabled="importing" type="button" @click="handleImport">
-                  <span>{{ importing ? t('settings.importing') : t('settings.importData') }}</span>
-                </button>
-              </div>
-
-              <p class="hint">
-                {{ importModeDescription }}
-              </p>
-              <p class="hint">
-                {{ importRiskLabel }}
-              </p>
-              <p class="hint">
-                {{ t('settings.exportHint') }}
-              </p>
-              <p v-if="message" class="message" :class="{ 'message-error': messageIsError }" :role="messageIsError ? 'alert' : 'status'">
-                {{ message }}
-              </p>
-            </section>
-          </div>
+            <p class="hint">
+              {{ importModeDescription }}
+            </p>
+            <p class="hint">
+              {{ importRiskLabel }}
+            </p>
+            <p class="hint">
+              {{ t('settings.exportHint') }}
+            </p>
+            <p v-if="message" class="message" :class="{ 'message-error': messageIsError }" :role="messageIsError ? 'alert' : 'status'">
+              {{ message }}
+            </p>
+          </section>
         </div>
       </div>
     </div>
@@ -841,39 +907,26 @@ async function handleImport() {
   align-items: center;
   justify-content: center;
   padding: 12px;
-  background: rgb(7 10 16 / 40%);
+  background: rgb(14 16 20 / 42%);
   backdrop-filter: blur(8px);
 }
 
 .settings-container {
-  --settings-glass-surface: rgb(255 255 255 / 66%);
-  --settings-glass-inset: rgb(148 163 184 / 9%);
-  --settings-glass-border: rgb(148 163 184 / 16%);
-  --settings-glass-control: rgb(255 255 255 / 78%);
-  --settings-glass-selected: rgb(47 159 216 / 12%);
-  width: min(100%, 980px);
-  max-height: min(900px, calc(100dvh - 24px));
+  --settings-surface: var(--card-surface);
+  --settings-inset: var(--bg-secondary);
+  --settings-border: var(--border-color);
+  --settings-control: var(--bg-primary);
+  --settings-selected: var(--color-primary-light);
+  width: min(100%, 620px);
+  max-height: min(860px, calc(100dvh - 24px));
   display: flex;
   flex-direction: column;
   overflow: hidden;
   border-radius: 20px;
-  border: 1px solid var(--settings-glass-border);
-  background:
-    radial-gradient(circle at top right, rgb(47 159 216 / 12%), transparent 28%),
-    linear-gradient(180deg, rgb(255 255 255 / 96%), rgb(255 255 255 / 92%));
-  box-shadow: 0 30px 60px rgb(15 23 42 / 22%);
-  backdrop-filter: blur(20px);
+  border: 1px solid var(--settings-border);
+  background: var(--app-shell-bg);
+  box-shadow: var(--shadow-md);
   container-type: inline-size;
-}
-
-[data-theme='dark'] .settings-container {
-  --settings-glass-surface: rgb(24 29 38 / 66%);
-  --settings-glass-inset: rgb(47 159 216 / 8%);
-  --settings-glass-control: rgb(20 24 31 / 78%);
-  --settings-glass-selected: rgb(47 159 216 / 16%);
-  background:
-    radial-gradient(circle at top right, rgb(47 159 216 / 16%), transparent 28%),
-    linear-gradient(180deg, rgb(24 28 37 / 96%), rgb(16 20 28 / 94%));
 }
 
 .settings-header {
@@ -881,65 +934,119 @@ async function handleImport() {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 20px;
-  border-bottom: 1px solid var(--settings-glass-border);
+  padding: 14px 18px 12px;
   background: transparent;
   flex-shrink: 0;
 }
 
 .brand-row { display: flex; align-items: center; gap: 10px; }
-.brand-icon { width: 32px; height: 32px; flex-shrink: 0; }
-.settings-title { margin: 0; font-size: 18px; font-weight: 650; color: var(--text-primary); }
+.brand-icon { width: 30px; height: 30px; flex-shrink: 0; }
+.settings-title { margin: 0; font-size: 17px; font-weight: 700; color: var(--text-primary); }
 .settings-subtitle { margin: 2px 0 0; font-size: 11px; line-height: 1.4; color: var(--text-secondary); }
-.close-button { width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; border-radius: 8px; color: var(--text-secondary); background: var(--settings-glass-inset); }
+.close-button { width: 30px; height: 30px; flex-shrink: 0; display: grid; place-items: center; border-radius: 9px; color: var(--text-secondary); background: var(--settings-inset); }
 .close-button:hover { color: var(--text-primary); background: var(--bg-tertiary); }
-.close-symbol { font-size: 20px; line-height: 1; }
 
-.settings-content { padding: 16px; overflow-y: auto; overscroll-behavior: contain; min-height: 0; scrollbar-gutter: stable; }
-.settings-columns { display: grid; gap: 14px; margin-top: 14px; }
-.settings-column { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
-.setting-section { min-width: 0; padding: 14px; border: 1px solid var(--settings-glass-border); border-radius: 14px; background: var(--settings-glass-surface); }
+.settings-tabs-bar {
+  padding: 0 18px 12px;
+  border-bottom: 1px solid var(--settings-border);
+  flex-shrink: 0;
+}
+
+.settings-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 3px;
+  border-radius: 12px;
+  background: var(--settings-inset);
+  border: 1px solid var(--settings-border);
+}
+
+.settings-tab {
+  padding: 7px 10px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  transition: background-color 140ms ease, color 140ms ease, box-shadow 140ms ease;
+}
+
+.settings-tab:hover {
+  color: var(--text-primary);
+}
+
+.settings-tab-active {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-weight: 600;
+  box-shadow: var(--shadow-sm);
+}
+
+.save-error-banner {
+  margin: 10px 18px 0;
+}
+
+.settings-content {
+  padding: 14px 18px 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  scrollbar-gutter: stable;
+}
+
+.settings-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.setting-section {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--settings-border);
+  border-radius: 14px;
+  background: var(--settings-surface);
+}
 .section-heading { margin-bottom: 8px; }
 .section-title { margin: 0; font-size: 13px; font-weight: 650; color: var(--text-primary); }
 
-.appearance-section { display: grid; gap: 12px; }
+.appearance-section { display: grid; gap: 10px; }
 .appearance-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
-.theme-selector { display: flex; padding: 3px; border-radius: 9px; gap: 3px; background: var(--settings-glass-inset); flex-shrink: 0; }
-.theme-button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 9px; border-radius: 7px; color: var(--text-secondary); font-size: 12px; min-width: 36px; }
-.theme-icon { width: 17px; height: 17px; flex-shrink: 0; }
-.theme-button-active { color: var(--color-primary); background: var(--settings-glass-selected); box-shadow: inset 0 0 0 1px rgb(47 159 216 / 20%); }
-.theme-button:hover { color: var(--color-primary); }
+.theme-selector { display: flex; padding: 3px; border-radius: 10px; gap: 3px; background: var(--settings-inset); border: 1px solid var(--settings-border); flex-shrink: 0; }
+.theme-button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 9px; border-radius: 7px; color: var(--text-secondary); font-size: 12px; min-width: 36px; transition: background-color 140ms ease, color 140ms ease; }
+.theme-icon { width: 16px; height: 16px; flex-shrink: 0; }
+.theme-button-active { color: var(--text-primary); background: var(--bg-primary); font-weight: 600; box-shadow: var(--shadow-sm); }
+.theme-button:hover { color: var(--text-primary); }
 .language-select { width: 180px; max-width: 65%; }
 
 .setting-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 11px 0; min-width: 0; }
-.setting-row + .setting-row { border-top: 1px solid var(--settings-glass-border); }
+.setting-row + .setting-row { border-top: 1px solid var(--settings-border); }
 .setting-label, .time-label { font-size: 12px; line-height: 1.5; color: var(--text-primary); }
 .setting-label { min-width: 0; overflow-wrap: anywhere; }
 .setting-card-main { width: 100%; min-width: 0; }
 .setting-card-header, .setting-subcard { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .setting-card-copy, .setting-subcard-copy, .setting-inline-copy { min-width: 0; }
-.setting-subcard { margin-top: 10px; padding: 10px; border-radius: 9px; background: var(--settings-glass-inset); }
+.setting-subcard { margin-top: 10px; padding: 10px; border-radius: 10px; background: var(--settings-inset); }
 .setting-description { margin: 4px 0 0; font-size: 11px; line-height: 1.5; color: var(--text-secondary); overflow-wrap: anywhere; }
-.setting-warning { color: #986a2b; }
-[data-theme='dark'] .setting-warning { color: #d9b478; }
-.platform-capability-card { border-top: 1px solid var(--settings-glass-border); padding-top: 10px; margin-top: 4px; color: var(--text-secondary); }
+.setting-warning { color: var(--color-warning); }
+.platform-capability-card { border-top: 1px solid var(--settings-border); padding-top: 10px; margin-top: 4px; color: var(--text-secondary); }
 .platform-capability-card summary { cursor: pointer; font-size: 11px; }
 .platform-capability-card[open] summary { margin-bottom: 7px; }
 
-.setting-input { min-width: 0; padding: 7px 9px; border: 1px solid var(--settings-glass-border); border-radius: 8px; background: var(--settings-glass-control); color: var(--text-primary); font-size: 12px; line-height: 1.5; }
+.setting-input { min-width: 0; padding: 7px 9px; border: 1px solid var(--settings-border); border-radius: 8px; background: var(--settings-control); color: var(--text-primary); font-size: 12px; line-height: 1.5; }
 .setting-row > .setting-input { max-width: 55%; }
 .setting-input[type='number'] { width: 72px; flex-shrink: 0; }
 .switch { position: relative; display: inline-block; width: 36px; height: 22px; flex: 0 0 36px; }
 .switch-disabled { opacity: 0.5; cursor: not-allowed; }
 .switch-loading { cursor: wait; }
 .switch input { opacity: 0; width: 0; height: 0; }
-.slider { position: absolute; inset: 0; border-radius: 999px; background: var(--bg-tertiary); border: 1px solid var(--settings-glass-border); transition: background-color 150ms ease; }
-.slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; border-radius: 50%; background: white; box-shadow: 0 1px 3px rgb(0 0 0 / 18%); transition: transform 150ms ease; }
+.slider { position: absolute; inset: 0; border-radius: 999px; background: var(--bg-tertiary); border: 1px solid var(--settings-border); transition: background-color 150ms ease; }
+.slider::before { content: ''; position: absolute; width: 16px; height: 16px; left: 2px; top: 2px; border-radius: 50%; background: var(--switch-thumb); box-shadow: 0 1px 3px rgb(0 0 0 / 18%); transition: transform 150ms ease; }
 input:checked + .slider { background: var(--color-primary); border-color: transparent; }
 input:checked + .slider::before { transform: translateX(14px); }
 .switch:has(:focus-visible) { outline: 2px solid var(--color-primary); outline-offset: 3px; border-radius: 999px; }
 
-.sound-panel { padding: 0 10px; border-radius: 9px; background: var(--settings-glass-inset); }
+.sound-panel { padding: 0 10px; border-radius: 10px; background: var(--settings-inset); }
 .sound-panel .setting-row { flex-wrap: wrap; }
 .sound-panel .setting-row > .setting-label { flex: 1 0 60px; }
 .sound-panel .setting-input { max-width: 55%; flex: 1; }
@@ -950,34 +1057,30 @@ input:checked + .slider::before { transform: translateX(14px); }
 .time-field { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
 .time-field .setting-input { width: 100%; }
 
-.import-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 3px; background: var(--settings-glass-inset); padding: 3px; border-radius: 9px; }
-.mode-button { padding: 7px 8px; font-size: 12px; color: var(--text-secondary); border-radius: 7px; }
-.mode-button-active { background: var(--settings-glass-selected); color: var(--color-primary); box-shadow: inset 0 0 0 1px rgb(47 159 216 / 20%); }
+.import-mode { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; background: var(--settings-inset); padding: 3px; border-radius: 10px; border: 1px solid var(--settings-border); }
+.mode-button { padding: 7px 8px; font-size: 12px; color: var(--text-secondary); border-radius: 7px; transition: background-color 140ms ease, color 140ms ease; }
+.mode-button-active { background: var(--bg-primary); color: var(--text-primary); font-weight: 600; box-shadow: var(--shadow-sm); }
 .data-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-.data-button { padding: 7px 10px; border-radius: 8px; font-size: 12px; line-height: 1.5; color: var(--text-primary); border: 1px solid var(--settings-glass-border); background: var(--settings-glass-surface); }
-.data-button:hover:not(:disabled), .mode-button:hover:not(:disabled) { border-color: var(--color-primary); color: var(--color-primary); }
+.data-button { padding: 8px 10px; border-radius: 9px; font-size: 12px; line-height: 1.5; color: var(--text-primary); border: 1px solid var(--settings-border); background: var(--bg-primary); transition: border-color 140ms ease, color 140ms ease; }
+.data-button:hover:not(:disabled), .mode-button:hover:not(:disabled) { border-color: var(--color-primary); color: var(--text-primary); }
 .data-button:disabled, .mode-button:disabled { opacity: 0.5; cursor: wait; }
 .hint { margin: 8px 0 0; font-size: 11px; line-height: 1.5; color: var(--text-secondary); }
-.message { margin: 10px 0 0; padding: 10px; border-radius: 8px; background: var(--color-primary-light); color: var(--text-primary); font-size: 12px; }
-.message-error { color: #b94f5a; }
+.message { margin: 10px 0 0; padding: 10px; border-radius: 10px; background: var(--color-primary-light); color: var(--text-primary); font-size: 12px; }
+.message-error { color: var(--color-danger); }
 
 button:focus-visible, select:focus-visible, input:focus-visible, summary:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .slide-down-enter-active, .slide-down-leave-active { transition: opacity 150ms ease; }
 .slide-down-enter-from, .slide-down-leave-to { opacity: 0; }
 
-@container (min-width: 740px) {
-  .settings-columns { grid-template-columns: 1fr 1fr; align-items: start; }
-  .appearance-section { grid-template-columns: 1fr 1fr; gap: 24px; }
-}
-
 @container (max-width: 520px) {
   .theme-label { display: none; }
-  .settings-header { padding: 12px 14px; }
-  .settings-content { padding: 12px; }
+  .settings-header { padding: 12px 14px 10px; }
+  .settings-tabs-bar { padding: 0 14px 10px; }
+  .settings-content { padding: 12px 14px 14px; }
   .setting-section { padding: 12px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .slider, .slider::before, .slide-down-enter-active, .slide-down-leave-active { transition: none; }
+  .slider, .slider::before, .settings-tab, .theme-button, .mode-button, .data-button, .slide-down-enter-active, .slide-down-leave-active { transition: none; }
 }
 </style>

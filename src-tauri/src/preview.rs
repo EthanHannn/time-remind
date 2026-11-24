@@ -29,7 +29,15 @@ pub fn preview_notification(
 ) -> Result<(), String> {
     if !matches!(
         request.mascot_style.as_str(),
-        "classic" | "editorial" | "watercolor"
+        "classic"
+            | "editorial"
+            | "watercolor"
+            | "cat_silver"
+            | "cat_siamese"
+            | "shiba_black"
+            | "shiba_cream"
+            | "mecha_sazabi"
+            | "mecha_nu"
     ) || !matches!(
         request.reminder_type.as_str(),
         "drink" | "rest" | "eye_care" | "custom"

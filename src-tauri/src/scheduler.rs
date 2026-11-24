@@ -12,7 +12,7 @@ use crate::fullscreen::is_foreground_window_fullscreen;
 use crate::power::PowerMonitor;
 
 const NOTIFICATION_WINDOW_WIDTH: f64 = 400.0;
-const NOTIFICATION_WINDOW_HEIGHT: f64 = 240.0;
+const NOTIFICATION_WINDOW_HEIGHT: f64 = 232.0;
 const NOTIFICATION_WINDOW_RIGHT_MARGIN: f64 = 20.0;
 const NOTIFICATION_WINDOW_BOTTOM_MARGIN: f64 = 96.0;
 const NEXT_NOTIFICATION_DELAY_MS: u64 = 220;
@@ -57,8 +57,8 @@ pub fn resize_notification_window(
     if !matches!(window.label(), "notification" | "notification-preview")
         || !width.is_finite()
         || !height.is_finite()
-        || !(300.0..=420.0).contains(&width)
-        || !(90.0..=440.0).contains(&height)
+        || !(280.0..=420.0).contains(&width)
+        || !(64.0..=440.0).contains(&height)
     {
         return Err("Invalid notification size".into());
     }
@@ -66,6 +66,33 @@ pub fn resize_notification_window(
         .current_monitor()
         .map_err(|error| error.to_string())?;
     let size = tauri::LogicalSize::new(width, height);
+
+    #[cfg(target_os = "windows")]
+    if let (Some(monitor), Ok(hwnd)) = (monitor.as_ref(), window.hwnd()) {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            SetWindowPos, SWP_NOACTIVATE, SWP_NOOWNERZORDER, SWP_NOZORDER,
+        };
+        let scale = monitor.scale_factor();
+        let area = monitor.work_area();
+        let position = notification_window_position(area.position, area.size, scale, size);
+        let physical_width = (width * scale).round() as i32;
+        let physical_height = (height * scale).round() as i32;
+        unsafe {
+            SetWindowPos(
+                HWND(hwnd.0),
+                None,
+                position.x,
+                position.y,
+                physical_width,
+                physical_height,
+                SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER,
+            )
+            .map_err(|error| error.to_string())?;
+        }
+        return Ok(());
+    }
+
     window
         .set_size(tauri::Size::Logical(size))
         .map_err(|error| error.to_string())?;
