@@ -86,10 +86,11 @@ onBeforeUnmount(() => document.removeEventListener('pointerdown', closeOutside))
 
 <style scoped>
 .language-picker { position: relative; min-width: 0; }
-.language-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 9px; border: 1px solid var(--settings-glass-border); border-radius: 8px; background: var(--settings-glass-control); color: var(--text-primary); font-size: 12px; line-height: 1.5; text-align: start; }
+.language-trigger { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 9px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-primary); color: var(--text-primary); font-size: 12px; line-height: 1.5; text-align: start; transition: border-color 140ms ease; }
+.language-trigger:hover { border-color: var(--border-color-hover); }
 .language-trigger:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
-.language-options { position: absolute; inset-inline: 0; top: calc(100% + 5px); z-index: 10; margin: 0; padding: 4px; list-style: none; max-height: min(240px, 40dvh); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; border: 1px solid var(--settings-glass-border); border-radius: 10px; background: var(--bg-primary); box-shadow: var(--shadow-lg); }
+.language-options { position: absolute; inset-inline: 0; top: calc(100% + 5px); z-index: 10; margin: 0; padding: 4px; list-style: none; max-height: min(240px, 40dvh); overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; scrollbar-width: thin; border: 1px solid var(--border-color); border-radius: 10px; background: var(--bg-primary); box-shadow: var(--shadow-lg); }
 .language-options li { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 8px; border-radius: 6px; font-size: 12px; color: var(--text-primary); cursor: pointer; }
-.language-options li.active, .language-options li:hover { background: var(--settings-glass-selected); }
-.language-options li[aria-selected='true'] { color: var(--color-primary); }
+.language-options li.active, .language-options li:hover { background: var(--color-primary-light); }
+.language-options li[aria-selected='true'] { color: var(--color-primary); font-weight: 600; }
 </style>

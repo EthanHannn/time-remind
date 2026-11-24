@@ -52,7 +52,7 @@ useModalFocus(useTemplateRef<HTMLElement>('dialog'), handleCancel)
         {{ message }}
       </p>
 
-      <p v-if="error" role="alert">
+      <p v-if="error" class="confirm-error" role="alert">
         {{ error }}
       </p>
 
@@ -130,24 +130,32 @@ useModalFocus(useTemplateRef<HTMLElement>('dialog'), handleCancel)
   margin-top: 24px;
 }
 
+.confirm-error {
+  margin: 12px 0 0;
+  padding: 9px 12px;
+  border-radius: 10px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+  font-size: 12px;
+}
+
 .confirm-button {
   min-width: 92px;
-  padding: 11px 16px;
-  border-radius: 16px;
+  padding: 10px 16px;
+  border-radius: 12px;
   border: 1px solid transparent;
-  background: linear-gradient(135deg, #d95767, #f07c88);
-  color: white;
-  font-size: 14px;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  font-size: 13px;
   font-weight: 600;
   transition:
-    transform 0.18s ease,
-    box-shadow 0.18s ease,
-    opacity 0.18s ease;
+    transform 0.16s ease,
+    background-color 0.16s ease,
+    opacity 0.16s ease;
 }
 
 .confirm-button:hover:not(:disabled) {
-  transform: translateY(-1px);
-  box-shadow: 0 16px 28px rgba(217, 87, 103, 0.22);
+  background: var(--color-primary-hover);
 }
 
 .confirm-button:active:not(:disabled) {
@@ -165,7 +173,12 @@ useModalFocus(useTemplateRef<HTMLElement>('dialog'), handleCancel)
 }
 
 .confirm-button-danger {
-  background: linear-gradient(135deg, #d95767, #f07c88);
+  background: var(--color-danger);
+  color: #ffffff;
+}
+
+.confirm-button-danger:hover:not(:disabled) {
+  background: var(--color-danger-hover);
 }
 
 .confirm-button:disabled {

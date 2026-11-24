@@ -16,38 +16,60 @@ const props = defineProps<{
 
 const { t, locale } = useI18n()
 
-// 主题色（与 uno.config.ts 保持一致）
-const BRAND_PRIMARY = '#0ea5e9'
-const BRAND_SUCCESS = '#10b981'
+const tokens = ref({
+  isDark: false,
+  primary: '#3b66f5',
+  success: '#10a37f',
+  surface: '#ffffff',
+  textPrimary: '#161426',
+  textSecondary: '#64617e',
+  border: 'rgba(15, 23, 42, 0.09)',
+})
 
-// 跟踪暗色主题，决定文字/网格色
-const isDark = ref(false)
-const themeObserver = ref<MutationObserver | null>(null)
+let themeObserver: MutationObserver | null = null
+
+function readVar(styles: CSSStyleDeclaration, name: string, fallback: string): string {
+  const value = styles.getPropertyValue(name).trim()
+  return value || fallback
+}
 
 function detectTheme() {
-  isDark.value = document.documentElement.getAttribute('data-theme') === 'dark'
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark'
+  const styles = getComputedStyle(document.documentElement)
+  tokens.value = {
+    isDark: dark,
+    primary: readVar(styles, '--color-primary', dark ? '#8b85ff' : '#3b66f5'),
+    success: readVar(styles, '--type-rest', dark ? '#3ad4a8' : '#10a37f'),
+    surface: readVar(styles, '--bg-primary', dark ? '#171924' : '#ffffff'),
+    textPrimary: readVar(styles, '--text-primary', dark ? '#f4f4fa' : '#161426'),
+    textSecondary: readVar(styles, '--text-secondary', dark ? '#9899b3' : '#64617e'),
+    border: readVar(styles, '--border-color', dark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.09)'),
+  }
 }
 
 onMounted(() => {
   detectTheme()
-  themeObserver.value = new MutationObserver(detectTheme)
-  themeObserver.value.observe(document.documentElement, {
+  themeObserver = new MutationObserver(detectTheme)
+  themeObserver.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ['data-theme'],
+    attributeFilter: ['data-theme', 'data-palette'],
   })
 })
 
 onUnmounted(() => {
-  themeObserver.value?.disconnect()
+  themeObserver?.disconnect()
 })
 
-const textColor = computed(() => isDark.value ? '#a1a1aa' : '#71717a')
-const gridColor = computed(() => isDark.value ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)')
+const gridColor = computed(() => (tokens.value.isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)'))
 
 // Format calendar dates in the selected locale without shifting the day.
 function formatDate(dateStr: string): string {
   const date = new Date(dateStr)
   return new Intl.DateTimeFormat(locale.value, { month: 'numeric', day: 'numeric', timeZone: 'UTC' }).format(date)
+}
+
+function withAlpha(color: string, hexAlpha: string): string {
+  return /^#[\da-f]{6}$/i.test(color) ? `${color}${hexAlpha}` : color
 }
 
 const chartData = computed<ChartData<'bar' | 'line'>>(() => {
@@ -56,6 +78,8 @@ const chartData = computed<ChartData<'bar' | 'line'>>(() => {
   const rate = props.trendStats.map(s =>
     s.total_count > 0 ? Math.round((s.completed_count / s.total_count) * 100) : 0,
   )
+  const primary = tokens.value.primary
+  const success = tokens.value.success
 
   return {
     labels,
@@ -64,8 +88,8 @@ const chartData = computed<ChartData<'bar' | 'line'>>(() => {
         type: 'bar' as const,
         label: t('stats.completedCount'),
         data: completed,
-        backgroundColor: `${BRAND_PRIMARY}cc`,
-        borderColor: BRAND_PRIMARY,
+        backgroundColor: withAlpha(primary, 'cc'),
+        borderColor: primary,
         borderWidth: 0,
         borderRadius: 6,
         borderSkipped: false,
@@ -76,12 +100,12 @@ const chartData = computed<ChartData<'bar' | 'line'>>(() => {
         type: 'line' as const,
         label: t('stats.completionRate'),
         data: rate,
-        borderColor: BRAND_SUCCESS,
-        backgroundColor: `${BRAND_SUCCESS}33`,
+        borderColor: success,
+        backgroundColor: withAlpha(success, '26'),
         borderWidth: 2,
         pointRadius: 3,
         pointHoverRadius: 5,
-        pointBackgroundColor: BRAND_SUCCESS,
+        pointBackgroundColor: success,
         tension: 0.35,
         fill: true,
         yAxisID: 'y1',
@@ -107,7 +131,7 @@ const chartOptions = computed<ChartOptions<'bar'>>(() => ({
       position: 'top' as const,
       align: 'end' as const,
       labels: {
-        color: textColor.value,
+        color: tokens.value.textSecondary,
         font: { size: 12 },
         boxWidth: 12,
         boxHeight: 12,
@@ -117,13 +141,13 @@ const chartOptions = computed<ChartOptions<'bar'>>(() => ({
     tooltip: {
       rtl: locale.value === 'ar',
       textDirection: locale.value === 'ar' ? 'rtl' : 'ltr',
-      backgroundColor: isDark.value ? 'rgba(24,24,27,0.95)' : 'rgba(255,255,255,0.98)',
-      titleColor: isDark.value ? '#f4f4f5' : '#18181b',
-      bodyColor: isDark.value ? '#d4d4d8' : '#3f3f46',
-      borderColor: isDark.value ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+      backgroundColor: tokens.value.surface,
+      titleColor: tokens.value.textPrimary,
+      bodyColor: tokens.value.textSecondary,
+      borderColor: tokens.value.border,
       borderWidth: 1,
       padding: 10,
-      cornerRadius: 8,
+      cornerRadius: 10,
       displayColors: true,
       boxPadding: 4,
     },
@@ -131,14 +155,14 @@ const chartOptions = computed<ChartOptions<'bar'>>(() => ({
   scales: {
     x: {
       grid: { display: false },
-      ticks: { color: textColor.value, font: { size: 11 } },
+      ticks: { color: tokens.value.textSecondary, font: { size: 11 } },
       border: { display: false },
     },
     y: {
       beginAtZero: true,
       position: 'left' as const,
       grid: { color: gridColor.value },
-      ticks: { color: textColor.value, font: { size: 11 }, precision: 0 },
+      ticks: { color: tokens.value.textSecondary, font: { size: 11 }, precision: 0 },
       border: { display: false },
     },
     y1: {
@@ -147,7 +171,7 @@ const chartOptions = computed<ChartOptions<'bar'>>(() => ({
       position: 'right' as const,
       grid: { display: false },
       ticks: {
-        color: textColor.value,
+        color: tokens.value.textSecondary,
         font: { size: 11 },
         callback: value => new Intl.NumberFormat(locale.value, { style: 'percent' }).format(Number(value) / 100),
       },

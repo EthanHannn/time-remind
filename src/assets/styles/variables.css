@@ -27,6 +27,12 @@
   --border-color: rgb(120 62 42 / 10%);
   --border-color-hover: rgb(229 103 71 / 34%);
 
+  /* 状态语义色 */
+  --color-danger: #d94858;
+  --color-danger-hover: #c53b4b;
+  --color-danger-soft: rgb(217 72 88 / 11%);
+  --color-warning: #c47a24;
+
   --type-drink: #357fc4;
   --type-drink-soft: rgb(53 127 196 / 11%);
   --type-rest: #28966e;
@@ -98,6 +104,11 @@
 
   --border-color: rgb(255 224 210 / 10%);
   --border-color-hover: rgb(243 141 113 / 34%);
+
+  --color-danger: #f27482;
+  --color-danger-hover: #f68a96;
+  --color-danger-soft: rgb(242 116 130 / 16%);
+  --color-warning: #edb062;
 
   --type-drink: #69ade8;
   --type-drink-soft: rgb(105 173 232 / 16%);

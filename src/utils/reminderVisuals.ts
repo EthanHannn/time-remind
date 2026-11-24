@@ -8,7 +8,6 @@ import customStar from '../assets/icons/reminder/custom-star.png'
 import reminderDrink from '../assets/icons/reminder/reminder-drink.png'
 import reminderEyeCare from '../assets/icons/reminder/reminder-eye-care.png'
 import reminderRest from '../assets/icons/reminder/reminder-rest.png'
-import emptyReminders from '../assets/illustrations/empty/empty-reminders.png'
 import { messages } from '../i18n/messages'
 import { getMascotAsset } from './mascotStyles'
 
@@ -164,4 +163,4 @@ export function getLocalizedReminderTypeOptions(language: Language): ReminderVis
   return reminderTypeOptions.map(option => getLocalizedReminderVisual(option.type, language))
 }
 
-export { appIconMain, emptyReminders }
+export { appIconMain }

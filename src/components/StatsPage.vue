@@ -1,18 +1,27 @@
 <script setup lang="ts">
+import type { MascotStyle } from '../utils/mascotStyles'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { computed, onMounted, onUnmounted, ref, useTemplateRef } from 'vue'
 import { useModalFocus } from '../composables/useModalFocus'
 import { useI18n } from '../i18n'
-import { emptyReminders, getLocalizedReminderVisual } from '../utils/reminderVisuals'
+import { getMascotAsset } from '../utils/mascotStyles'
+import { getLocalizedReminderVisual } from '../utils/reminderVisuals'
 import AppIcon from './AppIcon.vue'
 import CompletionDoughnut from './charts/CompletionDoughnut.vue'
 import TrendChart from './charts/TrendChart.vue'
+
+const props = withDefaults(defineProps<{
+  mascotStyle?: MascotStyle
+}>(), {
+  mascotStyle: 'classic',
+})
 
 const emit = defineEmits<{
   close: []
 }>()
 useModalFocus(useTemplateRef<HTMLElement>('dialog'), () => emit('close'))
+const emptyMascotAsset = computed(() => getMascotAsset(props.mascotStyle, 'snooze'))
 
 interface ReminderStat {
   reminder_id: string
@@ -110,6 +119,14 @@ function getCompletionRate(completed: number, total: number): number {
 function getVisual(type: string, icon?: string) {
   return getLocalizedReminderVisual(type, locale.value, icon)
 }
+
+function getTypeCssVars(type: string) {
+  const key = type === 'drink' ? 'drink' : type === 'rest' ? 'rest' : type === 'eye_care' ? 'eye-care' : 'custom'
+  return {
+    accent: `var(--type-${key})`,
+    soft: `var(--type-${key}-soft)`,
+  }
+}
 </script>
 
 <template>
@@ -131,16 +148,17 @@ function getVisual(type: string, icon?: string) {
       </div>
 
       <div class="stats-content">
-        <p v-if="error" role="alert">
-          {{ error }} <button type="button" @click="loadStats">
+        <p v-if="error" class="stats-feedback stats-feedback-error" role="alert">
+          <span>{{ error }}</span>
+          <button class="stats-retry-button" type="button" @click="loadStats">
             {{ t('feedback.retry') }}
           </button>
         </p>
-        <p v-if="loading" role="status">
+        <p v-if="loading" class="stats-feedback" role="status">
           {{ t('feedback.loading') }}
         </p>
         <div v-if="!loading && !error && !hasOverviewData" class="stats-empty">
-          <img :src="emptyReminders" :alt="t('stats.emptyAlt')" class="stats-empty-image">
+          <img :src="emptyMascotAsset" :alt="t('stats.emptyAlt')" class="stats-empty-image">
           <h3 class="stats-empty-title">
             {{ t('stats.emptyTitle') }}
           </h3>
@@ -164,7 +182,7 @@ function getVisual(type: string, icon?: string) {
                   :key="stat.reminder_id"
                   class="stat-card"
                 >
-                  <div class="stat-visual" :style="{ '--stat-accent': getVisual(stat.reminder_type, stat.icon).accentSoft }">
+                  <div class="stat-visual" :style="{ '--stat-accent': getTypeCssVars(stat.reminder_type).soft }">
                     <img
                       v-if="getVisual(stat.reminder_type, stat.icon).iconAsset"
                       :src="getVisual(stat.reminder_type, stat.icon).iconAsset"
@@ -184,7 +202,7 @@ function getVisual(type: string, icon?: string) {
                         class="progress-fill"
                         :style="{
                           width: `${getCompletionRate(stat.completed_count, stat.total_count)}%`,
-                          background: getVisual(stat.reminder_type, stat.icon).accent,
+                          background: getTypeCssVars(stat.reminder_type).accent,
                         }"
                       />
                     </div>
@@ -216,7 +234,7 @@ function getVisual(type: string, icon?: string) {
                 :key="streak.reminder_id"
                 class="streak-card"
               >
-                <div class="streak-visual" :style="{ '--streak-accent': getVisual(streak.reminder_type, streak.icon).accentSoft }">
+                <div class="streak-visual" :style="{ '--streak-accent': getTypeCssVars(streak.reminder_type).soft }">
                   <img
                     v-if="getVisual(streak.reminder_type, streak.icon).iconAsset"
                     :src="getVisual(streak.reminder_type, streak.icon).iconAsset"
@@ -336,12 +354,14 @@ function getVisual(type: string, icon?: string) {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: rgba(148, 163, 184, 0.12);
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
 .close-button:hover {
-  background: rgba(148, 163, 184, 0.18);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
 }
 
 .close-button:active {
@@ -358,6 +378,41 @@ function getVisual(type: string, icon?: string) {
   overflow-y: auto;
 }
 
+.stats-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.stats-feedback-error {
+  border-color: var(--color-danger-soft);
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
+}
+
+.stats-retry-button {
+  flex-shrink: 0;
+  padding: 5px 12px;
+  border-radius: 8px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stats-retry-button:hover {
+  border-color: var(--color-primary);
+}
+
 .stats-empty {
   display: flex;
   flex-direction: column;
@@ -367,8 +422,9 @@ function getVisual(type: string, icon?: string) {
 }
 
 .stats-empty-image {
-  width: min(220px, 68%);
+  width: min(176px, 56%);
   margin-bottom: 16px;
+  object-fit: contain;
 }
 
 .stats-empty-title {
@@ -446,7 +502,7 @@ function getVisual(type: string, icon?: string) {
   align-items: center;
   justify-content: center;
   border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.56), var(--stat-accent, var(--streak-accent)));
+  background: var(--stat-accent, var(--streak-accent));
 }
 
 .stat-image,
@@ -487,7 +543,7 @@ function getVisual(type: string, icon?: string) {
   margin-top: 10px;
   overflow: hidden;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.18);
+  background: var(--bg-secondary);
 }
 
 .progress-fill {

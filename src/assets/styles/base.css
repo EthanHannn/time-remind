@@ -62,8 +62,8 @@ textarea {
 }
 
 [data-theme='dark'] select option {
-  color: #f0f0f0;
-  background-color: #181c25;
+  color: var(--text-primary);
+  background-color: var(--bg-primary);
 }
 
 /* 滚动条样式 */

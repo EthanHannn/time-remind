@@ -3,7 +3,6 @@ import type { ChartData, ChartOptions, Plugin } from 'chart.js'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { Doughnut } from 'vue-chartjs'
 import { useI18n } from '../../i18n'
-import { getReminderVisual } from '../../utils/reminderVisuals'
 
 interface ReminderStat {
   reminder_id: string
@@ -20,24 +19,52 @@ const props = defineProps<{
 
 const { t, locale } = useI18n()
 
-const isDark = ref(false)
-const themeObserver = ref<MutationObserver | null>(null)
+const tokens = ref({
+  cardSurface: '#ffffff',
+  surface: '#ffffff',
+  textPrimary: '#161426',
+  textSecondary: '#64617e',
+  border: 'rgba(15, 23, 42, 0.09)',
+  drink: '#357fc4',
+  rest: '#28966e',
+  eyeCare: '#de7c32',
+  custom: '#8367b5',
+})
+
+let themeObserver: MutationObserver | null = null
+
+function readVar(styles: CSSStyleDeclaration, name: string, fallback: string): string {
+  const value = styles.getPropertyValue(name).trim()
+  return value || fallback
+}
 
 function detectTheme() {
-  isDark.value = document.documentElement.getAttribute('data-theme') === 'dark'
+  const dark = document.documentElement.getAttribute('data-theme') === 'dark'
+  const styles = getComputedStyle(document.documentElement)
+  tokens.value = {
+    cardSurface: readVar(styles, '--card-surface', dark ? '#171924' : '#ffffff'),
+    surface: readVar(styles, '--bg-primary', dark ? '#171924' : '#ffffff'),
+    textPrimary: readVar(styles, '--text-primary', dark ? '#f4f4fa' : '#161426'),
+    textSecondary: readVar(styles, '--text-secondary', dark ? '#9899b3' : '#64617e'),
+    border: readVar(styles, '--border-color', dark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.09)'),
+    drink: readVar(styles, '--type-drink', dark ? '#69ade8' : '#357fc4'),
+    rest: readVar(styles, '--type-rest', dark ? '#4ecb9b' : '#28966e'),
+    eyeCare: readVar(styles, '--type-eye-care', dark ? '#f3a661' : '#de7c32'),
+    custom: readVar(styles, '--type-custom', dark ? '#b79ce6' : '#8367b5'),
+  }
 }
 
 onMounted(() => {
   detectTheme()
-  themeObserver.value = new MutationObserver(detectTheme)
-  themeObserver.value.observe(document.documentElement, {
+  themeObserver = new MutationObserver(detectTheme)
+  themeObserver.observe(document.documentElement, {
     attributes: true,
-    attributeFilter: ['data-theme'],
+    attributeFilter: ['data-theme', 'data-palette'],
   })
 })
 
 onUnmounted(() => {
-  themeObserver.value?.disconnect()
+  themeObserver?.disconnect()
 })
 
 const totalCompleted = computed(() =>
@@ -52,10 +79,20 @@ const overallRate = computed(() =>
   totalCount.value > 0 ? Math.round((totalCompleted.value / totalCount.value) * 100) : 0,
 )
 
+function colorForType(type: string): string {
+  if (type === 'drink')
+    return tokens.value.drink
+  if (type === 'rest')
+    return tokens.value.rest
+  if (type === 'eye_care')
+    return tokens.value.eyeCare
+  return tokens.value.custom
+}
+
 const chartData = computed<ChartData<'doughnut'>>(() => {
   const labels = props.dailyStats.map(s => s.name)
   const data = props.dailyStats.map(s => s.completed_count)
-  const colors = props.dailyStats.map(s => getReminderVisual(s.reminder_type).accent)
+  const colors = props.dailyStats.map(s => colorForType(s.reminder_type))
 
   return {
     labels,
@@ -63,7 +100,7 @@ const chartData = computed<ChartData<'doughnut'>>(() => {
       data,
       backgroundColor: colors,
       borderWidth: 2,
-      borderColor: isDark.value ? '#18181b' : '#ffffff',
+      borderColor: tokens.value.cardSurface,
       hoverOffset: 4,
     }],
   }
@@ -81,7 +118,7 @@ const chartOptions = computed<ChartOptions<'doughnut'>>(() => ({
       display: true,
       position: 'bottom' as const,
       labels: {
-        color: isDark.value ? '#a1a1aa' : '#71717a',
+        color: tokens.value.textSecondary,
         font: { size: 12 },
         boxWidth: 12,
         boxHeight: 12,
@@ -92,13 +129,13 @@ const chartOptions = computed<ChartOptions<'doughnut'>>(() => ({
     tooltip: {
       rtl: locale.value === 'ar',
       textDirection: locale.value === 'ar' ? 'rtl' : 'ltr',
-      backgroundColor: isDark.value ? 'rgba(24,24,27,0.95)' : 'rgba(255,255,255,0.98)',
-      titleColor: isDark.value ? '#f4f4f5' : '#18181b',
-      bodyColor: isDark.value ? '#d4d4d8' : '#3f3f46',
-      borderColor: isDark.value ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)',
+      backgroundColor: tokens.value.surface,
+      titleColor: tokens.value.textPrimary,
+      bodyColor: tokens.value.textSecondary,
+      borderColor: tokens.value.border,
       borderWidth: 1,
       padding: 10,
-      cornerRadius: 8,
+      cornerRadius: 10,
     },
   },
 }))
@@ -117,11 +154,11 @@ const centerTextPlugin: Plugin<'doughnut'> = {
     ctx.textBaseline = 'middle'
 
     ctx.font = 'bold 24px -apple-system, sans-serif'
-    ctx.fillStyle = isDark.value ? '#f4f4f5' : '#18181b'
+    ctx.fillStyle = tokens.value.textPrimary
     ctx.fillText(new Intl.NumberFormat(locale.value, { style: 'percent' }).format(overallRate.value / 100), centerX, centerY - 8)
 
     ctx.font = '12px -apple-system, sans-serif'
-    ctx.fillStyle = isDark.value ? '#a1a1aa' : '#71717a'
+    ctx.fillStyle = tokens.value.textSecondary
     ctx.fillText(t('stats.completionRateShort'), centerX, centerY + 14)
     ctx.restore()
   },

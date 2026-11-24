@@ -408,6 +408,7 @@ async function handleAdd(data: CreateReminderRequest) {
     <Transition name="modal">
       <StatsPage
         v-if="showStats"
+        :mascot-style="mascotStyle"
         @close="showStats = false"
       />
     </Transition>

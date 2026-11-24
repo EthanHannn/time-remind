@@ -155,9 +155,8 @@ function handleSubmit() {
               class="type-card"
               :class="{ 'type-card-active': selectedType === type.type }" :aria-pressed="selectedType === type.type"
               :style="{
-                '--type-accent': type.accent,
-                '--type-soft': type.accentSoft,
-                '--type-border': type.borderSoft,
+                '--type-accent': `var(--type-${type.type === 'eye_care' ? 'eye-care' : type.type})`,
+                '--type-soft': `var(--type-${type.type === 'eye_care' ? 'eye-care' : type.type}-soft)`,
               }"
               type="button"
               @click="selectedType = type.type"
@@ -310,8 +309,8 @@ function handleSubmit() {
 
 <style scoped>
 .form-fields { min-width: 0; border: 0; margin: 0; padding: 0; }
-.delete-reminder { display: flex; align-items: center; justify-content: center; gap: 6px; color: #bb4353; font-size: 13px; min-height: 36px; padding: 6px 8px; border-radius: 8px; }
-.delete-reminder:hover { background: rgb(187 67 83 / 8%); }
+.delete-reminder { display: flex; align-items: center; justify-content: center; gap: 6px; color: var(--color-danger); font-size: 13px; min-height: 36px; padding: 6px 8px; border-radius: 8px; }
+.delete-reminder:hover { background: var(--color-danger-soft); }
 .form-actions { flex-wrap: wrap; }
 .form-container { overscroll-behavior: contain; }
 
@@ -367,12 +366,14 @@ function handleSubmit() {
   align-items: center;
   justify-content: center;
   border-radius: 12px;
-  background: rgba(148, 163, 184, 0.12);
-  transition: transform 0.2s ease, background-color 0.2s ease;
+  color: var(--text-secondary);
+  background: var(--bg-secondary);
+  transition: transform 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
 .close-button:hover {
-  background: rgba(148, 163, 184, 0.18);
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
 }
 
 .close-button:active {
@@ -437,8 +438,8 @@ function handleSubmit() {
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), var(--type-soft));
+  border-radius: 14px;
+  background: var(--type-soft);
 }
 
 .type-image {
@@ -649,9 +650,9 @@ input:checked + .slider::before {
 .error-message {
   margin: 0;
   padding: 10px 12px;
-  border-radius: 14px;
-  background: rgba(227, 93, 106, 0.12);
-  color: #d95767;
+  border-radius: 12px;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
   font-size: 13px;
 }
 
