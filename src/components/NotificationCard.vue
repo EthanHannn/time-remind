@@ -65,6 +65,11 @@ const primaryLabel = computed(() => {
   }
   return t(props.visual.type === 'drink' ? 'notification.drank' : 'notification.complete')
 })
+const headerTagLabel = computed(() => {
+  if (props.preview)
+    return t('settings.previewBadge')
+  return props.visual.type === 'custom' ? t('common.appName') : props.visual.label
+})
 const countdownMessage = computed(() => props.actionMessage || (props.visual.type === 'eye_care' ? t('notification.eyeHint') : props.visual.type === 'rest' ? t('notification.restHint') : props.message))
 const primaryAsset = computed(() => props.visual.mascotAsset || props.visual.iconAsset)
 const statusAsset = computed(() => props.visual.statusAsset || primaryAsset.value)
@@ -106,7 +111,7 @@ const progress = computed(() => Math.max(0, Math.min(1, props.remainingProgress 
         <header class="notification-header">
           <img v-if="appearance === 'minimal'" :src="appIconMain" alt="" width="16" height="16">
           <span class="notification-tag" :class="{ 'notification-tag-counting': breakMode && !completed }">
-            {{ preview ? t('settings.previewBadge') : visual.label }}
+            {{ headerTagLabel }}
             <template v-if="breakMode && !completed"> · {{ t('ui.countingTag') }}</template>
           </span>
           <span v-if="pendingLabel" class="notification-queue" :title="pendingLabel">{{ pendingLabel }}</span>

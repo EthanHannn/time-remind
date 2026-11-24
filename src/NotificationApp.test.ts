@@ -32,7 +32,14 @@ vi.mock('./i18n', async (importOriginal) => {
 vi.mock('./utils/notificationSound', () => ({ playNotificationSound: mocks.sound }))
 vi.mock('./utils/reminderVisuals', () => ({
   appIconMain: '/test-app-icon.png',
-  getLocalizedReminderVisual: () => ({ label: 'Drink', accent: '#abc', accentSoft: '#def', borderSoft: '#123', iconText: 'D' }),
+  getLocalizedReminderVisual: (type: string) => ({
+    type,
+    label: type === 'custom' ? 'Custom reminder' : type === 'rest' ? 'Rest reminder' : 'Drink',
+    accent: '#abc',
+    accentSoft: '#def',
+    borderSoft: '#123',
+    iconText: 'D',
+  }),
 }))
 
 function emit(name: string, payload: unknown = {}) {
@@ -282,6 +289,15 @@ describe('notification cancellation', () => {
     expect(wrapper.get('.notification-title').text()).toBe('Next drink')
     await vi.advanceTimersByTimeAsync(3200)
     expect(mocks.invoke).toHaveBeenCalledWith('respond_reminder', expect.objectContaining({ notificationId: 'instance-2', action: 'timeout' }))
+  })
+
+  it('shows the app name in the header tag for custom reminders while keeping built-in type labels', async () => {
+    emit('notification:show', { ...notification, queue_revision: 2, reminder_type: 'custom', name: 'Stand up' })
+    await flushPromises()
+    expect(wrapper.get('.notification-tag').text()).toBe('common.appName')
+    emit('notification:show', { ...notification, queue_revision: 3, reminder_type: 'rest', name: 'Rest' })
+    await flushPromises()
+    expect(wrapper.get('.notification-tag').text()).toBe('Rest reminder')
   })
 
   it.each([true, false])('updates only the default rest title while counting (default: %s)', async (isDefault) => {
