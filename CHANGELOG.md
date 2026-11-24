@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.1.13 Beta - 2026-11-24
+
+### Added
+
+- Introduced 9 hand-drawn companion characters across 3 groups (3 fluffy cats, 3 marshmallow shibas, and 3 chunky anime mecha: ZZ Gundam, Sazabi, and Nu Gundam) with 36 transparent WebP illustrations covering drink, rest, eye care, and break states.
+- Added 3 modern light/dark color palettes (**Daylight Peach**, **Aurora Indigo**, and **Cloud Porcelain**) plus an **Auto** mode that pairs palettes to the active companion group and synchronizes across the main window, settings, modals, charts, and notification popups.
+- Added a main-window companion status banner with quick character switching, an embedded interactive live popup preview in Settings, and isolated dev configuration (`tauri.dev.conf.json`).
+
+### Improved
+
+- Refactored Settings into 3 focused tabs (Appearance & Companion, Reminders & Sound, System & Data) and added an active-group indicator dot for the companion picker.
+- Redesigned all 7 reminder icons, the flagship desktop application icon, and all 3 system tray status icons (idle, alert, muted) in a unified modern soft-3D ceramic-glass style.
+- Unified chart themes (`TrendChart` and `CompletionDoughnut`), modal tokens, and empty-state companion illustrations across all 19 languages while removing the legacy 293 KB empty-state image.
+
+### Fixed
+
+- Eliminated popup flicker and vertical jumps when starting a break via constant-height layouts, preloaded dual-layer crossfade illustrations, non-blinking action locks, and atomic Windows `SetWindowPos` updates.
+- Respected fullscreen suppression rules reliably and improved break completion presentation.
+- Fixed missing border and hover styling on the language selector and defined semantic danger/warning tokens across all palettes.
+
+### Verified
+
+- 95 frontend tests and 71 Rust backend tests passed, along with `vue-tsc`, `vite build`, and ESLint checks.
+- Windows remains the verified release platform. macOS and Linux packages are community preview assets and still require real-device validation.
+
 ## 0.1.12 Beta - 2026-10-22
 
 ### Fixed
